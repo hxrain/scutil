@@ -4,32 +4,30 @@
 local host = "20.0.2.154"
 local port = 8001
 
---引入 https://github.com/nrk/redis-lua 模块
-redis = require 'redis'
-
---伪装redis内部接口方法
-redis.call = function(cmd, ...) 
-    --原理是根据给定的cmd动态拼装redis客户端调用方法
-    return assert(loadstring('return client:'.. string.lower(cmd) ..'(...)'))(...)
-end
-
 --输出外部脚本执行结果
 local dump = function(v) 
     if nil ~= v then
-	print("----------------return---------------")
-	print(v)
-	print("-------------------------------------\n")
+        print("----------------return---------------")
+        if type(v)=='table' then
+            for i=1,#v do
+                print(v[i])
+            end
+            print('Total '..#v)
+        else
+            print(v)
+        end
+        print("-------------------------------------\n")
     else
-	print("done with non return")
+        print("done with non return")
     end
 end
 
 --执行外部脚本
 local exec = function (script_file)
 	print("executing script...")
-	s=loadfile(script_file)
+	local scritp=loadfile(script_file)
 	print("----------------output---------------")
-    return s()
+    return scritp()                 --执行外部脚本,可以跟踪进入逐行调试
 end
 
 --工作使用的变量
@@ -64,20 +62,17 @@ end
 
 --检查脚本参数
 if script_file == "" then
-    print("usage:\n\t lua.exe rt_test.lua -p xx -h xxx --eval script key1 key2 , arg1 arg2")
+    print("usage:\n\t lua.exe rt_check.lua -p xx -h xxx --eval script key1 key2 , arg1 arg2")
     return
 end
 
---连接目标redis
-print("connect to "..host..":"..port)
-client = redis.connect(host, port)
-if not client:ping() then
-	print("client " .. host..":"..port.." unreachable")
-	return
-end
+--导入redis与仿真模块
+emu = require 'rt_emu'
 
---执行外部脚本并输出结果
-dump(exec(script_file))
+--连接redis并执行外部脚本
+if emu(host,port) then
+    dump(exec(script_file))
+end
 
 
 
