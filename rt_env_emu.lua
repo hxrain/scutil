@@ -1,6 +1,11 @@
+--要求使用lua/5.3 版本的环境.
 
 --引入 https://github.com/nrk/redis-lua 模块
 redis = require 'redis'
+--引入 https://github.com/openresty/lua-cjson 模块
+cjson = require 'cjson'
+--引入 https://github.com/antirez/lua-cmsgpack 模块
+cmsgpack = require 'cmsgpack'
 
 --伪装redis内部日志打印方法
 redis.LOG_DEBUG='debug'
@@ -14,7 +19,7 @@ end
 --伪装redis内部接口调用方法
 redis.call = function(cmd, ...) 
     --原理是根据给定的cmd动态拼装redis客户端调用方法
-    local rc=loadstring('return client:'.. string.lower(cmd) ..'(...)')(...)
+    local rc=load('return client:'.. string.lower(cmd) ..'(...)')(...)
     
     --根据redis结果规则,将k/v值转换为k,v...顺序数组
     local ret={}

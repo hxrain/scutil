@@ -62,12 +62,12 @@ end
 
 --检查脚本参数
 if script_file == "" then
-    print("usage:\n\t lua.exe rt_check.lua -p xx -h xxx --eval script key1 key2 , arg1 arg2")
+    print("usage:\n\t lua.exe rt_env_dbg.lua -p xx -h xxx --eval script key1 key2 , arg1 arg2")
     return
 end
 
 --导入redis与仿真模块
-emu = require 'rt_emu'
+emu = require 'rt_env_emu'
 
 --连接redis并执行外部脚本
 if emu(host,port) then
