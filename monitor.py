@@ -4,6 +4,7 @@ import psutil
 import datetime
 import time
 import os
+import socket
 import logging  
 import logging.handlers
 import xml.etree.ElementTree as ET
@@ -203,6 +204,16 @@ def check_monitor_lists(items,log_on_ok=0):
     for i in items:
         i.check(log_on_ok)
 
+#-----------------------------------------------------------
+#利用指定的端口绑定完成进程脚本的单件模式;返回值:1锁定成功
+def singleton_check(port):
+    global singleton_sock
+    try:
+        singleton_sock=socket.socket()
+        singleton_sock.bind(('',port))
+        return 1
+    except:
+        return 0
 
 #***********************************************************
 #主函数启动
@@ -211,6 +222,11 @@ def check_monitor_lists(items,log_on_ok=0):
 #生成日志记录器
 log=make_ps_logger("monitor.log")
 
+#进行单实例检查，避免反复运行
+if singleton_check(10101)==0:
+    log.warn("monitor repeat run. exit.")
+    exit("monitor repeat run. exit.")
+    
 #输出系统静态信息
 log.info("")
 log.info("BOOT::%s",make_static_sysinfo())
