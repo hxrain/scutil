@@ -1,5 +1,5 @@
-﻿#! /usr/bin/env python
-# coding=utf-8
+#!/usr/bin/python
+#coding:utf-8
 import psutil
 import datetime
 import time
@@ -163,7 +163,7 @@ class mon_item_t:
         if self.pid==0:                                     #目标初始就不存在
             self.pid=start_cmdline(self.cmdline)
             if self.pid!=0:                                 #启动命令行与附带的事件
-                log.info("START::%s",make_realtime_psinfo(self.pid))
+                log.info("START::(%s)::%s",self.cmdline,make_realtime_psinfo(self.pid))
                 if self.onstart:
                     start_cmdline(self.onstart,True)        #需要对附加事件命令进行重复性判断，避免无限创建
             return 1
@@ -172,13 +172,13 @@ class mon_item_t:
             if pi==None or pi['cmdline']!=self.cmdline:     #目标无效，需要启动命令行与附带的事件
                 self.pid=start_cmdline(self.cmdline)
                 if self.pid!=0:
-                    log.info("RESTART::%s",make_realtime_psinfo(self.pid))
+                    log.info("RESTART::(%s)::%s",self.cmdline,make_realtime_psinfo(self.pid))
                     if self.onstart:
                         start_cmdline(self.onstart,True)    #需要对附加事件命令进行重复性判断，避免无限创建
                 return 2
             else:                                           #目标确实有效，根据标记给出日志
                 if log_on_ok!=0:
-                    log.info("OKAY::%s",pi)
+                    log.info("OKAY::(%s)::%s",self.cmdline,pi)
                 return 0
 
 #-----------------------------------------------------------
