@@ -1,0 +1,6 @@
+<cfgs>
+	<items>
+		<cmdline onstart='notepad.exe txt3'>notepad.exe txt1</cmdline>
+		<cmdline>notepad.exe txt2</cmdline>
+	</items>
+</cfgs>
