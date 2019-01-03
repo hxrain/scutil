@@ -132,14 +132,14 @@ def query_redis_info(red):
         info = red.info()
 
         rc = {}
+        # 状态.上线时间sec
+        rc['svr.uptime'] = info['uptime_in_seconds']
+        rc['svr.addr'] = dst_addr
         # 网络
-        rc['net.addr'] = dst_addr
         rc['net.cmds'] = info['total_commands_processed']
         rc['net.bytes_in'] = info['total_net_input_bytes']
         rc['net.bytes_out'] = info['total_net_output_bytes']
         rc['net.bytes_out'] = info['total_net_output_bytes']
-        # 状态.上线时间sec
-        rc['mem.uptime'] = info['uptime_in_seconds']
         # 状态.内存用量bytes
         rc['mem.total'] = info['used_memory']
         # 状态.内存峰值bytes
@@ -169,8 +169,6 @@ def query_redis_info(red):
             # aof 最后的实时写盘状态
             rc['aof.real_state'] = info['aof_last_write_status']
 
-        # 集群状态
-        rc['clt.enabled'] = info['cluster_enabled']
         # 复制状态.节点模式:0从节点/1主节点/2级联主节点
         rc['rep.mode'] = 1 if info['role'] == 'master' else 0
 
@@ -202,6 +200,30 @@ def query_redis_info(red):
                 rc[slave_key + '.link'] = 1 if si['state'] == 'online' else 0
                 # 生成从节点同步状态(是否与主节点同步了):1/0
                 rc[slave_key + '.sync'] = 1 if si['offset'] == info['master_repl_offset'] else 0
+
+        # 集群状态:1/0
+        rc['clt.enabled'] = info['cluster_enabled']
+        if rc['clt.enabled'] != 0:
+            # 动态获取集群信息
+            info = red.cluster('info')
+            # 获取集群状态:ok/...
+            rc['clt.state'] = info['cluster_state']
+            # 获取集群节点数量
+            rc['clt.nodes'] = info['cluster_known_nodes']
+            # 获取集群节点信息
+            info = red.cluster('nodes')
+            nc = 0
+            for nip in info:
+                # 拼装集群节点标识
+                nid = 'clt.nodes' + str(nc)
+                # 节点地址
+                rc[nid + '.addr'] = nip
+                # 节点在线状态
+                rc[nid + '.link'] = 1 if info[nip]['connected'] is True else 0
+                # 节点主从模式:1/0
+                rc[nid + '.mode'] = 1 if 'master' in info[nip]['flags'] else 0
+                nc = nc + 1
+
         return rc
     except redis.RedisError as e:
         G_log.error("query_redis_info:%s:%s", dst_addr, e)
