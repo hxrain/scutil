@@ -17,6 +17,7 @@ import struct
 from itertools import chain
 import logging
 import logging.handlers
+import glob
 
 # ---------------------------------------------------------
 # 配置参数.连接超时
@@ -133,6 +134,48 @@ def redis_lua_load(red, s):
 
 
 # ---------------------------------------------------------
+# 装载脚本文件file;返回值:成功时为sha字符串;失败时为None.
+def redis_lua_loadfile(red, file):
+    try:
+        f = open(file, 'r')
+        s = f.read()
+        f.close()
+        return red.script_load(s)
+    except redis.RedisError as e:
+        G_log.error("%s:%d::%s:%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red),
+                    file, e)
+        return None
+    except Exception as e:
+        G_log.error("%s:%d::%s:%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red),
+                    file, e)
+        return None
+
+
+# ---------------------------------------------------------
+# 装载脚本文件file;返回值:装载的文件数量;失败时为None.
+def redis_lua_loaddir(red, out_file='out.ini', dir=None):
+    try:
+        out = open(out_file, 'w')
+        out.write('[funcs]\n')
+        list = glob.glob('Lua_*.lua') if dir is None else glob.glob(dir)
+        rc = 0
+        for f in list:
+            sha = redis_lua_loadfile(red, f)
+            if sha is None:
+                continue
+            out.write(f.split('.')[0] + '=' + sha + '\n')
+            rc = rc + 1
+        out.close()
+        return rc
+    except redis.RedisError as e:
+        G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red), e)
+        return None
+    except Exception as e:
+        G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red), e)
+        return None
+
+
+# ---------------------------------------------------------
 # 判断指定sha对应的脚本是否存在;返回值:1存在;0不存在;None出错了.
 def redis_lua_exist(red, sha):
     try:
@@ -190,6 +233,7 @@ def redis_lua_exec(red, s, args=None, key_count=None):
         G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red), e)
         return None
 
+
 # ---------------------------------------------------------
 # 终止lua脚本的运行;返回值:1完成;0没有阻塞;None出错了.
 def redis_lua_kill(red):
@@ -204,6 +248,7 @@ def redis_lua_kill(red):
         G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red), e)
         return None
 
+
 # =========================================================
 
 G_red = make_redis_client('20.0.2.156:8000')
@@ -214,6 +259,7 @@ G_log.info(redis_lua_call(G_red, 'bc1911793137c7c871ce1616c22ce4461d9186f7'))
 G_log.info(redis_lua_exec(G_red, 'local var={}'))
 G_log.info(redis_lua_flush(G_red))
 G_log.info(redis_lua_kill(G_red))
+G_log.info(redis_lua_loaddir(G_red))
 
 # 标记脚本最终执行完毕
 end(0)
