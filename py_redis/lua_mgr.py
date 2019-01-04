@@ -18,25 +18,35 @@ from itertools import chain
 import logging
 import logging.handlers
 import glob
+import getopt
 
 # ---------------------------------------------------------
 # 配置参数.连接超时
 conn_timeout = 6
 # 配置参数.输出日志的json格式化缩进(None不格式化)
 log_json_indent = None
+# redis服务器默认地址
+redis_addr = '20.0.2.156:8000'
 
-# 本地主节点地址
-addr_local_master = '127.0.0.1:8000'
+# 进行命令参数的解析
+opts, args = getopt.getopt(sys.argv[1:], '', ['dst=', 'timeout='])
+
+# 进行参数值处理
+for name, val in opts:
+    if name == '--dst':
+        redis_addr = val
+    if name == '--timeout':
+        conn_timeout = int(val)
 
 
 # ---------------------------------------------------------
-# 生成指定进程名字对应的日志记录器
-def make_ps_logger(psname, path='./log/'):
+def make_ps_logger(psname, path='./'):
+    '生成指定进程名字对应的日志记录器'
     if not os.path.exists(path):
         os.mkdir(path)
 
     # 生成文件写入器
-    filehandler = logging.handlers.RotatingFileHandler(path + psname, maxBytes=1024 * 1024 * 16, backupCount=64)
+    filehandler = logging.handlers.RotatingFileHandler(path + psname, maxBytes=0, mode='w', backupCount=0)
     filehandler.setLevel(logging.DEBUG)
     filehandler.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
 
@@ -47,28 +57,28 @@ def make_ps_logger(psname, path='./log/'):
 
     # 写入初始启动标识串
     ps_logger.info("")
-    ps_logger.info("CHKREDIS.START")
+    ps_logger.info("lua_mgr.START")
     return ps_logger
 
 
 # ---------------------------------------------------------
 # 生成日志记录器
-G_log = make_ps_logger("chkredis.log")
+G_log = make_ps_logger("lua_mgr.log")
 
 
 # ---------------------------------------------------------
-# 结束当前脚本,记录结束标识串并退出.
 def end(code):
+    '结束当前脚本,记录结束标识串并退出.'
     if code == 0:
-        G_log.info("CHKREDIS.END_OK")
+        G_log.info("lua_mgr.END_OK")
     else:
-        G_log.info("CHKREDIS.END_BAD")
+        G_log.info("lua_mgr.END_BAD")
     exit(code)
 
 
 # ---------------------------------------------------------
-# 生成redis客户端对象
 def make_redis_client(dst_host, dst_port=None):
+    '生成redis客户端对象'
     if dst_host is None and dst_port is None:
         return None
 
@@ -96,8 +106,8 @@ def make_redis_client(dst_host, dst_port=None):
 
 
 # ---------------------------------------------------------
-# 根据redis客户端对象,获取其连接的目标地址
 def get_red_addr(red):
+    '根据redis客户端对象,获取其连接的目标地址'
     red_host = red.connection_pool.connection_kwargs['host']
     red_port = red.connection_pool.connection_kwargs['port']
     red_addr = red_host + ':' + str(red_port)
@@ -105,8 +115,8 @@ def get_red_addr(red):
 
 
 # ---------------------------------------------------------
-# 强制关闭连接池,避免产生TIME_WAIT状态
 def red_close(red):
+    '强制关闭连接池,避免产生TIME_WAIT状态'
     all_conns = chain(red.connection_pool._available_connections,
                       red.connection_pool._in_use_connections)
     for connection in all_conns:
@@ -121,8 +131,8 @@ def red_close(red):
 
 
 # ---------------------------------------------------------
-# 装载脚本串s;返回值:成功时为sha字符串;失败时为None.
 def redis_lua_load(red, s):
+    '装载脚本串s;返回值:成功时为sha字符串;失败时为None.'
     try:
         return red.script_load(s)
     except redis.RedisError as e:
@@ -134,13 +144,37 @@ def redis_lua_load(red, s):
 
 
 # ---------------------------------------------------------
-# 装载脚本文件file;返回值:成功时为sha字符串;失败时为None.
-def redis_lua_loadfile(red, file):
+def load_from_file(src_file):
+    '装载指定的文件内容;返回值:None错误;其他为内容'
     try:
-        f = open(file, 'r')
+        f = open(src_file, 'r')
         s = f.read()
         f.close()
-        return red.script_load(s)
+        return s
+    except Exception as e:
+        G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, src_file, e)
+        return None
+
+
+# ---------------------------------------------------------
+def save_to_file(dst_file, s):
+    '保存s到指定的文件dst_file;返回值:None错误;其他为内容长度'
+    try:
+        f = open(dst_file, 'w')
+        f.write(s)
+        f.close()
+        return len(s)
+    except Exception as e:
+        G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, dst_file, e)
+        return None
+
+
+# ---------------------------------------------------------
+def redis_lua_loadfile(red, file):
+    '装载脚本文件file;返回值:成功时为sha字符串;失败时为None.'
+    try:
+        s = load_from_file(file)
+        return None if s is None else red.script_load(s)
     except redis.RedisError as e:
         G_log.error("%s:%d::%s:%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red),
                     file, e)
@@ -152,18 +186,22 @@ def redis_lua_loadfile(red, file):
 
 
 # ---------------------------------------------------------
-# 装载脚本文件file;返回值:装载的文件数量;失败时为None.
-def redis_lua_loaddir(red, out_file='out.ini', dir=None):
+def redis_lua_loaddir(red, out_file='lua_func.ini', wildcard='Lua_*.lua'):
+    '''
+        根据通配符wildcard装载脚本文件到red对应的服务器,并将sha结果与脚本文件名的对应关系输出到out_file;
+        返回值:装载的文件数量;失败时为None.
+    '''
+
     try:
         out = open(out_file, 'w')
         out.write('[funcs]\n')
-        list = glob.glob('Lua_*.lua') if dir is None else glob.glob(dir)
+        list = glob.glob(wildcard)
         rc = 0
         for f in list:
             sha = redis_lua_loadfile(red, f)
             if sha is None:
                 continue
-            out.write(f.split('.')[0] + '=' + sha + '\n')
+            out.write(os.path.splitext(os.path.basename(f))[0] + '=' + sha + '\n')
             rc = rc + 1
         out.close()
         return rc
@@ -176,8 +214,8 @@ def redis_lua_loaddir(red, out_file='out.ini', dir=None):
 
 
 # ---------------------------------------------------------
-# 判断指定sha对应的脚本是否存在;返回值:1存在;0不存在;None出错了.
 def redis_lua_exist(red, sha):
+    '判断指定sha对应的脚本是否存在;返回值:1存在;0不存在;None出错了.'
     try:
         return 1 if True in red.script_exists(sha) else 0
     except redis.RedisError as e:
@@ -189,8 +227,8 @@ def redis_lua_exist(red, sha):
 
 
 # ---------------------------------------------------------
-# 清空全部lua脚本缓存,必须重新装载;返回值:1存在;0不存在;None出错了.
 def redis_lua_flush(red):
+    '清空全部lua脚本缓存,必须重新装载;返回值:1存在;0不存在;None出错了.'
     try:
         return 1 if red.script_flush() is True else 0
     except redis.RedisError as e:
@@ -202,9 +240,11 @@ def redis_lua_flush(red):
 
 
 # ---------------------------------------------------------
-# 调用sha对应的脚本,args为脚本的键与参数列表;key_count告知列表中key的数量,默认认为全部都是key.
-# 返回值:None出错了;否则为脚本返回内容
 def redis_lua_call(red, sha, args=None, key_count=None):
+    '''
+        调用sha对应的脚本,args为脚本的键与参数列表;key_count告知列表中key的数量,默认认为全部都是key.
+        返回值:None出错了;否则为脚本返回内容
+    '''
     try:
         if key_count is None:
             key_count = 0 if args is None else len(args)
@@ -218,9 +258,11 @@ def redis_lua_call(red, sha, args=None, key_count=None):
 
 
 # ---------------------------------------------------------
-# 调用s对应的脚本,args为脚本的键与参数列表;key_count告知列表中key的数量,默认认为全部都是key.
-# 返回值:None出错了;否则为脚本返回内容(没有内容时为'')
 def redis_lua_exec(red, s, args=None, key_count=None):
+    '''
+        调用s对应的脚本,args为脚本的键与参数列表;key_count告知列表中key的数量,默认认为全部都是key.
+        返回值:None出错了;否则为脚本返回内容(没有内容时为'')
+    '''
     try:
         if key_count is None:
             key_count = 0 if args is None else len(args)
@@ -235,8 +277,8 @@ def redis_lua_exec(red, s, args=None, key_count=None):
 
 
 # ---------------------------------------------------------
-# 终止lua脚本的运行;返回值:1完成;0没有阻塞;None出错了.
 def redis_lua_kill(red):
+    '终止lua脚本的运行;返回值:1完成;0没有阻塞;None出错了.'
     try:
         return 1 if red.script_kill() is True else 0
     except redis.RedisError as e:
@@ -249,17 +291,97 @@ def redis_lua_kill(red):
         return None
 
 
+# ---------------------------------------------------------
+def lua_script_preproc(src_file, out_dir='./out/'):
+    '''
+        对指定的lua脚本进行预处理,进行dofile文件的引入替换,输出到指定路径
+        返回值:None出错;>=0为新文件长度
+    '''
+
+    def query_lua_dofile(s):
+        '在指定的串s中查找lua语句dofile("xxx.lua");返回值:None错误;tuple元组(完整字符串,文件名)'
+        try:
+            bp = s.find('dofile("')
+            if bp == -1:
+                return '', ''
+            ep = s.find('")', bp + 8)
+            if ep == -1:
+                return '', ''
+            return s[bp:ep + 2], s[bp + 8:ep]
+        except Exception as e:
+            G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, src_file, e)
+            return None
+
+    try:
+        # 检查目标目录是否存在
+        if not os.path.exists(out_dir):
+            os.mkdir(out_dir)
+
+        # 装载源文件内容
+        s = load_from_file(src_file)
+        if s is None:
+            return None
+
+        basedir = os.path.dirname(src_file)
+
+        # 对源文件内容进行循环检查
+        fs, ss = query_lua_dofile(s)
+        while fs != '' and ss != '':
+            # 装载目标文件内容
+            fc = load_from_file(basedir + '/' + ss)
+            if fc is None:
+                return None
+            # 将源文件中的'dofile("xxx.lua")'字符串替换为xxx.lua中的内容
+            s = s.replace(fs, fc)
+            # 继续查找源文件内容
+            fs, ss = query_lua_dofile(s)
+        # 最终将处理过的内容输出到目标目录
+        return save_to_file(out_dir + os.path.basename(src_file), s)
+
+    except Exception as e:
+        G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, src_file, e)
+        return None
+
+
+# ---------------------------------------------------------
+def lua_dir_preproc(wildcard='Lua_*.lua', out_dir='./out/'):
+    '根据通配符预处理脚本文件目录;返回值:装载的文件数量;失败时为None.'
+    try:
+        list = glob.glob(wildcard)
+        rc = 0
+        for f in list:
+            if lua_script_preproc(f, out_dir) is None:
+                return None
+            rc = rc + 1
+        return rc
+    except redis.RedisError as e:
+        G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red), e)
+        return None
+    except Exception as e:
+        G_log.error("%s:%d::%s:%s", sys._getframe().f_code.co_name, sys._getframe().f_lineno, get_red_addr(red), e)
+        return None
+
+
 # =========================================================
+# redis/lua脚本预处理
+filecount = lua_dir_preproc(wildcard='./lua/Lua_*.lua')
+if filecount is None:
+    end(-1)
+else:
+    G_log.info("lua_dir_preproc file count is (%d)", filecount)
 
-G_red = make_redis_client('20.0.2.156:8000')
+# 生成redis客户端
+G_red = make_redis_client(redis_addr)
+if G_red is None:
+    end(-2)
 
-G_log.info(redis_lua_load(G_red, 'return 12'))
-G_log.info(redis_lua_exist(G_red, 'bc1911793137c7c871ce1616c22ce4461d9186f7'))
-G_log.info(redis_lua_call(G_red, 'bc1911793137c7c871ce1616c22ce4461d9186f7'))
-G_log.info(redis_lua_exec(G_red, 'local var={}'))
-G_log.info(redis_lua_flush(G_red))
-G_log.info(redis_lua_kill(G_red))
-G_log.info(redis_lua_loaddir(G_red))
+# 将预处理后的脚本装载到服务器并记录sha列表
+filecount = redis_lua_loaddir(G_red, out_file='./out/lua_func.ini', wildcard='./out/Lua_*.lua')
+if filecount is None:
+    end(-3)
+else:
+    G_log.info("redis_lua_loaddir file count is (%d)", filecount)
 
+# =========================================================
 # 标记脚本最终执行完毕
 end(0)
