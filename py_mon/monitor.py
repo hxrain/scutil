@@ -171,11 +171,14 @@ def start_cmdline(cli, repeat_check=False):
     try:
         if repeat_check and find_pid_by_cmdline(cli) != 0:
             return 0
+        cwd = os.path.dirname(cli)
+        if cwd=='':
+            cwd = os.getcwd()
 
-        sp = psutil.Popen(cli, close_fds=True, cwd=os.path.dirname(cli))
+        sp = psutil.Popen(cli, close_fds=True, cwd=cwd)
         return sp.pid
-    except:
-        log.error("BADCLI::%s", cli)
+    except Exception as e:
+        log.error("BADCLI::%s >> %s", cli,e)
         return 0
 
 
