@@ -8,6 +8,7 @@ import socket
 import logging
 import logging.handlers
 import xml.etree.ElementTree as ET
+import argparse
 
 '''
     进程监控脚本的设计目标：
@@ -104,10 +105,11 @@ def make_realtime_sysinfo():
         rc['disk.total(G)'] = round(di.total / (1024.0 * 1024.0 * 1024.0), 4)
 
         ii = psutil.disk_io_counters()  # 磁盘IO情况
-        rc['disk.read_bytes(M)'] = round(ii.read_bytes / (1024.0 * 1024.0), 4)
-        rc['disk.write_bytes(M)'] = round(ii.write_bytes / (1024.0 * 1024.0), 4)
-        rc['disk.read_time(s)'] = round(ii.read_time / (1000.0), 3)
-        rc['disk.write_time(s)'] = round(ii.write_time / (1000.0), 3)
+        if ii is not None:
+            rc['disk.read_bytes(M)'] = round(ii.read_bytes / (1024.0 * 1024.0), 4)
+            rc['disk.write_bytes(M)'] = round(ii.write_bytes / (1024.0 * 1024.0), 4)
+            rc['disk.read_time(s)'] = round(ii.read_time / (1000.0), 3)
+            rc['disk.write_time(s)'] = round(ii.write_time / (1000.0), 3)
         return rc
     except Exception as e:
         log.error("make_realtime_sysinfo.ERR:%s:%s", e.__class__, e)
@@ -147,6 +149,8 @@ def make_realtime_psinfo(pid):
         return rc
     except psutil.NoSuchProcess as e:
         return None
+    except psutil.AccessDenied as e:
+        return None
     except Exception as e:
         log.error("make_realtime_psinfo.ERR:%s:%s", e.__class__, e)
         return None
@@ -165,20 +169,30 @@ def find_pid_by_cmdline(cmdline):
     return 0
 
 
+G_start_idx = 1
+
+
 # -----------------------------------------------------------
 # 启动指定的命令行,可进行重复性检查;返回值：进程pid,0错误
-def start_cmdline(cli, repeat_check=False):
+def start_cmdline(cli, repeat_check=False, affinity=None):
     try:
-        if repeat_check and find_pid_by_cmdline(cli) != 0:
-            return 0
+        if repeat_check:
+            pid=find_pid_by_cmdline(cli)
+            if pid!=0:
+                return pid
+
         cwd = os.path.dirname(cli)
-        if cwd=='':
+        if cwd == '':
             cwd = os.getcwd()
 
         sp = psutil.Popen(cli, close_fds=True, cwd=cwd)
+        if affinity == '1':
+            global G_start_idx
+            sp.cpu_affinity([G_start_idx % psutil.cpu_count()])
+            G_start_idx += 1
         return sp.pid
     except Exception as e:
-        log.error("BADCLI::%s >> %s", cli,e)
+        log.error("BADCLI::%s >> %s", cli, e)
         return 0
 
 
@@ -195,7 +209,7 @@ class mon_item_t:
     # 执行监控项的检查
     def check(self, log_on_ok):
         if self.pid == 0:  # 目标初始就不存在
-            self.pid = start_cmdline(self.cmdline)
+            self.pid = start_cmdline(self.cmdline, affinity='1')
             if self.pid != 0:  # 启动命令行与附带的事件
                 log.info("START::(%s)::%s", self.cmdline, make_realtime_psinfo(self.pid))
                 if self.onstart:
@@ -204,7 +218,7 @@ class mon_item_t:
         else:  # 目标存在需检查有效性
             pi = make_realtime_psinfo(self.pid)
             if pi == None or pi['cmdline'] != self.cmdline:  # 目标无效，需要启动命令行与附带的事件
-                self.pid = start_cmdline(self.cmdline)
+                self.pid = start_cmdline(self.cmdline,True, affinity='1')
                 if self.pid != 0:
                     log.info("RESTART::(%s)::%s", self.cmdline, make_realtime_psinfo(self.pid))
                     if self.onstart:
@@ -253,16 +267,38 @@ def singleton_check(port):
         return 0
 
 
+# -----------------------------------------------------------
+# 简单的被动计时器
+class timer:
+    def __init__(self, interval_ms):
+        self.tick = int(time.clock() * 1000)
+        self.interval = interval_ms
+
+    def timing(self):
+        tick = int(time.clock() * 1000)
+        if tick - self.tick > self.interval:
+            self.tick = tick
+            return True
+        return False
+
+# 定义并处理命令行参数
+def get_params():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port_lock", type=int, default=10101, help="monitor port locker")
+    return parser.parse_args()
+    
 # ***********************************************************
 # 主函数启动
 # ***********************************************************
+
+cli_args=get_params()
 
 # 生成日志记录器
 log = make_ps_logger("monitor.log")
 
 # 进行单实例检查，避免反复运行
-if singleton_check(10101) == 0:
-    log.warn("monitor repeat run. exit.")
+if singleton_check(cli_args.port_lock) == 0:
+    log.info("monitor repeat run. exit.")
     exit("monitor repeat run. exit.")
 
 # 输出系统静态信息
@@ -283,10 +319,11 @@ while mon_items == None:
 check_monitor_lists(mon_items)
 
 # 进程状态周期检查,同时周期性输出系统状态
-scount = 1
+timer_os_stat = timer(60 * 1000)
+timer_ps_stat = timer(30 * 1000)
+
 while 1:
-    check_monitor_lists(mon_items, scount % 10 == 0)
-    scount = scount + 1
-    if scount % 20 == 0:
+    check_monitor_lists(mon_items, timer_ps_stat.timing())
+    if timer_os_stat.timing():
         log.info("OS::%s", make_realtime_sysinfo())
     sleep(500)
