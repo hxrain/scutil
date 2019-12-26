@@ -7,6 +7,81 @@ from lxml import html
 from lxml.html.clean import Cleaner
 from xml.dom import minidom
 import json
+import logging
+import logging.handlers
+import os
+import html as hp
+import time
+
+
+# -----------------------------------------------------------------------------
+# 进行URL编码
+def encodeURIComponent(url):
+    url = hp.unescape(url)
+    url = up.quote_plus(url, safe='', encoding='utf-8')
+    return url
+
+
+def url_ext_match(url, exts):
+    '判断url对应的文件是否与给定的扩展名匹配'
+    ext = up.urlparse(url)
+    if ext.path == '' or ext.path == '/':
+        return False
+
+    ext = os.path.splitext(ext.path)[1].strip().lower()
+    if ext in exts:
+        return True
+
+    return False
+
+
+# -----------------------------------------------------------------------------
+# 判断两个url是否相同(包含了URI编码后的情况)
+def url_equ(a, b):
+    if a == b:
+        return True
+
+    if a.startswith('file:///'):
+        a = a[8:].replace(':///', ':/')
+        a = a.replace('://', ':/')
+    if b.startswith('file:///'):
+        b = b[8:].replace(':///', ':/')
+        b = b.replace('://', ':/')
+
+    if up.unquote(a) == b:
+        return True
+
+    if up.unquote(b) == a:
+        return True
+
+    return False
+
+
+# -----------------------------------------------------------------------------
+# 生成指定路径的日志记录器
+def make_logger(pspath, lvl=logging.DEBUG):
+    # 生成日志记录器
+    ps_logger = logging.getLogger()
+    ps_logger.setLevel(lvl)
+
+    # 生成文件处理器
+    filehandler = logging.handlers.WatchedFileHandler(pspath, encoding='utf-8')
+    filehandler.setLevel(lvl)
+    filehandler.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
+
+    # 日志记录器绑定文件处理器
+    ps_logger.addHandler(filehandler)
+    return ps_logger
+
+
+# -----------------------------------------------------------------------------
+# 将数据保存到fn对应的文件中
+def save_file(fn, data, encoding='utf-8'):
+    if type(data).__name__ == 'str':
+        data = data.encode(encoding)
+    f = open(fn, "wb+")
+    f.write(data)
+    f.close()
 
 
 # -----------------------------------------------------------------------------
@@ -175,36 +250,41 @@ def json2xml(jstr, indent=True, utf8=False):
 
 
 # -----------------------------------------------------------------------------
-# 对cnt_str进行xpath查询,查询表达式为cc_xpath
-# 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
-# 元素可以访问text与attrib字典
-def query_xpath(cnt_str, cc_xpath):
+# 将xml串str抽取重构为rules指定的格式条目{'条目名称':'xpath表达式'}
+def xml_extract(str, rules, rootName='结果'):
+    qr = {}
     try:
-        HTMLRoot = etree.HTML(cnt_str)
-        r = HTMLRoot.xpath(cc_xpath)
-        return r, ''
+        xp = xpath(str)
+        rows = 99999999999
+        # 先根据给定的规则,查询得到各个分量的结果
+        for tag, p in rules.items():
+            qr[tag] = xp.query(p)[0]
+            rows = min(rows, len(qr[tag]))  # 获取最少的结果数量
 
-    except etree.XPathEvalError as e:
-        return [], str(e)
+        for tag, p in rules.items():
+            if len(qr[tag]) > rows:
+                return None, 'xpath查询结果数量不等 <%s> :: %s' % (tag, p)
+
+        if rows == 0:
+            return 0, ''  # 没有匹配的结果
+
+        # 创建输出xml文档与根节点
+        document = minidom.Document()
+        root = document.createElement(rootName)
+
+        # 行循环,逐一输出各个节点中的条目列
+        for i in range(rows):
+            node = document.createElement('%d' % (i + 1))  # 序号节点
+            for tag in rules:
+                n = document.createElement(tag)  # 条目节点
+                n.appendChild(document.createTextNode(qr[tag][i]))  # 条目内容
+                node.appendChild(n)  # 条目节点挂载到序号节点
+            root.appendChild(node)  # 序号节点挂载到根节点
+        document.appendChild(root)  # 根节点挂载到文档对象
+
+        return rows, document.toprettyxml(indent='\t')  # 输出最终结果
     except Exception as e:
-        return [], str(e)
-
-
-# -----------------------------------------------------------------------------
-# 对cnt_str进行re查询,re表达式为cc_re,提取的结果捕获组为group,(默认为全部匹配结果)
-# 返回值为(['结果串列表'],'错误说明'),如果错误说明串不为空则代表发生了错误
-def query_re(cnt_str, cc_re, group=None):
-    try:
-        m = re.findall(cc_re, cnt_str, re.DOTALL)
-        if m is None:
-            return '', ''
-        if group is not None:
-            return [m[group]], ''
-        return m, ''
-    except re.error as e:
-        return [], str(e)
-    except Exception as e:
-        return [], str(e)
+        return None, str(e)
 
 
 # -----------------------------------------------------------------------------
@@ -263,6 +343,95 @@ def format_xml2(html_soup):
         return html.tostring(root, encoding='utf-8', pretty_print=True, method='xml').decode('utf-8')
     except:
         return html_soup
+
+
+# 修正xml串xstr中的自闭合节点与空内容节点值为dst
+def fix_xml_node(xstr, dst='-'):
+    ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, xstr)
+    return re.sub('<([^>/]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)
+
+
+# -----------------------------------------------------------------------------
+# 获取时间串,默认为当前时间
+def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
+    if dt is None:
+        dt = time.localtime()
+    return time.strftime(fmt, dt)
+
+
+# -----------------------------------------------------------------------------
+# 对cnt_str进行xpath查询,查询表达式为cc_xpath
+# 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
+# 元素可以访问text与attrib字典
+def query_xpath(cnt_str, cc_xpath):
+    try:
+        HTMLRoot = etree.HTML(fix_xml_node(cnt_str))
+        r = HTMLRoot.xpath(cc_xpath)
+        return r, ''
+
+    except etree.XPathEvalError as e:
+        return [], str(e)
+    except Exception as e:
+        return [], str(e)
+
+
+class xpath:
+    def __init__(self, cntstr):
+        cnt_str = fix_xml_node(cntstr)
+        self.cnt_str = None
+        try:
+            self.rootNode = etree.HTML(cnt_str)
+            self.cnt_str = cnt_str
+        except:
+            pass
+
+        if self.cnt_str is None:
+            try:
+                self.cnt_str = html.html_to_xhtml(cnt_str)
+                self.rootNode = etree.HTML(self.cnt_str)
+            except:
+                self.cnt_str = None
+                pass
+
+        if self.cnt_str is None:
+            self.cnt_str = format_html2(cnt_str)
+            try:
+                self.rootNode = etree.HTML(self.cnt_str)
+            except:
+                self.cnt_str = None
+                pass
+
+        if self.cnt_str is None:
+            self.cnt_str = "ERROR"
+
+    # 进行xpath查询,查询表达式为cc_xpath
+    # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
+    # 元素可以访问text与attrib字典
+    def query(self, cc_xpath):
+        try:
+            r = self.rootNode.xpath(cc_xpath)
+            return r, ''
+        except etree.XPathEvalError as e:
+            return [], str(e)
+        except Exception as e:
+            return [], str(e)
+
+
+# -----------------------------------------------------------------------------
+# 对cnt_str进行re查询,re表达式为cc_re,提取的结果序号为idx,(默认为全部匹配结果)
+# 返回值为([结果列表],'错误说明'),如果错误说明串不为空则代表发生了错误
+def query_re(cnt_str, cc_re, idx=None):
+    try:
+        m = re.findall(cc_re, cnt_str, re.DOTALL)
+        if m is None:
+            return '', ''
+        if idx is not None:
+            return [m[idx]], ''
+        return m, ''
+    except re.error as e:
+        return [], str(e)
+    except Exception as e:
+        return [], str(e)
 
 
 # -----------------------------------------------------------------------------
@@ -356,6 +525,11 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     proxy = req['PROXY'] if req and 'PROXY' in req else None
     HEAD = req['HEAD'] if req and 'HEAD' in req else None
     BODY = req['BODY'] if req and 'BODY' in req else None
+
+    if proxy is not None:
+        m = re.search(r'(^http[s]?)(://)', proxy)
+        if m is not None:
+            proxy = {m.group(1): proxy}
 
     COOKIE = req['COOKIE'] if req and 'COOKIE' in req else None
     # 进行cookie管理与合并
@@ -480,3 +654,27 @@ class spd_base:
     # 保存cookie到文件
     def cookies_save(self):
         save_cookie_storage(self.cookieMgr, self.ckm_filename)
+
+    # 获取过程中出现的错误
+    def get_error(self):
+        return self.rst['error']
+
+    # 获取回应状态码
+    def get_status_code(self):
+        return self.rst['status_code']
+
+    # 获取回应状态简述
+    def get_status_reason(self):
+        return self.rst['status_reason']
+
+    # 获取回应头,字典
+    def get_HEAD(self):
+        return self.rst['HEAD']
+
+    # 获取会话回应cookie字典
+    def get_COOKIE(self):
+        return self.rst['COOKIE']
+
+    # 获取回应内容,解压缩转码后的内容
+    def get_BODY(self):
+        return self.rst['BODY']
