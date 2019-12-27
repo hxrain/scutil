@@ -13,6 +13,9 @@ import os
 import html as hp
 import time
 
+#调整requests模块的默认日志级别,避免无用调试信息的输出
+logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 # -----------------------------------------------------------------------------
 # 进行URL编码
@@ -251,7 +254,7 @@ def json2xml(jstr, indent=True, utf8=False):
 
 # -----------------------------------------------------------------------------
 # 将xml串str抽取重构为rules指定的格式条目{'条目名称':'xpath表达式'}
-def xml_extract(str, rules, rootName='结果'):
+def xml_extract(str, rules, rootName='条目'):
     qr = {}
     try:
         xp = xpath(str)
@@ -527,9 +530,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     BODY = req['BODY'] if req and 'BODY' in req else None
 
     if proxy is not None:
-        m = re.search(r'(^http[s]?)(://)', proxy)
-        if m is not None:
-            proxy = {m.group(1): proxy}
+        proxy = {'http': proxy,'https': proxy}
 
     COOKIE = req['COOKIE'] if req and 'COOKIE' in req else None
     # 进行cookie管理与合并
