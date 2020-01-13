@@ -377,7 +377,7 @@ def query_xpath(cnt_str, cc_xpath):
     except Exception as e:
         return [], str(e)
 
-
+#可进行多次xpath查询的功能对象
 class xpath:
     def __init__(self, cntstr):
         cnt_str = fix_xml_node(cntstr)
