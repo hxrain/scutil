@@ -206,7 +206,7 @@ class ttf_query_mgr:
             if k in self.glyphs:
                 rst[c] = self.glyphs[k]['w']
             else:
-                rst[c] = '?'
+                rst[c] = '??'
         return rst
 
 
