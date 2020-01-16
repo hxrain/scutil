@@ -34,8 +34,8 @@ def data2file(data, fname):
 
 
 # 装载指定文件的内容
-def loadfile(fname):
-    f = open(fname, 'r')
+def loadfile(fname,mode='r'):
+    f = open(fname, mode)
     rst = f.read()
     f.close()
     return rst
@@ -44,10 +44,14 @@ def loadfile(fname):
 # 定义字体工具类
 class ttf_utils:
     def __init__(self, fntStr):
-        # 将输入的base64编码的TTF数据,放入字节读取器
-        infile = BytesIO(base64.decodebytes(fntStr))
-        # 定义TTF字体解析器
-        self.font = ttLib.TTFont(infile)
+        if fntStr is not None:
+            # 将输入的base64编码的TTF数据,放入字节读取器
+            infile = BytesIO(base64.decodebytes(fntStr))
+            # 定义TTF字体解析器
+            self.font = ttLib.TTFont(infile)
+
+    def open(self, fname):
+        self.font = ttLib.TTFont(fname)
 
     def export_xml(self):
         # 定义输出字符串缓冲区
@@ -62,6 +66,13 @@ class ttf_utils:
 # 解析base64编码的ttf数据并得到xml格式串
 def base64ttf_to_xml(fnt):
     f = ttf_utils(fnt)
+    return f.export_xml()
+
+
+# 解析ttf文件并导出xml格式串
+def filettf_to_xml(fname):
+    f = ttf_utils(None)
+    f.open(fname)
     return f.export_xml()
 
 
