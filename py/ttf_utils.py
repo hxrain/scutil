@@ -227,7 +227,7 @@ class ttf_query_mgr:
         rst = self.query(fntStr)
         x = ['<root>']
         for k in rst:
-            x.append('<code src="&#x%s;" dst="%s"/>' % (k, rst[k]))
+            x.append('<code src="&amp;#x%s;" dst="%s"/>' % (k, rst[k]))
         x.append('</root>')
         return '\n'.join(x)
 
