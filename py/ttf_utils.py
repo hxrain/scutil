@@ -34,7 +34,7 @@ def data2file(data, fname):
 
 
 # 装载指定文件的内容
-def loadfile(fname,mode='r'):
+def loadfile(fname, mode='r'):
     f = open(fname, mode)
     rst = f.read()
     f.close()
@@ -208,6 +208,8 @@ class ttf_query_mgr:
 
     # 给定字体串,查询里面含有的小字库字符集与标准字符集的对应关系
     def query(self, fntStr):
+        if fntStr is None or fntStr == b'':
+            return {}
         ti = ttf_infos(base64ttf_to_xml(fntStr))
         codes = ti.get_codes()
         rst = {}
@@ -219,6 +221,15 @@ class ttf_query_mgr:
             else:
                 rst[c] = '??'
         return rst
+
+    # 查询字体串,得到xml格式的对应关系
+    def query_xml(self, fntStr):
+        rst = self.query(fntStr)
+        x = ['<root>']
+        for k in rst:
+            x.append('<code src="&#x%s;" dst="%s"/>' % (k, rst[k]))
+        x.append('</root>')
+        return '\n'.join(x)
 
 
 if __name__ == '__main__':
