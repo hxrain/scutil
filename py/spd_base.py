@@ -1,21 +1,57 @@
-import urllib.parse as up
-import requests
-import re
+import html as hp
 import http.cookiejar as cookiejar
-from lxml import etree
-from lxml import html
-from lxml.html.clean import Cleaner
-from xml.dom import minidom
 import json
 import logging
 import logging.handlers
 import os
-import html as hp
+import re
 import time
+import urllib.parse as up
+from xml.dom import minidom
 
-#调整requests模块的默认日志级别,避免无用调试信息的输出
+import requests
+from lxml import etree
+from lxml import html
+from lxml.html.clean import Cleaner
+
+# 调整requests模块的默认日志级别,避免无用调试信息的输出
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+
+# -----------------------------------------------------------------------------
+# 从json文件装载字典
+def dict_load(fname,encoding=None):
+    try:
+        fp = open(fname, 'r', encoding=encoding)
+        ret = json.load(fp)
+        fp.close()
+        return ret
+    except:
+        return None
+
+
+# 保存词典到文件
+def dict_save(fname, dct,encoding=None):
+    try:
+        fp = open(fname, 'w', encoding=encoding)
+        json.dump(dct, fp, indent=4, ensure_ascii=False)
+        fp.close()
+        return True
+    except:
+        return False
+
+
+# 追加字符串到文件
+def line_save(fname, dat):
+    try:
+        fp = open(fname, 'a')
+        fp.writelines([dat, '\n'])
+        fp.close()
+        return True
+    except:
+        return False
+
 
 # -----------------------------------------------------------------------------
 # 进行URL编码
@@ -75,6 +111,12 @@ def make_logger(pspath, lvl=logging.DEBUG):
     # 日志记录器绑定文件处理器
     ps_logger.addHandler(filehandler)
     return ps_logger
+
+
+def bind_logger_console(lg, lvl=logging.ERROR):
+    stm = logging.StreamHandler()
+    stm.setLevel(lvl)
+    lg.addHandler(stm)
 
 
 # -----------------------------------------------------------------------------
@@ -377,7 +419,8 @@ def query_xpath(cnt_str, cc_xpath):
     except Exception as e:
         return [], str(e)
 
-#可进行多次xpath查询的功能对象
+
+# 可进行多次xpath查询的功能对象
 class xpath:
     def __init__(self, cntstr):
         cnt_str = fix_xml_node(cntstr)
@@ -530,7 +573,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     BODY = req['BODY'] if req and 'BODY' in req else None
 
     if proxy is not None:
-        proxy = {'http': proxy,'https': proxy}
+        proxy = {'http': proxy, 'https': proxy}
 
     COOKIE = req['COOKIE'] if req and 'COOKIE' in req else None
     # 进行cookie管理与合并
