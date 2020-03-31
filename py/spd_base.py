@@ -43,15 +43,34 @@ def dict_save(fname, dct,encoding=None):
 
 
 # 追加字符串到文件
-def line_save(fname, dat):
+def append_line(fname, dat, encoding=None):
     try:
-        fp = open(fname, 'a')
+        fp = open(fname, 'a', encoding=encoding)
         fp.writelines([dat, '\n'])
         fp.close()
         return True
     except:
         return False
 
+# 装载指定文件的内容
+def load_from_file(fname, encode='utf-8',mode='r'):
+    try:
+        f = open(fname, mode, encoding=encode)
+        rst = f.read()
+        f.close()
+        return rst
+    except e as Exception:
+        return None
+        
+#保存指定内容到文件
+def save_to_file(fname,strdata,encode='utf-8',mode='w'):
+    try:
+        f = open(fname, mode, encoding=encode)
+        f.write(strdata)
+        f.close()
+        return True
+    except:
+        return False
 
 # -----------------------------------------------------------------------------
 # 进行URL编码
