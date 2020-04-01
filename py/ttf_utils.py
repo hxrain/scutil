@@ -1,10 +1,10 @@
 ﻿import base64
 import hashlib
 import json
+from io import *
 
 import fontTools.ttLib as ttLib
 from lxml import etree
-from io import *
 
 
 # 可进行多次xpath查询的功能对象
@@ -139,14 +139,14 @@ class fnt_str_lib:
     def save(self, fname='ttf_libs.json', force=False):
         if self.last_edited == 0 and not force:
             return
-        fp = open(fname, 'w')
+        fp = open(fname, 'w', encoding='gb18030')
         json.dump(self.libs, fp, indent=4, ensure_ascii=False)
         fp.close()
         self.last_edited = 0
 
     def load(self, fname='ttf_libs.json'):
         try:
-            fp = open(fname, 'r')
+            fp = open(fname, 'r', encoding='gb18030')
             self.libs = json.load(fp)
             fp.close()
         except:
@@ -200,11 +200,22 @@ class ttf_query_mgr:
 
     def load(self, fname='ttf_glyph.json'):
         try:
-            fp = open(fname, 'r')
+            fp = open(fname, 'r', encoding='gb18030')
             self.glyphs = json.load(fp)
             fp.close()
-        except:
-            pass
+            return True
+        except Exception as e:
+            return False
+
+    # 追加字符串到文件
+    def append_line(self,fname, dat):
+        try:
+            fp = open(fname, 'ab')
+            fp.writelines([dat, b'\n'])
+            fp.close()
+            return True
+        except Exception as e:
+            return False
 
     # 给定字体串,查询里面含有的小字库字符集与标准字符集的对应关系
     def query(self, fntStr):
@@ -213,6 +224,7 @@ class ttf_query_mgr:
         ti = ttf_infos(base64ttf_to_xml(fntStr))
         codes = ti.get_codes()
         rst = {}
+        bads = 0
         for c in codes:
             k = ti.get_glyph_md5(c)
             c = '%x' % c
@@ -220,6 +232,10 @@ class ttf_query_mgr:
                 rst[c] = self.glyphs[k]['w']
             else:
                 rst[c] = '??'
+                bads = bads + 1
+
+        if bads != 0:
+            self.append_line('bad_fnt_libs.txt', fntStr)
         return rst
 
     # 查询字体串,得到xml格式的对应关系

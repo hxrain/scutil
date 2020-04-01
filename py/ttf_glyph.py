@@ -93,18 +93,19 @@ class ttf_glyph_mgr:
     def save(self, fname='ttf_glyph.json', force=False):
         if self.last_edited == 0 and not force:
             return
-        fp = open(fname, 'w')
+        fp = open(fname, 'w',encoding='gb18030')
         json.dump(self.glyphs, fp, indent=4, ensure_ascii=False)
         fp.close()
         self.last_edited = 0
 
     def load(self, fname='ttf_glyph.json'):
         try:
-            fp = open(fname, 'r')
+            fp = open(fname, 'r',encoding='gb18030')
             self.glyphs = json.load(fp)
             fp.close()
-        except:
-            pass
+            return True
+        except Exception as e:
+            return False
 
     def close(self):
         self.tp.close()
@@ -176,7 +177,7 @@ class ttf_glyph_mgr:
 
     # 导出小字库的字形图像为HTML文件,便于校对
     def export_html(self, fname='cnfont.html'):
-        fp = open(fname, 'w')
+        fp = open(fname, 'w',encoding='gb18030')
         rst = []
         cols = 20
         rst.append('<html><body>')

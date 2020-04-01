@@ -27,7 +27,7 @@ def dict_load(fname,encoding=None):
         ret = json.load(fp)
         fp.close()
         return ret
-    except:
+    except Exception as e:
         return None
 
 
@@ -38,7 +38,7 @@ def dict_save(fname, dct,encoding=None):
         json.dump(dct, fp, indent=4, ensure_ascii=False)
         fp.close()
         return True
-    except:
+    except Exception as e:
         return False
 
 
@@ -49,7 +49,7 @@ def append_line(fname, dat, encoding=None):
         fp.writelines([dat, '\n'])
         fp.close()
         return True
-    except:
+    except Exception as e:
         return False
 
 # 装载指定文件的内容
@@ -59,7 +59,7 @@ def load_from_file(fname, encode='utf-8',mode='r'):
         rst = f.read()
         f.close()
         return rst
-    except e as Exception:
+    except Exception as e:
         return None
         
 #保存指定内容到文件
@@ -69,7 +69,7 @@ def save_to_file(fname,strdata,encode='utf-8',mode='w'):
         f.write(strdata)
         f.close()
         return True
-    except:
+    except Exception as e:
         return False
 
 # -----------------------------------------------------------------------------
