@@ -21,7 +21,7 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 # -----------------------------------------------------------------------------
 # 从json文件装载字典
-def dict_load(fname,encoding=None):
+def dict_load(fname, encoding=None):
     try:
         fp = open(fname, 'r', encoding=encoding)
         ret = json.load(fp)
@@ -32,7 +32,7 @@ def dict_load(fname,encoding=None):
 
 
 # 保存词典到文件
-def dict_save(fname, dct,encoding=None):
+def dict_save(fname, dct, encoding=None):
     try:
         fp = open(fname, 'w', encoding=encoding)
         json.dump(dct, fp, indent=4, ensure_ascii=False)
@@ -52,8 +52,9 @@ def append_line(fname, dat, encoding=None):
     except Exception as e:
         return False
 
+
 # 装载指定文件的内容
-def load_from_file(fname, encode='utf-8',mode='r'):
+def load_from_file(fname, encode='utf-8', mode='r'):
     try:
         f = open(fname, mode, encoding=encode)
         rst = f.read()
@@ -61,9 +62,10 @@ def load_from_file(fname, encode='utf-8',mode='r'):
         return rst
     except Exception as e:
         return None
-        
-#保存指定内容到文件
-def save_to_file(fname,strdata,encode='utf-8',mode='w'):
+
+
+# 保存指定内容到文件
+def save_to_file(fname, strdata, encode='utf-8', mode='w'):
     try:
         f = open(fname, mode, encoding=encode)
         f.write(strdata)
@@ -71,6 +73,7 @@ def save_to_file(fname,strdata,encode='utf-8',mode='w'):
         return True
     except Exception as e:
         return False
+
 
 # -----------------------------------------------------------------------------
 # 进行URL编码
@@ -349,6 +352,38 @@ def xml_extract(str, rules, rootName='条目'):
         return rows, document.toprettyxml(indent='\t')  # 输出最终结果
     except Exception as e:
         return None, str(e)
+
+
+def pair_extract(xml, xpaths):
+    """根据xpaths列表,从xml中抽取结果,拼装为元组列表.
+        返回值:[()],errmsg
+    """
+    qr = {}
+    try:
+        xp = xpath(xml)
+        rows = 99999999999
+        # 先根据给定的规则,查询得到各个分量的结果
+        for p in xpaths:
+            qr[p] = xp.query(p)[0]
+            rows = min(rows, len(qr[p]))  # 获取最少的结果数量
+
+        for p in xpaths:
+            if len(qr[p]) > rows:
+                return [], 'xpath查询结果数量不等 <%s>' % (p)
+
+        if rows == 0:
+            return [], ''  # 没有匹配的结果
+
+        rst = []
+        for i in range(rows):
+            t = ()
+            for p in xpaths:
+                t = t + (qr[p][i],)
+            rst.append(t)
+        return rst, ''
+
+    except Exception as e:
+        return [], str(e)
 
 
 # -----------------------------------------------------------------------------
