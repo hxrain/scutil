@@ -388,7 +388,7 @@ def pair_extract(xml, xpaths):
         for i in range(rows):
             t = ()
             for p in xpaths:
-                t = t + (qr[p][i],)
+                t = t + (qr[p][i].strip(),)
             rst.append(t)
         return rst, ''
 
