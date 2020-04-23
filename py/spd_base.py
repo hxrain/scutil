@@ -52,6 +52,16 @@ def append_line(fname, dat, encoding=None):
     except Exception as e:
         return False
 
+# 追加字符串到文件
+def append_lines(fname, dats, encoding=None):
+    try:
+        fp = open(fname, 'a', encoding=encoding)
+        for l in dats:
+            fp.write(','.join(l)+'\n')
+        fp.close()
+        return True
+    except Exception as e:
+        return False
 
 # 装载指定文件的内容
 def load_from_file(fname, encode='utf-8', mode='r'):
