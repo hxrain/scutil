@@ -32,6 +32,11 @@ class s3db:
         except Exception as e:
             return False
 
+    def opt_def(self):
+        self.opt_set('Synchronous', 'OFF')
+        self.opt_set('Journal_Mode', 'WAL')
+        self.opt_set('Cache Size', '5000')
+
     def close(self):
         if self.conn is None:
             return True
@@ -92,6 +97,7 @@ class s3tbl:
 
 '''
 db=s3db("dat.s3db")
+db.opt_def()
 sw=s3_writer(db,(0,1))
 sw.open('select name,url from cops',"insert into cops(name,url) values(?,?)")
 sw.append(('n1','u1'))
