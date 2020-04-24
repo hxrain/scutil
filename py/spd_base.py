@@ -8,6 +8,7 @@ import re
 import time
 import urllib.parse as up
 from xml.dom import minidom
+import hashlib
 
 import requests
 from lxml import etree
@@ -52,16 +53,92 @@ def append_line(fname, dat, encoding=None):
     except Exception as e:
         return False
 
+
 # 追加字符串到文件
 def append_lines(fname, dats, encoding=None):
     try:
         fp = open(fname, 'a', encoding=encoding)
         for l in dats:
-            fp.write(','.join(l)+'\n')
+            fp.write(','.join(l) + '\n')
         fp.close()
         return True
     except Exception as e:
         return False
+
+
+# 计算字符串的MD5值
+def md5(str):
+    return hashlib.md5(str.encode('utf-8')).hexdigest()
+
+
+class lines_writer:
+    def __init__(self, keyIdx=None):
+        self.fp = None
+        self.keys = set()
+        self.keyIdx = keyIdx
+
+    def _calc_key(self, line):
+        if self.keyIdx is None:
+            return md5(line)  # 将整行内容的md5作为唯一key
+        else:
+            return md5(line.split(',')[self.keyIdx])  # 用逗号分隔后的指定字段的md5作为唯一key
+
+    def open(self, fname, encoding='utf-8'):
+        if self.fp is not None:
+            return True
+        try:
+            self.fp = open(fname, 'a+', encoding=encoding)
+            self.fp.seek(0,0)
+            for line in self.fp.readlines():
+                line = line.strip()
+                if line == '': continue
+                self.keys.add(self._calc_key(line))  # 记录当前行数据的唯一key,便于排重
+
+            self.fp.seek(0, 2)
+            return True
+        except Exception as e:
+            return False
+
+    def append(self, line):
+        """追加行内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
+        if self.fp is None:
+            return -1
+
+        line = line.strip()
+        if line == '': return 0
+        key = self._calc_key(line)
+        if key in self.keys:
+            return 1
+        try:
+            self.fp.write(line + '\n')
+            self.keys.add(key)
+            return 2
+        except Exception as e:
+            return -2
+
+    def appendx(self, lst):
+        """追加元组列表到文件"""
+        if self.fp is None:
+            return -1
+        for l in lst:
+            r = self.append(','.join(l))
+            if r < 0:
+                return r
+        return 2
+
+    def save(self):
+        if self.fp is None:
+            return False
+        self.fp.flush()
+        return True
+
+    def close(self):
+        if self.fp is None:
+            return False
+        self.fp.close()
+        self.fp = None
+        return True
+
 
 # 装载指定文件的内容
 def load_from_file(fname, encode='utf-8', mode='r'):
