@@ -98,6 +98,7 @@ sw.append(('n1','u1'))
 sw.append(('n2','u2'))
 '''
 
+
 class s3_writer:
     def __init__(self, db, keyIdx=0):
         self.tbl = s3tbl(db)
@@ -134,24 +135,24 @@ class s3_writer:
     def append(self, line, cmt=True):
         """追加行内容到数据表.返回值:-1 DB未打开;-2其他错误;1内容重复;2正常完成."""
         if self.keys is None:
-            return -1,''
+            return -1, ''
 
         key = self._calc_key(line)
         if key in self.keys:
-            return 1,''
+            return 1, ''
         try:
             self.tbl.insert(line, cmt)
             self.keys.add(key)
-            return 2,''
+            return 2, ''
         except Exception as e:
-            return -2,'ERR: '+str(e)+' append'+str(line)
+            return -2, 'ERR: ' + str(e) + ' append' + str(line)
 
     def appendx(self, lst):
         """追加元组列表到文件"""
         if self.keys is None:
             return -1
         for l in lst:
-            r,m = self.append(l, False)
+            r, m = self.append(l, False)
             if r < 0:
                 print(m)
         self.tbl.conn.commit()
@@ -168,4 +169,5 @@ class s3_writer:
             return False
         self.fp.close()
         self.fp = None
+        self.keys = None
         return True

@@ -70,6 +70,15 @@ def append_lines(fname, dats, encoding=None):
 def md5(str):
     return hashlib.md5(str.encode('utf-8')).hexdigest()
 
+'''
+lw = lines_writer(0)
+lw.open('tst.txt')
+lw.append('1')
+lw.append('2')
+lw.append('3')
+lw.appendt(('4',))
+lw.appendx([('5',), ('6',)])
+'''
 
 class lines_writer:
     def __init__(self, keyIdx=None):
@@ -77,11 +86,17 @@ class lines_writer:
         self.keys = set()
         self.keyIdx = keyIdx
 
-    def _calc_key(self, line):
+    def _calc_key(self, t):
         if self.keyIdx is None:
-            return md5(line)  # 将整行内容的md5作为唯一key
+            if type(t).__name__=='str':
+                return md5(t)  # 将整行内容的md5作为唯一key
+            else:
+                return md5(''.join(t))  # 将整行内容的md5作为唯一key
         else:
-            return md5(line.split(',')[self.keyIdx])  # 用逗号分隔后的指定字段的md5作为唯一key
+            if type(t).__name__ == 'str':
+                return md5(t.split(',')[self.keyIdx])  # 用逗号分隔后的指定字段的md5作为唯一key
+            else:
+                return md5(t[self.keyIdx])  # 用逗号分隔后的指定字段的md5作为唯一key
 
     def open(self, fname, encoding='utf-8'):
         if self.fp is not None:
@@ -101,16 +116,22 @@ class lines_writer:
 
     def append(self, line):
         """追加行内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
+        line = line.strip()
+        if line == '': return 0
+
+        t=line.split(',')
+        return self.appendt(t)
+
+    def appendt(self, t):
+        """追加()元组内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
         if self.fp is None:
             return -1
 
-        line = line.strip()
-        if line == '': return 0
-        key = self._calc_key(line)
+        key = self._calc_key(t)
         if key in self.keys:
             return 1
         try:
-            self.fp.write(line + '\n')
+            self.fp.write(','.join(t) + '\n')
             self.keys.add(key)
             return 2
         except Exception as e:
@@ -121,7 +142,7 @@ class lines_writer:
         if self.fp is None:
             return -1
         for l in lst:
-            r = self.append(','.join(l))
+            r = self.appendt(l)
             if r < 0:
                 return r
         return 2
