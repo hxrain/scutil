@@ -1,5 +1,5 @@
 import sqlite3 as s
-import hashlib
+from hash_util import *
 
 
 class s3db:
@@ -111,17 +111,6 @@ class s3_writer:
         self.keys = None
         self.keyIdx = keyIdx
 
-    def md5(self, str):
-        return hashlib.md5(str.encode('utf-8')).hexdigest()
-
-    def _calc_key(self, line):
-        # 计算字符串的MD5值
-        if type(self.keyIdx).__name__ == 'int':
-            return self.md5(line[self.keyIdx])
-        else:
-            ks = ''.join(line[self.keyIdx[0]:self.keyIdx[1] + 1])
-            return self.md5(ks)
-
     def open(self, select_keys, sql_insert=None):
         if self.keys is not None:
             return True
@@ -132,7 +121,7 @@ class s3_writer:
             self.keys = set()
             for fields in self.tbl.query(None, select_keys):
                 ks = ''.join(fields)
-                self.keys.add(self.md5(ks))  # 记录当前行数据的唯一key,便于排重
+                self.keys.add(calc_key(ks))  # 记录当前行数据的唯一key,便于排重
 
             return True
         except Exception as e:
@@ -143,7 +132,7 @@ class s3_writer:
         if self.keys is None:
             return -1, ''
 
-        key = self._calc_key(line)
+        key = calc_key(line,self.keyIdx)
         if key in self.keys:
             return 1, ''
         try:

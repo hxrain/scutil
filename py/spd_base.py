@@ -8,7 +8,7 @@ import re
 import time
 import urllib.parse as up
 from xml.dom import minidom
-import hashlib
+from hash_util import *
 
 import requests
 from lxml import etree
@@ -66,10 +66,6 @@ def append_lines(fname, dats, encoding=None):
         return False
 
 
-# 计算字符串的MD5值
-def md5(str):
-    return hashlib.md5(str.encode('utf-8')).hexdigest()
-
 '''
 lw = lines_writer(0)
 lw.open('tst.txt')
@@ -80,34 +76,24 @@ lw.appendt(('4',))
 lw.appendx([('5',), ('6',)])
 '''
 
+
 class lines_writer:
-    def __init__(self, keyIdx=None):
+    def __init__(self, keyIdx=None, sep=','):
         self.fp = None
         self.keys = set()
         self.keyIdx = keyIdx
-
-    def _calc_key(self, t):
-        if self.keyIdx is None:
-            if type(t).__name__=='str':
-                return md5(t)  # 将整行内容的md5作为唯一key
-            else:
-                return md5(''.join(t))  # 将整行内容的md5作为唯一key
-        else:
-            if type(t).__name__ == 'str':
-                return md5(t.split(',')[self.keyIdx])  # 用逗号分隔后的指定字段的md5作为唯一key
-            else:
-                return md5(t[self.keyIdx])  # 用逗号分隔后的指定字段的md5作为唯一key
+        self.sep = sep
 
     def open(self, fname, encoding='utf-8'):
         if self.fp is not None:
             return True
         try:
             self.fp = open(fname, 'a+', encoding=encoding)
-            self.fp.seek(0,0)
+            self.fp.seek(0, 0)
             for line in self.fp.readlines():
                 line = line.strip()
                 if line == '': continue
-                self.keys.add(self._calc_key(line))  # 记录当前行数据的唯一key,便于排重
+                self.keys.add(calc_key(line, self.keyIdx, self.sep))  # 记录当前行数据的唯一key,便于排重
 
             self.fp.seek(0, 2)
             return True
@@ -119,7 +105,7 @@ class lines_writer:
         line = line.strip()
         if line == '': return 0
 
-        t=line.split(',')
+        t = line.split(self.sep)
         return self.appendt(t)
 
     def appendt(self, t):
@@ -127,11 +113,11 @@ class lines_writer:
         if self.fp is None:
             return -1
 
-        key = self._calc_key(t)
+        key = calc_key(t, self.keyIdx)
         if key in self.keys:
             return 1
         try:
-            self.fp.write(','.join(t) + '\n')
+            self.fp.write(self.sep.join(t) + '\n')
             self.keys.add(key)
             return 2
         except Exception as e:

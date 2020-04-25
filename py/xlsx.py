@@ -1,5 +1,5 @@
 import xlsxwriter
-import hashlib
+from hash_util import *
 
 '''
 excel文件生成器,每次生成都会覆盖原有内容
@@ -32,16 +32,6 @@ class xlsx_writer:
         self.keys = None
         self.keyIdx = keyIdx
 
-    def md5(self, str):
-        return hashlib.md5(str.encode('utf-8')).hexdigest()
-
-    def _calc_key(self, line):
-        if type(self.keyIdx).__name__ == 'int':
-            return self.md5(line[self.keyIdx])
-        else:
-            ks = ''.join(line[self.keyIdx[0]:self.keyIdx[1] + 1])
-            return self.md5(ks)
-
     def create(self, sheet_name, cols=None):
         """创建数据表,告知表名与列头"""
         self.sheet = self.book.add_worksheet(sheet_name)
@@ -59,7 +49,7 @@ class xlsx_writer:
         """追加一个元组"""
         if not self.sheet:
             return -1
-        key = self._calc_key(t)
+        key = calc_key(t, self.keyIdx)
         if key in self.keys:
             return 0
         self.rows += 1
