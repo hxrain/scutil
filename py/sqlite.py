@@ -1,4 +1,5 @@
 import sqlite3 as s
+
 from hash_util import *
 
 
@@ -43,11 +44,64 @@ class s3db:
         self.conn.close()
         self.conn = None
 
+    def exec(self, sql, w=None):
+        try:
+            if w is None:
+                self.conn.execute(sql)
+            else:
+                self.conn.execute(sql, w)
+            self.conn.commit()
+            return True, ''
+        except Exception as e:
+            self.conn.rollback()
+            return False, str(e)
 
-class s3tbl:
+
+class s3query:
     def __init__(self, db):
         self.cur = db.conn.cursor()
         self.conn = db.conn
+
+    def exec(self, sql, w=None, cmt=True):
+        try:
+            if w is None:
+                self.cur.execute(sql)
+            else:
+                self.cur.execute(sql, w)
+            if cmt:
+                self.conn.commit()
+            return True, ''
+        except Exception as e:
+            self.conn.rollback()
+            return False, str(e)
+
+    def query(self, sql, w=None):
+        try:
+            if w is None:
+                self.cur.execute(sql)
+            else:
+                self.cur.execute(sql, w)
+            return self.cur.fetchall(), ''
+        except Exception as e:
+            return None, str(e)
+
+    def has(self, name, type='table'):
+        """判断指定的库表对象table/index/view是否存在.返回值:None查询失败,结果未知;True/False告知是否存在"""
+        rows, msg = self.query("SELECT name FROM sqlite_master WHERE type=? and name=?", (type, name))
+        if msg != '':
+            return None
+        return len(rows) > 0
+
+    def close(self):
+        if self.cur is not None:
+            self.cur.close()
+        self.cur = None
+        self.conn = None
+
+
+class s3tbl(s3query):
+    def __init__(self, db):
+        super().__init__(db)
         self.sql_insert = None
         self.sql_update = None
         self.sql_select = None
@@ -62,9 +116,7 @@ class s3tbl:
         self.sql_select = sql
 
     def insert(self, t, cmt=True):
-        self.cur.execute(self.sql_insert, t)
-        if cmt:
-            self.conn.commit()
+        return super().exec(self.sql_insert, t, cmt)
 
     def insertx(self, lst):
         for t in lst:
@@ -72,24 +124,15 @@ class s3tbl:
         self.conn.commit()
 
     def update(self, t, w, cmt=True):
-        self.cur.execute(self.sql_update, t + w)
-        if cmt:
-            self.conn.commit()
+        return super().exec(self.sql_update, t + w, cmt)
 
     def query(self, w=None, sql=None):
         if sql is None:
             sql = self.sql_select
-        if w is None:
-            self.cur.execute(sql)
-        else:
-            self.cur.execute(sql, w)
-        return self.cur.fetchall()
+        return super().query(sql, w)
 
     def close(self):
-        if self.cur is not None:
-            self.cur.close()
-        self.cur = None
-        self.conn = None
+        super().close()
         self.sql_insert = None
         self.sql_update = None
         self.sql_select = None
@@ -132,7 +175,7 @@ class s3_writer:
         if self.keys is None:
             return -1, ''
 
-        key = calc_key(line,self.keyIdx)
+        key = calc_key(line, self.keyIdx)
         if key in self.keys:
             return 1, ''
         try:
