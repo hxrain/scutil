@@ -1,0 +1,412 @@
+import json
+import time
+
+from spd_base import *
+from sqlite import *
+
+"""说明:
+    这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
+    1 基于sqlite数据库,部署简单
+    2 本采集系统用于专属领域的特定任务目标,不同领域建议使用不同的实例.
+    3 核心概念有:
+        A 采集源:代表对一个目标网站的一个频道或多个频道进行抓取的功能配置与参数
+        B 爬虫:将采集源实例化并将其运行起来的任务功能;也有不依赖采集源的个性化爬虫.
+        C 采集系统:运行调度多个爬虫并行或串行执行的整体.
+        D 数据库:记录采集源信息;记录采集得到的细览信息与正文;
+    4 核心采集流程为:
+        采集源提供概览页面URL,且维护翻页逻辑;采集源维护概览采集所需HTTP头与参数,确保抓取概览页;
+        爬虫根据采集源配置参数,获取概览URL,构造抓取概览页面的参数与验证码等前提条件,之后抓取概览页面.
+        爬虫根据采集源配置参数,从概览页面中提取信息列表或细览URL列表,再根据采集源配置决定排重后是否入库.
+        爬虫循环细览URL列表,构造抓取概览页面的参数与验证码等前提条件,之后抓取细览页面.
+        爬虫根据采集源配置参数,从细览页面中提取信息,再根据采集源配置决定排重后是否入库.
+        采集系统管理爬虫对象的生存周期,爬虫管理采集源对象的生存周期.
+        采集系统记录采集源的任务执行情况,统计整体采集运行情况.
+"""
+
+"""采集源表结构(tbl_sources)说明:
+    id	            INTEGER     自增主键
+    name	        TEXT        采集源名称,唯一索引
+    site_url	    TEXT        采集源站点URL
+    reg_time	    integer     采集源活动注册时间
+    last_begin_time	integer     采集源最后的开始时间
+    last_end_time	integer     采集源最后的结束时间
+    last_req_count	integer     采集源最后活动中的请求数量
+    last_rsp_count	integer     采集源最后活动中的回应数量
+    last_req_succ   integer     采集源最后活动中的请求完成数量
+"""
+
+"""信息主表(tbl_infos)字段说明:
+    id	            INTEGER     自增主键
+    source_id	    INTEGER     所属采集源id
+    create_time	    integer     信息的创建时间,索引
+    title	        TEXT        信息标题,可选,索引
+    url	            TEXT        信息细览URL,索引
+    content	        TEXT        信息正文内容,可选
+    pub_time	    TEXT        信息发布时间,可选,索引
+    addr	        TEXT        信息所属地址,可选
+    keyword	        TEXT        信息关键词,可选
+    ext	            TEXT        扩展信息,可选
+    memo	        TEXT        信息备注说明,可选
+"""
+
+sql_tbl = """
+CREATE TABLE "tbl_sources" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "name" TEXT NOT NULL,
+  "site_url" TEXT NOT NULL,
+  "reg_time" integer NOT NULL,
+  "last_begin_time" integer NOT NULL DEFAULT 0,
+  "last_end_time" integer NOT NULL DEFAULT 0,
+  "last_req_count" integer NOT NULL DEFAULT 0,
+  "last_rsp_count" integer NOT NULL DEFAULT 0,
+  "last_req_succ" integer NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX "idx_sources_name"
+ON "tbl_sources" (
+  "name" ASC
+);
+
+CREATE TABLE "tbl_infos" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "source_id" INTEGER NOT NULL,
+  "create_time" integer NOT NULL,
+  "title" TEXT,
+  "url" TEXT NOT NULL,
+  "content" TEXT,
+  "pub_time" TEXT,
+  "addr" TEXT,
+  "keyword" TEXT,
+  "ext" TEXT,
+  "memo" TEXT
+);
+
+CREATE INDEX "idx_infos_crttime"
+ON "tbl_infos" (
+  "create_time"
+);
+
+CREATE INDEX "idx_infos_pubtime"
+ON "tbl_infos" (
+  "pub_time"
+);
+
+CREATE INDEX "idx_infos_title"
+ON "tbl_infos" (
+  "title"
+);
+
+CREATE INDEX "idx_infos_url"
+ON "tbl_infos" (
+  "url"
+);
+"""
+
+logger = None
+
+
+class info_t:
+    """待入库的信息对象"""
+
+    def __init__(self, source_id):
+        self.source_id = source_id  # 信息所属采集源
+        self.url = None  # 信息细览URL
+        self.title = None  # 标题
+        self.content = None  # 正文主体内容
+        self.pub_time = None  # 信息发布时间
+        self.addr = None  # 信息所属地域
+        self.keyword = None  # 关键词
+        self.ext = None  # 扩展的个性化字典信息
+        self.memo = None  # 对此信息的备注说明
+
+
+class source_base:
+    """概细览采集源基类,提供概细览采集所需功能的核心接口与数据结构定义"""
+
+    def __init__(self):
+        """记录采集源动作信息"""
+        self.id = -1
+        self.name = None
+        self.url = None
+        self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
+        self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
+        self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
+        self.on_check_repeats = []  # 排重检查所需的info字段列表
+        pass
+
+    def on_ready(self, req):
+        """准备进行采集动作了,可以返回入口url获取最初得到cookie等内容,也可进行必要的初始化或设置req请求参数"""
+        return None
+
+    def on_list_format(self, rsp):
+        """返回列表页面的格式化内容,默认对html进行新xhtml格式化"""
+        return format_html(rsp)
+
+    def on_page_format(self, rsp):
+        """返回细览页面的格式化内容,默认对html进行新xhtml格式化"""
+        return format_html(rsp)
+
+    def on_list_url(self, req):
+        """告知待抓取的概览URL地址,填充req请求参数.返回None则不进行概览循环"""
+        return None
+
+    def on_info_filter(self, info):
+        """对待入库的信息进行过滤,判断是应该入库.返回值:是否可以入库"""
+        return True
+
+    def on_page_url(self, info, list_url, req):
+        """可以对info内容进行修正,填充细览请求参数req.返回值告知是否抓取细览页."""
+        return False
+
+    def on_page_info(self, info, list_url, page):
+        """从page中提取必要的细览页信息放入info中.返回值告知是否处理成功"""
+        return True
+
+
+class spider_base:
+    """爬虫任务基类,提供采集任务运行所需功能的核心接口"""
+
+    def __init__(self, source):
+        self.source = source
+        self.http = spd_base()
+        self.begin_time = 0
+
+    def do_page(self, item, list_url, dbs: db_base):
+        """进行细览抓取与提取信息的处理"""
+        info = into_t(self.source.id)
+        # 将概览页提取的信息元组赋值到标准info对象
+        for i in range(len(self.source.on_list_rulenames)):
+            info.__dict__[self.source.on_list_rulenames[i]] = item[i]
+        # 进行细览url的补全
+        info.url = up.urljoin(list_url, info.url)
+
+        # 判断是否需要抓取细览页
+        req_obj = None
+        need_take_page = self.source.on_page_url(info, list_url, req_obj)
+
+        # 需要进行排重
+        rid = dbs.check_repeat(info, self.source.on_check_repeats)
+        if rid is not None:
+            logger.info("page_url <%s> is REPEATED <%d>", info.url, rid)
+            return None
+
+        if need_take_page:
+            # 需要抓取细览页
+            self.reqs += 1
+            if not self.http.take(info.url, req_obj):
+                logger.warning('page_url http take error <%s> :: %s' % (info.url, self.http.get_error()))
+                return None
+            self.rsps += 1
+            # 对细览页进行后续处理
+            if self.source.on_page_info(info, list_url, self.source.on_page_format(self.http.get_BODY())):
+                self.succ += 1
+
+        # 信息存盘
+        if self.source.on_info_filter(info):
+            return info
+
+        return None
+
+    def run(self, dbs: db_base):
+        """对当前采集任务进行完整流程处理:概览循环与细览循环"""
+        self.reqs = 0
+        self.rsps = 0
+        self.succ = 0
+        self.begin_time = int(time.time())
+
+        # 进行入口请求的处理
+        req_obj = None
+        entry_url = self.source.on_ready(req_obj)
+        if entry_url is not None:
+            self.reqs += 1
+            if self.http.take(entry_url, req_obj):
+                self.rsps += 1
+                self.succ += 1
+
+        # 进行概览抓取循环
+        req_obj = None
+        list_url = self.source.on_list_url(req_obj)
+        list_emptys = 0
+        while list_url is not None:
+            self.reqs += 1
+            if self.http.take(entry_url, req_obj):
+                self.rsps += 1
+                # 提取概览页信息列表
+                rst, msg = pair_extract(self.source.on_list_format(self.http.get_BODY()), self.source.on_list_rules)
+                if msg == '':
+                    if len(rst) == 0:
+                        # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
+                        list_emptys += 1
+                        if list_emptys >= self.source.on_list_empty_limit:
+                            logger.warning('list_url pair_extract empty <%s> :: >=%d' % (list_url, list_emptys))
+                            break
+                    else:
+                        list_emptys = 0
+                        self.succ += 1
+                        # 进行细览循环
+                        for item in rst:
+                            info = self.do_page(item, list_url, dbs)
+                            if info:
+                                dbs.save_info(info)
+                else:
+                    logger.warning('list_url pair_extract error <%s> :: %s' % (list_url, msg))
+            else:
+                logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
+
+            req_obj = None
+            list_url = self.source.on_list_url(req_obj)
+
+        pass
+
+
+class db_base:
+    """采集系统数据库功能接口"""
+
+    def __init__(self, fname):
+        self.db = s3db(fname)
+        self.dbq = s3query(self.db)
+        self.stime = int(time.time())
+        pass
+
+    def opened(self):
+        return self.db.opened()
+
+    def register(self, name, site_url):
+        """根据名字进行采集源在数据库中的注册,返回值:-1失败,成功为采集源ID"""
+        rows, msg = self.dbq.query("select id,reg_time,site_url from tbl_sources where name=?", name)
+        # 先查询指定的采集源是否存在
+        if msg != '':
+            logger.error('source <%s : %s> register QUERY fail. DB error <%s>', name, site_url, msg)
+            return -1
+
+        if len(rows) == 0:
+            # 采集源不存在,则插入
+            ret, msg = self.dbq.exec("insert into tbl_sources(name,site_url,reg_time) values(?,?,?)",
+                                     (name, site_url, self.stime))
+            if not ret:
+                logger.error('source <%s : %s> register INSERT fail. DB error <%s>', name, site_url, msg)
+                return -1
+
+            rows = [(self.dbq.cur.lastrowid, site_url, self.stime)]  # 记录最后的插入id,作为采集源id
+        else:
+            if rows[0][1] != self.stime:
+                # 采集源已经存在,但需要更新注册时间
+                ret, msg = self.dbq.exec("update tbl_sources set reg_time=? where name=?", (self.stime, name))
+                if not ret:
+                    logger.error('source <%s : %s> register UPDATE fail. DB error <%s>', name, site_url, msg)
+                    return -1
+            else:
+                # 同名采集源重复注册了
+                logger.error('source <%s : %s> register REPEATED!. EXIST URL<%s>', name, site_url, rows[0][2])
+                return -1
+
+        logger.info('source <%s : %s> register OK!. source_id < %d >.', name, site_url, rows[0][0])
+        return rows[0][0]
+
+    def update_act(self, src: spider_base):
+        """更新采集源的动作信息"""
+        dat = (src.begin_time, int(time.time()), src.reqs, src.rsps, src.id)
+        ret, msg = self.dbq.exec(
+            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=? where id=?",
+            dat)
+        if not ret:
+            logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
+            return False
+
+        return True
+
+    def save_info(self, info: info_t):
+        """保存指定的信息入库,外面应进行排重判断.返回值告知是否成功"""
+
+        def d2j(d):
+            if d is None:
+                return None
+            try:
+                return json.dumps(d, indent=4, ensure_ascii=False)
+            except Exception as e:
+                logger.error('info ext dict2json error <%s>', str(e))
+                return None
+
+        dat = tuple(info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr,
+                    info.keyword, d2j(info.ext), info.memo)
+
+        ret, msg = self.dbq.exec(
+            "insert into tbl_infos(source_id,create_time,title,url,content,pub_time,addr,keyword,ext,memo) values(?,?,?,?,?,?,?,?,?,?)",
+            dat)
+        if not ret:
+            logger.error("info <%s> save fail. DB error <%s>", str(dat), msg)
+            return False
+
+        return True
+
+    def check_repeat(self, info: info_t, cond):
+        """使用指定的信息对象,根据给定的cond条件(字段名列表),判断其是否重复.
+            返回值:None不重复;其他为已有信息的ID
+        """
+        val = tuple(info.__dict__[c] for c in cond)
+        if len(cond) > 1:
+            cnd = ' and '.join(tuple(c + '=?' for c in cond))
+        else:
+            cnd = cond + '=?'
+        rows, msg = self.dbq.query("select id from tbl_infos where %s limit 1" % cnd, val)
+
+        if msg != '':
+            logger.error('info <%s> repeat QUERY fail. DB error <%s>', info.__dict__.__str__(), msg)
+            return None
+
+        if len(rows) == 0:
+            return None
+
+        return rows[0][0]
+
+
+class collect_manager:
+    """采集系统管理器"""
+
+    def __init__(self, dbs):
+        self.dbs = dbs
+        self.spiders = []
+        pass
+
+    def register(self, source_t, spider_t=spider_base):
+        """注册采集源与对应的爬虫类,准备后续的遍历调用"""
+        src = source_t()
+
+        src.id = self.dbs.register(src.name, src.url)
+        if src.id == -1:
+            return False
+
+        self.spiders.append(spider_t(src))
+        return True
+
+    def run(self):
+        """对全部爬虫逐一进行调用"""
+        for spd in self.spiders:
+            spd.run(self.dbs)
+            dbs.update_act(spd)
+
+    def close(self):
+        self.spiders.clear()
+        self.spiders = None
+        self.dbs = None
+
+
+def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3'):
+    """创建采集系统管理器对象,告知日志路径和数据库路径.
+        返回值:None失败.其他为采集系统管理器对象
+    """
+    global logger
+    logger = make_logger(log_path)
+    bind_logger_console(logger)
+    logger.info('starting ...')
+
+    dbs = db_base(db_path)
+    if not dbs.opened():
+        logger.error('DB open fail. <%s>', db_path)
+        return None
+
+    if not dbs.dbq.has('tbl_sources'):
+        dbs.db.exec(sql_tbl)
+
+    cm = collect_manager(dbs)
+    return cm
