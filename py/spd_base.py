@@ -328,7 +328,7 @@ def dict2xml(dic, indent=True, utf8=False):
 
             if isinstance(value, str):
                 # 如果当前值是简单文本,则在当前节点中直接创建文本节点
-                keyElement.appendChild(document.createTextNode('%s' % value))
+                keyElement.appendChild(document.createTextNode(value.strip()))
                 # 在本级根节点插入当前节点
                 rootXMLElement.appendChild(keyElement)
 
@@ -540,6 +540,7 @@ def format_xml2(html_soup):
 
 # 修正xml串xstr中的自闭合节点与空内容节点值为dst
 def fix_xml_node(xstr, dst='-'):
+    xstr=xstr.strip()
     ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, xstr)
     return re.sub('<([^>/]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)
 
@@ -558,7 +559,11 @@ def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
 # 元素可以访问text与attrib字典
 def query_xpath(cnt_str, cc_xpath):
     try:
-        HTMLRoot = etree.HTML(fix_xml_node(cnt_str))
+        xstr=fix_xml_node(cnt_str)
+        if xstr.startswith('<?xml'):
+            HTMLRoot = etree.XML(xstr)
+        else:
+            HTMLRoot = etree.HTML(xstr)
         r = HTMLRoot.xpath(cc_xpath)
         return r, ''
 
@@ -574,7 +579,10 @@ class xpath:
         cnt_str = fix_xml_node(cntstr)
         self.cnt_str = None
         try:
-            self.rootNode = etree.HTML(cnt_str)
+            if cnt_str.startswith('<?xml'):
+                self.rootNode = etree.XML(cnt_str)
+            else:
+                self.rootNode = etree.HTML(cnt_str)
             self.cnt_str = cnt_str
         except:
             pass
