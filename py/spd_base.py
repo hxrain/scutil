@@ -217,7 +217,7 @@ def url_equ(a, b):
 def make_logger(pspath, lvl=logging.DEBUG):
     # 生成日志记录器
     ps_logger = logging.getLogger()
-    ps_logger.setLevel(lvl)
+    ps_logger.setLevel(logging.DEBUG)
 
     # 生成文件处理器
     filehandler = logging.handlers.WatchedFileHandler(pspath, encoding='utf-8')

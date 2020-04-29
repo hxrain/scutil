@@ -211,7 +211,7 @@ class spider_base:
         # 需要进行排重
         rid = dbs.check_repeat(info, self.source.on_check_repeats)
         if rid is not None:
-            logger.info("page_url <%s> is REPEATED <%d>", info.url, rid)
+            logger.debug("page_url <%s> is REPEATED <%d>", info.url, rid)
             return None
 
         if need_take_page:
@@ -258,6 +258,7 @@ class spider_base:
         while list_url is not None:
             self.reqs += 1
             if self.http.take(list_url, req_obj):
+                logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.rsps += 1
                 # 提取概览页信息列表
                 xstr = self.source.on_list_format(self.http.get_BODY())
@@ -413,8 +414,10 @@ class collect_manager:
     def run(self):
         """对全部爬虫逐一进行调用"""
         for spd in self.spiders:
+            logger.info("source <%s> begin.", spd.source.name)
             spd.run(self.dbs)
             self.dbs.update_act(spd)
+            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ)
 
     def loop(self):
         """进行持续循环运行"""
@@ -428,14 +431,15 @@ class collect_manager:
         self.dbs = None
 
 
-def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3'):
+def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', log_con_lvl=logging.INFO,
+                     log_file_lvl=logging.WARNING):
     """创建采集系统管理器对象,告知日志路径和数据库路径.
         返回值:None失败.其他为采集系统管理器对象
     """
     global logger
-    logger = make_logger(log_path, logging.WARNING)
-    bind_logger_console(logger, logging.INFO)
-    logger.info('starting ...')
+    logger = make_logger(log_path, log_file_lvl)
+    bind_logger_console(logger, log_con_lvl)
+    logger.warn('tiny spider collect manager is starting ...')
 
     dbs = db_base(db_path)  # 打开数据库
     if not dbs.opened():
