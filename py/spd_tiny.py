@@ -49,7 +49,7 @@ from sqlite import *
     memo	        TEXT        信息备注说明,可选
 """
 
-sql_tbl = """
+sql_tbl = ['''
 CREATE TABLE "tbl_sources" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   "name" TEXT NOT NULL,
@@ -61,46 +61,52 @@ CREATE TABLE "tbl_sources" (
   "last_rsp_count" integer NOT NULL DEFAULT 0,
   "last_req_succ" integer NOT NULL DEFAULT 0
 );
-
-CREATE UNIQUE INDEX "idx_sources_name"
-ON "tbl_sources" (
-  "name" ASC
-);
-
-CREATE TABLE "tbl_infos" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "source_id" INTEGER NOT NULL,
-  "create_time" integer NOT NULL,
-  "title" TEXT,
-  "url" TEXT NOT NULL,
-  "content" TEXT,
-  "pub_time" TEXT,
-  "addr" TEXT,
-  "keyword" TEXT,
-  "ext" TEXT,
-  "memo" TEXT
-);
-
-CREATE INDEX "idx_infos_crttime"
-ON "tbl_infos" (
-  "create_time"
-);
-
-CREATE INDEX "idx_infos_pubtime"
-ON "tbl_infos" (
-  "pub_time"
-);
-
-CREATE INDEX "idx_infos_title"
-ON "tbl_infos" (
-  "title"
-);
-
-CREATE INDEX "idx_infos_url"
-ON "tbl_infos" (
-  "url"
-);
-"""
+''',
+           '''
+           CREATE UNIQUE INDEX "idx_sources_name"
+           ON "tbl_sources" (
+             "name" ASC
+           );
+           ''',
+           '''
+           CREATE TABLE "tbl_infos" (
+             "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+             "source_id" INTEGER NOT NULL,
+             "create_time" integer NOT NULL,
+             "title" TEXT,
+             "url" TEXT NOT NULL,
+             "content" TEXT,
+             "pub_time" TEXT,
+             "addr" TEXT,
+             "keyword" TEXT,
+             "ext" TEXT,
+             "memo" TEXT
+           );
+           ''',
+           '''
+           CREATE INDEX "idx_infos_crttime"
+           ON "tbl_infos" (
+             "create_time"
+           );
+           ''',
+           '''
+           CREATE INDEX "idx_infos_pubtime"
+           ON "tbl_infos" (
+             "pub_time"
+           );
+           ''',
+           '''
+           CREATE INDEX "idx_infos_title"
+           ON "tbl_infos" (
+             "title"
+           );
+           ''',
+           '''
+           CREATE INDEX "idx_infos_url"
+           ON "tbl_infos" (
+             "url"
+           );
+           ''']
 
 logger = None
 
@@ -125,9 +131,10 @@ class source_base:
 
     def __init__(self):
         """记录采集源动作信息"""
-        self.id = -1
-        self.name = None
-        self.url = None
+        self.interval = 1000 * 60 * 30  # 采集源任务运行间隔
+        self.id = -1  # 采集源注册后得到的唯一标识
+        self.name = None  # 采集源的唯一名称
+        self.url = None  # 采集源对应的站点url
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -163,6 +170,22 @@ class source_base:
         return True
 
 
+class tick_meter:
+    '毫秒间隔计时器'
+
+    def __init__(self, interval_ms, first_hit=True):
+        self.last_time = 0 if first_hit else int(time.time() * 1000)
+        self.interval = interval_ms
+
+    def hit(self):
+        '判断当前时间是否超过了最后触发时间一定的间隔'
+        cur_time = int(time.time() * 1000)
+        if cur_time - self.last_time > self.interval:
+            self.last_time = cur_time
+            return True
+        return False
+
+
 class spider_base:
     """爬虫任务基类,提供采集任务运行所需功能的核心接口"""
 
@@ -170,10 +193,11 @@ class spider_base:
         self.source = source
         self.http = spd_base()
         self.begin_time = 0
+        self.meter = tick_meter(source.interval)
 
-    def do_page(self, item, list_url, dbs: db_base):
+    def do_page(self, item, list_url, dbs):
         """进行细览抓取与提取信息的处理"""
-        info = into_t(self.source.id)
+        info = info_t(self.source.id)
         # 将概览页提取的信息元组赋值到标准info对象
         for i in range(len(self.source.on_list_rulenames)):
             info.__dict__[self.source.on_list_rulenames[i]] = item[i]
@@ -198,7 +222,8 @@ class spider_base:
                 return None
             self.rsps += 1
             # 对细览页进行后续处理
-            if self.source.on_page_info(info, list_url, self.source.on_page_format(self.http.get_BODY())):
+            xstr = self.source.on_page_format(self.http.get_BODY())
+            if self.source.on_page_info(info, list_url, xstr):
                 self.succ += 1
 
         # 信息存盘
@@ -207,8 +232,11 @@ class spider_base:
 
         return None
 
-    def run(self, dbs: db_base):
+    def run(self, dbs):
         """对当前采集任务进行完整流程处理:概览循环与细览循环"""
+        if not self.meter.hit():
+            return False
+
         self.reqs = 0
         self.rsps = 0
         self.succ = 0
@@ -229,16 +257,19 @@ class spider_base:
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
-            if self.http.take(entry_url, req_obj):
+            if self.http.take(list_url, req_obj):
                 self.rsps += 1
                 # 提取概览页信息列表
-                rst, msg = pair_extract(self.source.on_list_format(self.http.get_BODY()), self.source.on_list_rules)
+                xstr = self.source.on_list_format(self.http.get_BODY())
+                rst, msg = pair_extract(xstr, self.source.on_list_rules)
                 if msg == '':
                     if len(rst) == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
+                        logger.warning('list_url pair_extract empty <%s %d> :: %s' % (
+                            list_url, self.http.get_status_code(), self.http.get_BODY()))
                         list_emptys += 1
                         if list_emptys >= self.source.on_list_empty_limit:
-                            logger.warning('list_url pair_extract empty <%s> :: >=%d' % (list_url, list_emptys))
+                            logger.warning('list_url pair_extract empty <%s> :: >=%d limit!' % (list_url, list_emptys))
                             break
                     else:
                         list_emptys = 0
@@ -256,7 +287,7 @@ class spider_base:
             req_obj = None
             list_url = self.source.on_list_url(req_obj)
 
-        pass
+        return True
 
 
 class db_base:
@@ -273,7 +304,7 @@ class db_base:
 
     def register(self, name, site_url):
         """根据名字进行采集源在数据库中的注册,返回值:-1失败,成功为采集源ID"""
-        rows, msg = self.dbq.query("select id,reg_time,site_url from tbl_sources where name=?", name)
+        rows, msg = self.dbq.query("select id,reg_time,site_url from tbl_sources where name=?", (name,))
         # 先查询指定的采集源是否存在
         if msg != '':
             logger.error('source <%s : %s> register QUERY fail. DB error <%s>', name, site_url, msg)
@@ -287,7 +318,7 @@ class db_base:
                 logger.error('source <%s : %s> register INSERT fail. DB error <%s>', name, site_url, msg)
                 return -1
 
-            rows = [(self.dbq.cur.lastrowid, site_url, self.stime)]  # 记录最后的插入id,作为采集源id
+            rows = [(self.dbq.cur.lastrowid, self.stime, site_url)]  # 记录最后的插入id,作为采集源id
         else:
             if rows[0][1] != self.stime:
                 # 采集源已经存在,但需要更新注册时间
@@ -303,11 +334,11 @@ class db_base:
         logger.info('source <%s : %s> register OK!. source_id < %d >.', name, site_url, rows[0][0])
         return rows[0][0]
 
-    def update_act(self, src: spider_base):
+    def update_act(self, spd: spider_base):
         """更新采集源的动作信息"""
-        dat = (src.begin_time, int(time.time()), src.reqs, src.rsps, src.id)
+        dat = (spd.begin_time, int(time.time()), spd.reqs, spd.rsps, spd.succ, spd.source.id)
         ret, msg = self.dbq.exec(
-            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=? where id=?",
+            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=? where id=?",
             dat)
         if not ret:
             logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
@@ -327,8 +358,8 @@ class db_base:
                 logger.error('info ext dict2json error <%s>', str(e))
                 return None
 
-        dat = tuple(info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr,
-                    info.keyword, d2j(info.ext), info.memo)
+        dat = (info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr,
+               info.keyword, d2j(info.ext), info.memo)
 
         ret, msg = self.dbq.exec(
             "insert into tbl_infos(source_id,create_time,title,url,content,pub_time,addr,keyword,ext,memo) values(?,?,?,?,?,?,?,?,?,?)",
@@ -347,7 +378,7 @@ class db_base:
         if len(cond) > 1:
             cnd = ' and '.join(tuple(c + '=?' for c in cond))
         else:
-            cnd = cond + '=?'
+            cnd = cond[0] + '=?'
         rows, msg = self.dbq.query("select id from tbl_infos where %s limit 1" % cnd, val)
 
         if msg != '':
@@ -383,7 +414,13 @@ class collect_manager:
         """对全部爬虫逐一进行调用"""
         for spd in self.spiders:
             spd.run(self.dbs)
-            dbs.update_act(spd)
+            self.dbs.update_act(spd)
+
+    def loop(self):
+        """进行持续循环运行"""
+        while True:
+            self.run()
+            time.sleep(1)
 
     def close(self):
         self.spiders.clear()
@@ -396,17 +433,20 @@ def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3'):
         返回值:None失败.其他为采集系统管理器对象
     """
     global logger
-    logger = make_logger(log_path)
-    bind_logger_console(logger)
+    logger = make_logger(log_path, logging.WARNING)
+    bind_logger_console(logger, logging.INFO)
     logger.info('starting ...')
 
-    dbs = db_base(db_path)
+    dbs = db_base(db_path)  # 打开数据库
     if not dbs.opened():
         logger.error('DB open fail. <%s>', db_path)
         return None
 
     if not dbs.dbq.has('tbl_sources'):
-        dbs.db.exec(sql_tbl)
+        for s in sql_tbl:
+            ret, msg = dbs.db.exec(s)  # 尝试在新库中自动建表
+            if not ret:
+                logger.error("DB init create fail! < %s >" % msg)
 
     cm = collect_manager(dbs)
     return cm
