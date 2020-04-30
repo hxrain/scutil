@@ -8,9 +8,9 @@ import re
 import time
 import urllib.parse as up
 from xml.dom import minidom
-from hash_util import *
 
 import requests
+from hash_util import *
 from lxml import etree
 from lxml import html
 from lxml.html.clean import Cleaner
@@ -540,7 +540,7 @@ def format_xml2(html_soup):
 
 # 修正xml串xstr中的自闭合节点与空内容节点值为dst
 def fix_xml_node(xstr, dst='-'):
-    xstr=xstr.strip()
+    xstr = xstr.strip()
     ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, xstr)
     return re.sub('<([^>/]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)
 
@@ -556,10 +556,10 @@ def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
 # -----------------------------------------------------------------------------
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath
 # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
-# 元素可以访问text与attrib字典
+# 元素可以进行etree高级访问
 def query_xpath(cnt_str, cc_xpath):
     try:
-        xstr=fix_xml_node(cnt_str)
+        xstr = fix_xml_node(cnt_str)
         if xstr.startswith('<?xml'):
             HTMLRoot = etree.XML(xstr)
         else:
@@ -572,6 +572,20 @@ def query_xpath(cnt_str, cc_xpath):
     except Exception as e:
         return [], str(e)
 
+# 对cnt_str进行xpath查询,查询表达式为cc_xpath;可以删除removeTags元组列表指出的标签(保留元素内容)
+# 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
+def query_xpath_x(cnt_str, cc_xpath, removeTags=None):
+    rs, msg = query_xpath(cnt_str, cc_xpath)
+    if msg != '':
+        return rs, msg
+
+    for i in range(len(rs)):
+        if isinstance(rs[i], etree._Element):
+            if removeTags:
+                etree.strip_tags(rs[i], removeTags)
+            rs[i]=etree.tostring(rs[i],encoding='unicode',method='html')
+
+    return rs, msg
 
 # 可进行多次xpath查询的功能对象
 class xpath:

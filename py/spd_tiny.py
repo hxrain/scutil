@@ -133,13 +133,17 @@ class source_base:
         """记录采集源动作信息"""
         self.interval = 1000 * 60 * 30  # 采集源任务运行间隔
         self.id = -1  # 采集源注册后得到的唯一标识
-        self.name = None  # 采集源的唯一名称
+        self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
         self.on_check_repeats = []  # 排重检查所需的info字段列表
         pass
+
+    def warn(self, msg, *arg):
+        fmt = 'source <%s : %s> ' % (self.name, self.url)
+        logger.warn(fmt + msg, arg)
 
     def on_ready(self, req):
         """准备进行采集动作了,可以返回入口url获取最初得到cookie等内容,也可进行必要的初始化或设置req请求参数"""
@@ -204,11 +208,15 @@ class spider_base:
         # 进行细览url的补全
         info.url = up.urljoin(list_url, info.url)
 
-        # 判断是否需要抓取细览页
+        # 先进行一下过滤判断
+        if not self.source.on_info_filter(info):
+            return None
+
+        # 给出对info.url的处理机会,并用来判断是否需要抓取细览页
         req_obj = None
         need_take_page = self.source.on_page_url(info, list_url, req_obj)
 
-        # 需要进行排重
+        # 再进行排重检查
         rid = dbs.check_repeat(info, self.source.on_check_repeats)
         if rid is not None:
             logger.debug("page_url <%s> is REPEATED <%d>", info.url, rid)
@@ -226,9 +234,9 @@ class spider_base:
             if self.source.on_page_info(info, list_url, xstr):
                 self.succ += 1
 
-        # 信息存盘
+        # 再进行信息过滤判断
         if self.source.on_info_filter(info):
-            return info
+            return info  # 可以存盘
 
         return None
 
@@ -332,7 +340,7 @@ class db_base:
                 logger.error('source <%s : %s> register REPEATED!. EXIST URL<%s>', name, site_url, rows[0][2])
                 return -1
 
-        logger.info('source <%s : %s> register OK!. source_id < %d >.', name, site_url, rows[0][0])
+        logger.info('source register OK! <%s : %s> source_id < %d >.', name, site_url, rows[0][0])
         return rows[0][0]
 
     def update_act(self, spd: spider_base):
@@ -375,6 +383,9 @@ class db_base:
         """使用指定的信息对象,根据给定的cond条件(字段名列表),判断其是否重复.
             返回值:None不重复;其他为已有信息的ID
         """
+        if len(cond) == 0:
+            return None  # 没有给出判重条件,则认为不重复
+
         val = tuple(info.__dict__[c] for c in cond)
         if len(cond) > 1:
             cnd = ' and '.join(tuple(c + '=?' for c in cond))
@@ -402,6 +413,8 @@ class collect_manager:
 
     def register(self, source_t, spider_t=spider_base):
         """注册采集源与对应的爬虫类,准备后续的遍历调用"""
+        if type(source_t).__name__=='module':
+            source_t=source_t.source_t
         src = source_t()
 
         src.id = self.dbs.register(src.name, src.url)
