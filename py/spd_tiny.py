@@ -50,18 +50,18 @@ from sqlite import *
 """
 
 sql_tbl = ['''
-CREATE TABLE "tbl_sources" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "name" TEXT NOT NULL,
-  "site_url" TEXT NOT NULL,
-  "reg_time" integer NOT NULL,
-  "last_begin_time" integer NOT NULL DEFAULT 0,
-  "last_end_time" integer NOT NULL DEFAULT 0,
-  "last_req_count" integer NOT NULL DEFAULT 0,
-  "last_rsp_count" integer NOT NULL DEFAULT 0,
-  "last_req_succ" integer NOT NULL DEFAULT 0
-);
-''',
+           CREATE TABLE "tbl_sources" (
+              "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+              "name" TEXT NOT NULL,
+              "site_url" TEXT NOT NULL,
+              "reg_time" integer NOT NULL,
+              "last_begin_time" integer NOT NULL DEFAULT 0,
+              "last_end_time" integer NOT NULL DEFAULT 0,
+              "last_req_count" integer NOT NULL DEFAULT 0,
+              "last_rsp_count" integer NOT NULL DEFAULT 0,
+              "last_req_succ" integer NOT NULL DEFAULT 0
+           );
+           ''',
            '''
            CREATE UNIQUE INDEX "idx_sources_name"
            ON "tbl_sources" (

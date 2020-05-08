@@ -471,9 +471,10 @@ def format_xml2(html_soup):
 
 # 修正xml串xstr中的自闭合节点与空内容节点值为dst
 def fix_xml_node(xstr, dst='-'):
-    xstr = xstr.strip()
-    ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, xstr)
-    return re.sub('<([^>/]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)
+    ret = xstr.strip()  # 字符串两端净空
+    ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, ret)  # 修正自闭合节点
+    ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
+    return ret
 
 
 # -----------------------------------------------------------------------------
@@ -518,6 +519,22 @@ def query_xpath_x(cnt_str, cc_xpath, removeTags=None):
             rs[i] = etree.tostring(rs[i], encoding='unicode', method='html')
 
     return rs, msg
+
+
+# 查询指定捕获组的内容并转为数字.不成功时返回默认值
+def query_xpath_num(cnt_str, cc_re, defval=1):
+    rs, msg = query_xpath(cnt_str, cc_re)
+    if len(rs) != 0:
+        return int(rs[0])
+    return defval
+
+
+# 查询指定捕获组的内容串.不成功时返回默认值
+def query_xpath_str(cnt_str, cc_re, defval=None):
+    rs, msg = query_xpath(cnt_str, cc_re)
+    if len(rs) != 0:
+        return rs[0]
+    return defval
 
 
 # 可进行多次xpath查询的功能对象
@@ -621,11 +638,13 @@ def pair_extract(xml, xpaths, removeTags=None):
         # 先根据给定的规则,查询得到各个分量的结果
         for p in xpaths:
             qr[p] = xp.query(p)[0]
-            rows = min(rows, len(qr[p]))  # 获取最少的结果数量
+            siz = len(qr[p])
+            rows = min(rows, siz)  # 获取最少的结果数量
 
         for p in xpaths:
-            if len(qr[p]) > rows:
-                return [], 'xpath查询结果数量不等 <%s>' % (p)
+            siz = len(qr[p])
+            if siz > rows:
+                return [], 'xpath查询结果数量不等 <%s> (%d > %d)' % (p, siz, rows)
 
         if rows == 0:
             return [], ''  # 没有匹配的结果
