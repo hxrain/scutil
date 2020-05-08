@@ -109,7 +109,19 @@ CREATE TABLE "tbl_sources" (
            ''']
 
 logger = None
+proxy = None
 
+#绑定全局默认代理地址
+def bing_global_proxy(str):
+    global proxy
+    proxy=str
+
+#统一生成默认请求参数
+def _make_req_param():
+    req={}
+    if proxy:
+        req['PROXY']=proxy
+    return req
 
 class info_t:
     """待入库的信息对象"""
@@ -213,8 +225,8 @@ class spider_base:
             return None
 
         # 给出对info.url的处理机会,并用来判断是否需要抓取细览页
-        req_obj = None
-        need_take_page = self.source.on_page_url(info, list_url, req_obj)
+        req_param = _make_req_param()
+        need_take_page = self.source.on_page_url(info, list_url, req_param)
 
         # 再进行排重检查
         rid = dbs.check_repeat(info, self.source.on_check_repeats)
@@ -225,7 +237,7 @@ class spider_base:
         if need_take_page:
             # 需要抓取细览页
             self.reqs += 1
-            if not self.http.take(info.url, req_obj):
+            if not self.http.take(info.url, req_param):
                 logger.warning('page_url http take error <%s> :: %s' % (info.url, self.http.get_error()))
                 return None
             self.rsps += 1
@@ -248,24 +260,24 @@ class spider_base:
         self.reqs = 0
         self.rsps = 0
         self.succ = 0
+        self.infos = 0
         self.begin_time = int(time.time())
 
         # 进行入口请求的处理
-        req_obj = None
-        entry_url = self.source.on_ready(req_obj)
+        req_param = _make_req_param()
+        entry_url = self.source.on_ready(req_param)
         if entry_url is not None:
             self.reqs += 1
-            if self.http.take(entry_url, req_obj):
+            if self.http.take(entry_url, req_param):
                 self.rsps += 1
                 self.succ += 1
 
         # 进行概览抓取循环
-        req_obj = None
-        list_url = self.source.on_list_url(req_obj)
+        list_url = self.source.on_list_url(req_param)
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
-            if self.http.take(list_url, req_obj):
+            if self.http.take(list_url, req_param):
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.rsps += 1
                 # 提取概览页信息列表
@@ -281,6 +293,8 @@ class spider_base:
                             logger.warning('list_url pair_extract empty <%s> :: >=%d limit!' % (list_url, list_emptys))
                             break
                     else:
+                        reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
+                        logger.info('source <%s> take list <%s>%s' % (self.source.name, list_url, reqbody))
                         list_emptys = 0
                         self.succ += 1
                         # 进行细览循环
@@ -288,14 +302,15 @@ class spider_base:
                             info = self.do_page(item, list_url, dbs)
                             if info:
                                 dbs.save_info(info)
+                                self.infos+=1
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s' % (list_url, msg))
             else:
                 logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
 
-            req_obj = None
-            list_url = self.source.on_list_url(req_obj)
+            list_url = self.source.on_list_url(req_param)
 
+        logger.info('source <%s> take infos <%d>' % (self.source.name,self.infos))
         return True
 
 
@@ -304,6 +319,7 @@ class db_base:
 
     def __init__(self, fname):
         self.db = s3db(fname)
+        self.db.opt_def()
         self.dbq = s3query(self.db)
         self.stime = int(time.time())
         pass
@@ -413,8 +429,8 @@ class collect_manager:
 
     def register(self, source_t, spider_t=spider_base):
         """注册采集源与对应的爬虫类,准备后续的遍历调用"""
-        if type(source_t).__name__=='module':
-            source_t=source_t.source_t
+        if type(source_t).__name__ == 'module':
+            source_t = source_t.source_t
         src = source_t()
 
         src.id = self.dbs.register(src.name, src.url)
@@ -426,11 +442,15 @@ class collect_manager:
 
     def run(self):
         """对全部爬虫逐一进行调用"""
+        self.infos=0
         for spd in self.spiders:
             logger.info("source <%s> begin.", spd.source.name)
             spd.run(self.dbs)
+            self.infos+=spd.infos
             self.dbs.update_act(spd)
             logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ)
+
+        logger.info("total sources <%d>. new infos <%d>.", len(self.spiders),self.infos)
 
     def loop(self):
         """进行持续循环运行"""

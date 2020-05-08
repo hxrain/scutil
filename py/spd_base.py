@@ -232,6 +232,7 @@ def make_logger(pspath, lvl=logging.DEBUG):
 def bind_logger_console(lg, lvl=logging.ERROR):
     stm = logging.StreamHandler()
     stm.setLevel(lvl)
+    stm.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
     lg.addHandler(stm)
 
 
@@ -411,76 +412,6 @@ def json2xml(jstr, indent=True, utf8=False):
 
 
 # -----------------------------------------------------------------------------
-# 将xml串str抽取重构为rules指定的格式条目{'条目名称':'xpath表达式'}
-def xml_extract(str, rules, rootName='条目'):
-    qr = {}
-    try:
-        xp = xpath(str)
-        rows = 99999999999
-        # 先根据给定的规则,查询得到各个分量的结果
-        for tag, p in rules.items():
-            qr[tag] = xp.query(p)[0]
-            rows = min(rows, len(qr[tag]))  # 获取最少的结果数量
-
-        for tag, p in rules.items():
-            if len(qr[tag]) > rows:
-                return None, 'xpath查询结果数量不等 <%s> :: %s' % (tag, p)
-
-        if rows == 0:
-            return 0, ''  # 没有匹配的结果
-
-        # 创建输出xml文档与根节点
-        document = minidom.Document()
-        root = document.createElement(rootName)
-
-        # 行循环,逐一输出各个节点中的条目列
-        for i in range(rows):
-            node = document.createElement('%d' % (i + 1))  # 序号节点
-            for tag in rules:
-                n = document.createElement(tag)  # 条目节点
-                n.appendChild(document.createTextNode(qr[tag][i]))  # 条目内容
-                node.appendChild(n)  # 条目节点挂载到序号节点
-            root.appendChild(node)  # 序号节点挂载到根节点
-        document.appendChild(root)  # 根节点挂载到文档对象
-
-        return rows, document.toprettyxml(indent='\t')  # 输出最终结果
-    except Exception as e:
-        return None, str(e)
-
-
-def pair_extract(xml, xpaths):
-    """根据xpaths列表,从xml中抽取结果,拼装为元组列表.
-        返回值:[()],errmsg
-    """
-    qr = {}
-    try:
-        xp = xpath(xml)
-        rows = 99999999999
-        # 先根据给定的规则,查询得到各个分量的结果
-        for p in xpaths:
-            qr[p] = xp.query(p)[0]
-            rows = min(rows, len(qr[p]))  # 获取最少的结果数量
-
-        for p in xpaths:
-            if len(qr[p]) > rows:
-                return [], 'xpath查询结果数量不等 <%s>' % (p)
-
-        if rows == 0:
-            return [], ''  # 没有匹配的结果
-
-        rst = []
-        for i in range(rows):
-            t = ()
-            for p in xpaths:
-                t = t + (qr[p][i].strip(),)
-            rst.append(t)
-        return rst, ''
-
-    except Exception as e:
-        return [], str(e)
-
-
-# -----------------------------------------------------------------------------
 # 进行html代码修正格式化,得到可解析易读的类似xhtml文本串
 def format_html(html_soup):
     try:
@@ -572,6 +503,7 @@ def query_xpath(cnt_str, cc_xpath):
     except Exception as e:
         return [], str(e)
 
+
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath;可以删除removeTags元组列表指出的标签(保留元素内容)
 # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
 def query_xpath_x(cnt_str, cc_xpath, removeTags=None):
@@ -583,17 +515,18 @@ def query_xpath_x(cnt_str, cc_xpath, removeTags=None):
         if isinstance(rs[i], etree._Element):
             if removeTags:
                 etree.strip_tags(rs[i], removeTags)
-            rs[i]=etree.tostring(rs[i],encoding='unicode',method='html')
+            rs[i] = etree.tostring(rs[i], encoding='unicode', method='html')
 
     return rs, msg
 
+
 # 可进行多次xpath查询的功能对象
 class xpath:
-    def __init__(self, cntstr):
+    def __init__(self, cntstr, is_xml=False):
         cnt_str = fix_xml_node(cntstr)
         self.cnt_str = None
         try:
-            if cnt_str.startswith('<?xml'):
+            if cnt_str.startswith('<?xml') or is_xml:
                 self.rootNode = etree.XML(cnt_str)
             else:
                 self.rootNode = etree.HTML(cnt_str)
@@ -634,6 +567,104 @@ class xpath:
 
 
 # -----------------------------------------------------------------------------
+# 将xml串str抽取重构为rules指定的格式条目{'条目名称':'xpath表达式'}
+def xml_extract(str, rules, rootName='条目', removeTags=None):
+    qr = {}
+    try:
+        xp = xpath(str)
+        rows = 99999999999
+        # 先根据给定的规则,查询得到各个分量的结果
+        for tag, p in rules.items():
+            qr[tag] = xp.query(p)[0]
+            rows = min(rows, len(qr[tag]))  # 获取最少的结果数量
+
+        for tag, p in rules.items():
+            if len(qr[tag]) > rows:
+                return None, 'xpath查询结果数量不等 <%s> :: %s' % (tag, p)
+
+        if rows == 0:
+            return 0, ''  # 没有匹配的结果
+
+        # 创建输出xml文档与根节点
+        document = minidom.Document()
+        root = document.createElement(rootName)
+
+        # 行循环,逐一输出各个节点中的条目列
+        for i in range(rows):
+            node = document.createElement('%d' % (i + 1))  # 序号节点
+            for tag in rules:
+                x = qr[tag][i]
+                if isinstance(x, etree._Element):
+                    if removeTags:
+                        etree.strip_tags(x, removeTags)
+                    x = etree.tostring(x, encoding='unicode', method='xml')
+
+                n = document.createElement(tag)  # 条目节点
+                n.appendChild(document.createTextNode(x))  # 条目内容
+                node.appendChild(n)  # 条目节点挂载到序号节点
+            root.appendChild(node)  # 序号节点挂载到根节点
+        document.appendChild(root)  # 根节点挂载到文档对象
+
+        return rows, document.toprettyxml(indent='\t')  # 输出最终结果
+    except Exception as e:
+        return None, str(e)
+
+
+def pair_extract(xml, xpaths, removeTags=None):
+    """根据xpaths列表,从xml中抽取结果,拼装为元组列表.
+        返回值:[()],errmsg
+    """
+    qr = {}
+    try:
+        xp = xpath(xml)
+        rows = 99999999999
+        # 先根据给定的规则,查询得到各个分量的结果
+        for p in xpaths:
+            qr[p] = xp.query(p)[0]
+            rows = min(rows, len(qr[p]))  # 获取最少的结果数量
+
+        for p in xpaths:
+            if len(qr[p]) > rows:
+                return [], 'xpath查询结果数量不等 <%s>' % (p)
+
+        if rows == 0:
+            return [], ''  # 没有匹配的结果
+
+        rst = []
+        for i in range(rows):
+            t = ()
+            for p in xpaths:
+                x = qr[p][i]
+                if isinstance(x, etree._Element):
+                    if removeTags:
+                        etree.strip_tags(x, removeTags)
+                    x = etree.tostring(x, encoding='unicode')
+                    x = '<?xml version="1.0"?>\n' + x
+                t = t + (x.strip(),)
+            rst.append(t)
+        return rst, ''
+
+    except Exception as e:
+        return [], str(e)
+
+
+# 将xpath规则结果对列表转换为字典
+def make_pairs_dict(lst):
+    dct = {}
+    for d in lst:
+        dct[d[0]] = d[1]
+    return dct
+
+
+# 获取字典dct中的指定key对应的值,不存在时返回默认值
+def get_dict_value(dct, key, defval=None):
+    if key in dct:
+        return dct[key]
+    else:
+        return defval
+
+
+# -----------------------------------------------------------------------------
 # 对cnt_str进行re查询,re表达式为cc_re,提取的结果序号为idx,(默认为全部匹配结果)
 # 返回值为([结果列表],'错误说明'),如果错误说明串不为空则代表发生了错误
 def query_re(cnt_str, cc_re, idx=None):
@@ -648,6 +679,22 @@ def query_re(cnt_str, cc_re, idx=None):
         return [], str(e)
     except Exception as e:
         return [], str(e)
+
+
+# 查询指定捕获组的内容并转为数字.不成功时返回默认值
+def query_re_num(cnt_str, cc_re, defval=1):
+    rs, msg = query_re(cnt_str, cc_re)
+    if len(rs) != 0:
+        return int(rs[0])
+    return defval
+
+
+# 查询指定捕获组的内容串.不成功时返回默认值
+def query_re_str(cnt_str, cc_re, defval=None):
+    rs, msg = query_re(cnt_str, cc_re)
+    if len(rs) != 0:
+        return rs[0]
+    return defval
 
 
 # -----------------------------------------------------------------------------
@@ -738,6 +785,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     '''
     # 准备请求参数
     method = req['METHOD'] if req and 'METHOD' in req else 'get'
+    SSL_VERIFY = req['SSL_VERIFY'] if req and 'SSL_VERIFY' in req else None
     proxy = req['PROXY'] if req and 'PROXY' in req else None
     HEAD = req['HEAD'] if req and 'HEAD' in req else None
     BODY = req['BODY'] if req and 'BODY' in req else None
@@ -766,7 +814,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         session.headers = default_headers(url)
 
         rsp = session.request(method, url, proxies=proxy, headers=HEAD, data=BODY, cookies=CKM,
-                              timeout=timeout, allow_redirects=allow_redirects)
+                              timeout=timeout, allow_redirects=allow_redirects, verify=SSL_VERIFY)
     except Exception as e:
         rst['error'] = e
         return False
