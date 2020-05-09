@@ -310,7 +310,6 @@ class spider_base:
 
             list_url = self.source.on_list_url(req_param)
 
-        logger.info('source <%s> take infos <%d>' % (self.source.name,self.infos))
         return True
 
 
@@ -448,7 +447,7 @@ class collect_manager:
             spd.run(self.dbs)
             self.infos+=spd.infos
             self.dbs.update_act(spd)
-            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ)
+            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
 
         logger.info("total sources <%d>. new infos <%d>.", len(self.spiders),self.infos)
 
