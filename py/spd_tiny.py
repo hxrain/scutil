@@ -210,6 +210,7 @@ class spider_base:
         self.http = spd_base()
         self.begin_time = 0
         self.meter = tick_meter(source.interval)
+        self.source.spider=self
 
     def do_page(self, item, list_url, dbs):
         """进行细览抓取与提取信息的处理"""
@@ -294,15 +295,17 @@ class spider_base:
                             break
                     else:
                         reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
-                        logger.info('source <%s> take list <%s>%s' % (self.source.name, list_url, reqbody))
                         list_emptys = 0
                         self.succ += 1
+                        infos=0
                         # 进行细览循环
                         for item in rst:
                             info = self.do_page(item, list_url, dbs)
                             if info:
                                 dbs.save_info(info)
-                                self.infos+=1
+                                infos+=1
+                        self.infos+=infos
+                        logger.info('source <%s> news <%d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s' % (list_url, msg))
             else:
@@ -428,9 +431,12 @@ class collect_manager:
 
     def register(self, source_t, spider_t=spider_base):
         """注册采集源与对应的爬虫类,准备后续的遍历调用"""
-        if type(source_t).__name__ == 'module':
+        if type(source_t).__name__ == 'module': #传递模块对象,引用默认类
             source_t = source_t.source_t
-        src = source_t()
+        elif type(source_t).__name__ == 'str': #传递模块名字,动态装载
+            source_t = __import__(source_t).source_t
+
+        src = source_t() #默认传递采集源的类或被动态装载后得到了采集源的类,创建实例
 
         src.id = self.dbs.register(src.name, src.url)
         if src.id == -1:

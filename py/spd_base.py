@@ -958,4 +958,4 @@ class spd_base:
 
     # 获取回应内容,解压缩转码后的内容
     def get_BODY(self):
-        return self.rst['BODY']
+        return self.rst['BODY'] if 'BODY' in self.rst else None
