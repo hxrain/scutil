@@ -115,16 +115,19 @@ class s3tbl(s3query):
     def set_select(self, sql):
         self.sql_select = sql
 
-    def insert(self, t, cmt=True):
-        return super().exec(self.sql_insert, t, cmt)
+    def insert(self, vals, cmt=True):
+        return super().exec(self.sql_insert, vals, cmt)
 
     def insertx(self, lst):
         for t in lst:
             self.insert(t, False)
         self.conn.commit()
 
-    def update(self, t, w, cmt=True):
-        return super().exec(self.sql_update, t + w, cmt)
+    def update(self, vals, w=None, cmt=True):
+        if w is None:
+            return super().exec(self.sql_update, vals, cmt)
+        else:
+            return super().exec(self.sql_update, vals + w, cmt)
 
     def query(self, w=None, sql=None):
         if sql is None:
