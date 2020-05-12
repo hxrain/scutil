@@ -1,9 +1,7 @@
-import json
-import time
+import importlib
 
 from spd_base import *
 from sqlite import *
-import importlib
 
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
@@ -112,17 +110,20 @@ sql_tbl = ['''
 logger = None
 proxy = None
 
-#绑定全局默认代理地址
+
+# 绑定全局默认代理地址
 def bing_global_proxy(str):
     global proxy
-    proxy=str
+    proxy = str
 
-#统一生成默认请求参数
+
+# 统一生成默认请求参数
 def _make_req_param():
-    req={}
+    req = {}
     if proxy:
-        req['PROXY']=proxy
+        req['PROXY'] = proxy
     return req
+
 
 class info_t:
     """待入库的信息对象"""
@@ -179,8 +180,8 @@ class source_base:
         return True
 
     def on_page_url(self, info, list_url, req):
-        """可以对info内容进行修正,填充细览请求参数req.返回值告知是否抓取细览页."""
-        return False
+        """可以对info内容进行修正,填充细览请求参数req.返回值告知实际抓取细览页的url地址."""
+        return None
 
     def on_page_info(self, info, list_url, page):
         """从page中提取必要的细览页信息放入info中.返回值告知是否处理成功"""
@@ -211,7 +212,7 @@ class spider_base:
         self.http = spd_base()
         self.begin_time = 0
         self.meter = tick_meter(source.interval)
-        self.source.spider=self
+        self.source.spider = self
 
     def do_page(self, item, list_url, dbs):
         """进行细览抓取与提取信息的处理"""
@@ -228,7 +229,7 @@ class spider_base:
 
         # 给出对info.url的处理机会,并用来判断是否需要抓取细览页
         req_param = _make_req_param()
-        need_take_page = self.source.on_page_url(info, list_url, req_param)
+        take_page_url = self.source.on_page_url(info, list_url, req_param)
 
         # 再进行排重检查
         rid = dbs.check_repeat(info, self.source.on_check_repeats)
@@ -236,20 +237,22 @@ class spider_base:
             logger.debug("page_url <%s> is REPEATED <%d>", info.url, rid)
             return None
 
-        if need_take_page:
+        pg_info_ok = True
+        if take_page_url:
             # 需要抓取细览页
             self.reqs += 1
-            if not self.http.take(info.url, req_param):
-                logger.warning('page_url http take error <%s> :: %s' % (info.url, self.http.get_error()))
+            if not self.http.take(take_page_url, req_param):
+                logger.warning('page_url http take error <%s> :: %s' % (take_page_url, self.http.get_error()))
                 return None
             self.rsps += 1
             # 对细览页进行后续处理
             xstr = self.source.on_page_format(self.http.get_BODY())
-            if self.source.on_page_info(info, list_url, xstr):
+            pg_info_ok = self.source.on_page_info(info, list_url, xstr)
+            if pg_info_ok:
                 self.succ += 1
 
         # 再进行信息过滤判断
-        if self.source.on_info_filter(info):
+        if pg_info_ok and self.source.on_info_filter(info):
             return info  # 可以存盘
 
         return None
@@ -285,6 +288,7 @@ class spider_base:
                 # 提取概览页信息列表
                 xstr = self.source.on_list_format(self.http.get_BODY())
                 rst, msg = pair_extract(xstr, self.source.on_list_rules)
+                self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
                 if msg == '':
                     if len(rst) == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
@@ -292,20 +296,22 @@ class spider_base:
                             list_url, self.http.get_status_code(), self.http.get_BODY()))
                         list_emptys += 1
                         if list_emptys >= self.source.on_list_empty_limit:
-                            logger.warning('list_url pair_extract empty <%s> :: >=%d limit!' % (list_url, list_emptys))
+                            logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' %
+                                           (list_url, list_emptys, self.source.on_list_empty_limit))
                             break
                     else:
-                        reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
+                        reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param[
+                            'METHOD'] == 'post' and 'BODY' in req_param else ''
                         list_emptys = 0
                         self.succ += 1
-                        infos=0
+                        infos = 0
                         # 进行细览循环
                         for item in rst:
                             info = self.do_page(item, list_url, dbs)
                             if info:
                                 dbs.save_info(info)
-                                infos+=1
-                        self.infos+=infos
+                                infos += 1
+                        self.infos += infos
                         logger.info('source <%s> news <%d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s' % (list_url, msg))
@@ -432,12 +438,12 @@ class collect_manager:
 
     def register(self, source_t, spider_t=spider_base):
         """注册采集源与对应的爬虫类,准备后续的遍历调用"""
-        if type(source_t).__name__ == 'module': #传递模块对象,引用默认类
+        if type(source_t).__name__ == 'module':  # 传递模块对象,引用默认类
             source_t = source_t.source_t
-        elif type(source_t).__name__ == 'str': #传递模块名字,动态装载
+        elif type(source_t).__name__ == 'str':  # 传递模块名字,动态装载
             source_t = importlib.import_module(source_t).source_t
 
-        src = source_t() #默认传递采集源的类或被动态装载后得到了采集源的类,创建实例
+        src = source_t()  # 默认传递采集源的类或被动态装载后得到了采集源的类,创建实例
 
         src.id = self.dbs.register(src.name, src.url)
         if src.id == -1:
@@ -448,15 +454,16 @@ class collect_manager:
 
     def run(self):
         """对全部爬虫逐一进行调用"""
-        self.infos=0
+        self.infos = 0
         for spd in self.spiders:
             logger.info("source <%s> begin.", spd.source.name)
             spd.run(self.dbs)
-            self.infos+=spd.infos
+            self.infos += spd.infos
             self.dbs.update_act(spd)
-            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
+            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps,
+                        spd.succ, spd.infos)
 
-        logger.info("total sources <%d>. new infos <%d>.", len(self.spiders),self.infos)
+        logger.info("total sources <%d>. new infos <%d>.", len(self.spiders), self.infos)
 
     def loop(self):
         """进行持续循环运行"""
