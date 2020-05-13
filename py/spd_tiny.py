@@ -149,10 +149,12 @@ class source_base:
         self.id = -1  # 采集源注册后得到的唯一标识
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
+        self.http_timeout = 20 # http请求超时时间
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
-        self.on_check_repeats = []  # 排重检查所需的info字段列表
+        self.on_check_repeats = []  # 概览排重检查所需的info字段列表
+        self.on_pages_repeats = []  # 细览排重检查所需的info字段列表
         pass
 
     def warn(self, msg, *arg):
@@ -210,6 +212,7 @@ class spider_base:
     def __init__(self, source):
         self.source = source
         self.http = spd_base()
+        self.http.timeout = self.source.http_timeout
         self.begin_time = 0
         self.meter = tick_meter(source.interval)
         self.source.spider = self
@@ -234,7 +237,7 @@ class spider_base:
         # 再进行排重检查
         rid = dbs.check_repeat(info, self.source.on_check_repeats)
         if rid is not None:
-            logger.debug("page_url <%s> is REPEATED <%d>", info.url, rid)
+            logger.debug("page_url <%s> is list REPEATED <%d>", info.url, rid)
             return None
 
         pg_info_ok = True
@@ -253,7 +256,11 @@ class spider_base:
 
         # 再进行信息过滤判断
         if pg_info_ok and self.source.on_info_filter(info):
-            return info  # 可以存盘
+            rid = dbs.check_repeat(info, self.source.on_pages_repeats)
+            if rid is None:
+                return info  # 细览排重通过,可以存盘
+            else:
+                logger.debug("page_url <%s> is page REPEATED <%d>", info.url, rid)
 
         return None
 
@@ -276,6 +283,8 @@ class spider_base:
             if self.http.take(entry_url, req_param):
                 self.rsps += 1
                 self.succ += 1
+            else:
+                logger.warning('entry_url http take error <%s> :: %s' % (entry_url, self.http.get_error()))
 
         # 进行概览抓取循环
         list_url = self.source.on_list_url(req_param)
@@ -292,8 +301,7 @@ class spider_base:
                 if msg == '':
                     if len(rst) == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
-                        logger.warning('list_url pair_extract empty <%s %d> :: %s' % (
-                            list_url, self.http.get_status_code(), self.http.get_BODY()))
+                        logger.warning('list_url pair_extract empty <%s %d> :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY()))
                         list_emptys += 1
                         if list_emptys >= self.source.on_list_empty_limit:
                             logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' %
@@ -456,7 +464,7 @@ class collect_manager:
         """对全部爬虫逐一进行调用"""
         self.infos = 0
         for spd in self.spiders:
-            logger.info("source <%s> begin.", spd.source.name)
+            logger.info("source <%s> begin. <%s>", spd.source.name,spd.source.url)
             spd.run(self.dbs)
             self.infos += spd.infos
             self.dbs.update_act(spd)
