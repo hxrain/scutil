@@ -107,8 +107,9 @@ sql_tbl = ['''
            );
            ''']
 
-logger = None
-proxy = None
+logger = None # 全局日志输出对象
+proxy = None # 全局代理地址信息
+lists_rate=1 # 全局概览翻页倍率
 
 
 # 绑定全局默认代理地址
@@ -116,6 +117,10 @@ def bing_global_proxy(str):
     global proxy
     proxy = str
 
+# 设置全局概览翻页倍率
+def set_lists_rate(r):
+    global lists_rate
+    lists_rate = r
 
 # 统一生成默认请求参数
 def _make_req_param():
@@ -150,6 +155,8 @@ class source_base:
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
         self.http_timeout = 20 # http请求超时时间
+        self.list_url_idx = 0 # 当前概览页号
+        self.list_url_cnt = 1 # 概览翻页数量
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -161,8 +168,14 @@ class source_base:
         fmt = 'source <%s : %s> ' % (self.name, self.url)
         logger.warn(fmt + msg, arg)
 
+    def can_listing(self):
+        """判断是否可以翻页"""
+        return self.list_url_idx <= lists_rate*self.list_url_cnt
+
     def on_ready(self, req):
         """准备进行采集动作了,可以返回入口url获取最初得到cookie等内容,也可进行必要的初始化或设置req请求参数"""
+        self.list_url_idx = 0
+        self.list_url_cnt = 1
         return None
 
     def on_list_format(self, rsp):
@@ -301,7 +314,7 @@ class spider_base:
                 if msg == '':
                     if len(rst) == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
-                        logger.warning('list_url pair_extract empty <%s %d> :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY()))
+                        logger.debug('list_url pair_extract empty <%s %d> :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY()))
                         list_emptys += 1
                         if list_emptys >= self.source.on_list_empty_limit:
                             logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' %
@@ -320,9 +333,9 @@ class spider_base:
                                 dbs.save_info(info)
                                 infos += 1
                         self.infos += infos
-                        logger.info('source <%s> news <%d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
+                        logger.info('source <%s> news <%3d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
                 else:
-                    logger.warning('list_url pair_extract error <%s> :: %s' % (list_url, msg))
+                    logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
             else:
                 logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
 
