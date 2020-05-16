@@ -157,6 +157,7 @@ class source_base:
         self.http_timeout = 20 # http请求超时时间
         self.list_url_idx = 0 # 当前概览页号
         self.list_url_cnt = 1 # 概览翻页数量
+        self.list_max_cnt = 99999 # 概览翻页最大数量
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -170,7 +171,8 @@ class source_base:
 
     def can_listing(self):
         """判断是否可以翻页"""
-        return self.list_url_idx <= lists_rate*self.list_url_cnt
+        max_cnt=min(self.list_max_cnt,lists_rate*self.list_url_cnt)
+        return self.list_url_idx <= max_cnt
 
     def on_ready(self, req):
         """准备进行采集动作了,可以返回入口url获取最初得到cookie等内容,也可进行必要的初始化或设置req请求参数"""
@@ -261,6 +263,7 @@ class spider_base:
                 logger.warning('page_url http take error <%s> :: %s' % (take_page_url, self.http.get_error()))
                 return None
             self.rsps += 1
+            logger.debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
             # 对细览页进行后续处理
             xstr = self.source.on_page_format(self.http.get_BODY())
             pg_info_ok = self.source.on_page_info(info, list_url, xstr)

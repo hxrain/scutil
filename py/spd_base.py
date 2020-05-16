@@ -471,11 +471,23 @@ def format_xml2(html_soup):
 
 # 修正xml串xstr中的自闭合节点与空内容节点值为dst
 def fix_xml_node(xstr, dst='-'):
+    if xstr is None: return None
     ret = xstr.strip()  # 字符串两端净空
     ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, ret)  # 修正自闭合节点
     ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
     return ret
 
+# 提取xml串中的节点文本,丢弃全部标签格式
+def extract_xml_text(xstr):
+    if xstr is None:return None
+    ret = xstr.strip()  # 字符串两端净空
+    ret = re.sub('<([^>/]*?)/>', '', ret)  # 丢弃自闭合节点
+    ret = re.sub('<([^/][^>]*?)>', '', ret)  # 替换开始标签
+    ret = re.sub('</([^>]*?)>', '', ret)  # 替换结束标签
+
+    ret = ret.replace('&#13;','\n') #修正结果串
+    ret = ret.strip()
+    return ret
 
 # -----------------------------------------------------------------------------
 # 获取时间串,默认为当前时间
