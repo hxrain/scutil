@@ -107,9 +107,9 @@ sql_tbl = ['''
            );
            ''']
 
-logger = None # 全局日志输出对象
-proxy = None # 全局代理地址信息
-lists_rate=1 # 全局概览翻页倍率
+logger = None  # 全局日志输出对象
+proxy = None  # 全局代理地址信息
+lists_rate = 1  # 全局概览翻页倍率
 
 
 # 绑定全局默认代理地址
@@ -117,10 +117,12 @@ def bing_global_proxy(str):
     global proxy
     proxy = str
 
+
 # 设置全局概览翻页倍率
 def set_lists_rate(r):
     global lists_rate
     lists_rate = r
+
 
 # 统一生成默认请求参数
 def _make_req_param():
@@ -154,12 +156,12 @@ class source_base:
         self.id = -1  # 采集源注册后得到的唯一标识
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
-        self.http_timeout = 20 # http请求超时时间
-        self.list_url_idx = 0 # 当前概览页号
-        self.list_url_cnt = 1 # 概览翻页数量
-        self.list_max_cnt = 99999 # 概览翻页最大数量
-        self.list_is_json = False #告知概览页面是否为json串,进而决定默认格式化方式
-        self.list_url_sleep = 0 #概览翻页的延迟休眠时间
+        self.http_timeout = 20  # http请求超时时间
+        self.list_url_idx = 0  # 当前概览页号
+        self.list_url_cnt = 1  # 概览翻页数量
+        self.list_max_cnt = 99999  # 概览翻页最大数量
+        self.list_is_json = False  # 告知概览页面是否为json串,进而决定默认格式化方式
+        self.list_url_sleep = 0  # 概览翻页的延迟休眠时间
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -173,7 +175,7 @@ class source_base:
 
     def can_listing(self):
         """判断是否可以翻页"""
-        max_cnt=min(self.list_max_cnt,lists_rate*self.list_url_cnt)
+        max_cnt = min(self.list_max_cnt, lists_rate * self.list_url_cnt)
         return self.list_url_idx <= max_cnt
 
     def on_ready(self, req):
@@ -203,16 +205,16 @@ class source_base:
     def on_list_url(self, req):
         """告知待抓取的概览URL地址,填充req请求参数.返回None停止采集"""
         if not self.can_listing():
-            return None # 循环条件不允许了,直接返回
+            return None  # 循环条件不允许了,直接返回
 
-        if self.list_url_sleep>0: # 根据需要进行概览采集休眠
+        if self.list_url_sleep > 0:  # 根据需要进行概览采集休眠
             time.sleep(self.list_url_sleep)
 
-        url=self.make_list_urlz(req) # 先尝试生成0序列的概览列表地址
+        url = self.make_list_urlz(req)  # 先尝试生成0序列的概览列表地址
 
-        self.list_url_idx += 1 #概览页索引增加
+        self.list_url_idx += 1  # 概览页索引增加
         if self.can_listing() and url is None:
-            url = self.make_list_url(req) #再尝试调用1序列的概览地址生成函数
+            url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
 
         return url
 
@@ -414,7 +416,7 @@ class db_base:
                 logger.error('source <%s : %s> register REPEATED!. EXIST URL<%s>', name, site_url, rows[0][2])
                 return -1
 
-        logger.info('source register OK! <%s : %s> source_id < %d >.', name, site_url, rows[0][0])
+        logger.info('source register OK! <%3d : %s : %s>', rows[0][0], name, site_url)
         return rows[0][0]
 
     def update_act(self, spd: spider_base):
@@ -505,7 +507,7 @@ class collect_manager:
         """对全部爬虫逐一进行调用"""
         self.infos = 0
         for spd in self.spiders:
-            logger.info("source <%s> begin. <%s>", spd.source.name,spd.source.url)
+            logger.info("source <%s> begin. <%s>", spd.source.name, spd.source.url)
             spd.run(self.dbs)
             self.infos += spd.infos
             self.dbs.update_act(spd)
