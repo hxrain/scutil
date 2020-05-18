@@ -158,6 +158,7 @@ class source_base:
         self.list_url_idx = 0 # 当前概览页号
         self.list_url_cnt = 1 # 概览翻页数量
         self.list_max_cnt = 99999 # 概览翻页最大数量
+        self.list_is_json = False #告知概览页面是否为json串,进而决定默认格式化方式
         self.list_url_sleep = 0 #概览翻页的延迟休眠时间
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
@@ -178,12 +179,14 @@ class source_base:
     def on_ready(self, req):
         """准备进行采集动作了,可以返回入口url获取最初得到cookie等内容,也可进行必要的初始化或设置req请求参数"""
         self.list_url_idx = 0
-        self.list_url_cnt = 1
         return None
 
     def on_list_format(self, rsp):
         """返回列表页面的格式化内容,默认对html进行新xhtml格式化"""
-        return format_html(rsp)
+        if self.list_is_json:
+            return json2xml(rsp)[0]
+        else:
+            return format_html(rsp)
 
     def on_page_format(self, rsp):
         """返回细览页面的格式化内容,默认对html进行新xhtml格式化"""
