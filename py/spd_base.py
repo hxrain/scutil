@@ -10,10 +10,11 @@ import urllib.parse as up
 from xml.dom import minidom
 
 import requests
-from hash_util import *
 from lxml import etree
 from lxml import html
 from lxml.html.clean import Cleaner
+
+from hash_util import *
 
 # 调整requests模块的默认日志级别,避免无用调试信息的输出
 logging.getLogger("requests").setLevel(logging.WARNING)
@@ -477,17 +478,28 @@ def fix_xml_node(xstr, dst='-'):
     ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
     return ret
 
+
 # 提取xml串中的节点文本,丢弃全部标签格式
 def extract_xml_text(xstr):
-    if xstr is None:return None
+    if xstr is None: return None
     ret = xstr.strip()  # 字符串两端净空
     ret = re.sub('<([^>/]*?)/>', '', ret)  # 丢弃自闭合节点
     ret = re.sub('<([^/][^>]*?)>', '', ret)  # 替换开始标签
     ret = re.sub('</([^>]*?)>', '', ret)  # 替换结束标签
 
-    ret = ret.replace('&#13;','\n') #修正结果串
+    ret = ret.replace('&#13;', '\n')  # 修正结果串
     ret = ret.strip()
     return ret
+
+
+def replace_re(cnt_str, cc_re, cc_dst):
+    """将cnt_str中符合cc_re正则表达式的部分替换为cc_dst"""
+    try:
+        rst = re.sub(cc_re, cc_dst, cnt_str, flags=re.DOTALL)
+        return rst, ''
+    except Exception as e:
+        return cnt_str, str(e)
+
 
 # -----------------------------------------------------------------------------
 # 获取时间串,默认为当前时间

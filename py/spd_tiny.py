@@ -158,6 +158,7 @@ class source_base:
         self.list_url_idx = 0 # 当前概览页号
         self.list_url_cnt = 1 # 概览翻页数量
         self.list_max_cnt = 99999 # 概览翻页最大数量
+        self.list_url_sleep = 0 #概览翻页的延迟休眠时间
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -188,9 +189,29 @@ class source_base:
         """返回细览页面的格式化内容,默认对html进行新xhtml格式化"""
         return format_html(rsp)
 
-    def on_list_url(self, req):
-        """告知待抓取的概览URL地址,填充req请求参数.返回None则不进行概览循环"""
+    def make_list_urlz(self, req):
+        """生成概览列表url,self.list_url_idx从0开始;返回值:概览所需抓取的url,None则尝试调用make_list_url"""
         return None
+
+    def make_list_url(self, req):
+        """生成概览列表url,self.list_url_idx从1开始;返回值:概览所需抓取的url,None则停止循环"""
+        return None
+
+    def on_list_url(self, req):
+        """告知待抓取的概览URL地址,填充req请求参数.返回None停止采集"""
+        if not self.can_listing():
+            return None # 循环条件不允许了,直接返回
+
+        if self.list_url_sleep>0: # 根据需要进行概览采集休眠
+            time.sleep(self.list_url_sleep)
+
+        url=self.make_list_urlz(req) # 先尝试生成0序列的概览列表地址
+
+        self.list_url_idx += 1 #概览页索引增加
+        if self.can_listing() and url is None:
+            url = self.make_list_url(req) #再尝试调用1序列的概览地址生成函数
+
+        return url
 
     def on_info_filter(self, info):
         """对待入库的信息进行过滤,判断是应该入库.返回值:是否可以入库"""
@@ -301,6 +322,7 @@ class spider_base:
                 self.succ += 1
             else:
                 logger.warning('entry_url http take error <%s> :: %s' % (entry_url, self.http.get_error()))
+                return False
 
         # 进行概览抓取循环
         list_url = self.source.on_list_url(req_param)
