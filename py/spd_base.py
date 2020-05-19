@@ -411,6 +411,12 @@ def json2xml(jstr, indent=True, utf8=False):
     except Exception as e:
         return '', 'JSON ERR : ' + str(e)
 
+def json2dict(jstr, indent=True, utf8=False):
+    try:
+        dic = json.loads(jstr)
+        return dic,''
+    except Exception as e:
+        return [], 'JSON ERR : ' + str(e)
 
 # -----------------------------------------------------------------------------
 # 进行html代码修正格式化,得到可解析易读的类似xhtml文本串
@@ -804,7 +810,7 @@ def default_headers(url):
     host = ur[1]
     return requests.structures.CaseInsensitiveDict({
         'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8',
         'Host': host,
         'Connection': 'keep-alive',
     })
