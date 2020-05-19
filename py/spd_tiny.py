@@ -170,9 +170,8 @@ class source_base:
         self.on_pages_repeats = []  # 细览排重检查所需的info字段列表
         pass
 
-    def warn(self, msg, *arg):
-        fmt = 'source <%s : %s> ' % (self.name, self.url)
-        logger.warn(fmt + msg, arg)
+    def warn(self, msg):
+        logger.warn('source <%s : %s> %s' % (self.name, self.url,msg))
 
     def can_listing(self):
         """判断是否可以翻页"""
