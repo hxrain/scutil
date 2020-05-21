@@ -169,15 +169,28 @@ def save_to_file(fname, strdata, encode='utf-8', mode='w'):
     except Exception as e:
         return False
 
-
+#挑选出指定串中的unicode转义序列，并转换为标准串
+def uniseq2str(s):
+    m = re.findall(r'(\\u[0-9a-fA-F]{4})', s)
+    ms = set(m)
+    for i in ms:
+        c = i.encode('latin-1').decode('unicode_escape')
+        s = s.replace(i, c)
+    return s
 # -----------------------------------------------------------------------------
-# 进行URL编码
+# URL编码
 def encodeURIComponent(url):
     url = hp.unescape(url)
     url = up.quote_plus(url, safe='', encoding='utf-8')
     return url
 
+# URI解码
+def decodeURIComponent(url):
+    url = up.unquote_plus(url)
+    url = uniseq2str(url)
+    return url
 
+# -----------------------------------------------------------------------------
 def url_ext_match(url, exts):
     '判断url对应的文件是否与给定的扩展名匹配'
     ext = up.urlparse(url)
@@ -245,6 +258,23 @@ def save_file(fn, data, encoding='utf-8'):
     f = open(fn, "wb+")
     f.write(data)
     f.close()
+
+# 十六进制串转换为对应的字符
+import binascii
+def hexstr_to_chr(hex_str):
+    hex = hex_str.encode('utf-8')
+    str_bin = binascii.unhexlify(hex)
+    return str_bin.decode('utf-8')
+
+
+# 挑选出指定串中的\xHH转义序列，并转换为标准串
+def hex_decode(s):
+    m = re.findall(r'(\\x[0-9a-fA-F]{2})', s)
+    ms = set(m)
+    for i in ms:
+        c = hexstr_to_chr(i[2:])
+        s = s.replace(i, c)
+    return s
 
 
 # -----------------------------------------------------------------------------
