@@ -171,7 +171,7 @@ class source_base:
         pass
 
     def warn(self, msg):
-        logger.warn('source <%s : %s> %s' % (self.name, self.url,msg))
+        logger.warn('source <%s : %s> %s' % (self.name, self.url, msg))
 
     def can_listing(self):
         """判断是否可以翻页"""
@@ -367,6 +367,10 @@ class spider_base:
                                 infos += 1
                         self.infos += infos
                         logger.info('source <%s> news <%3d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
+
+                        if infos > 0 and self.source.list_url_idx == self.source.list_url_cnt and self.source.list_url_cnt < self.source.list_max_cnt:
+                            # 到达预期的翻页数量后,发现仍有数据,则自动增长翻页数量
+                            self.source.list_url_cnt = min(self.source.list_url_cnt + 2, self.source.list_max_cnt)
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
             else:
@@ -510,12 +514,11 @@ class collect_manager:
         """对全部爬虫逐一进行调用"""
         self.infos = 0
         for spd in self.spiders:
-            logger.info("source <%s> begin. <%s>", spd.source.name, spd.source.url)
+            logger.info("source <%s> begin[%d:%d]. <%s>", spd.source.name, spd.source.list_url_cnt, spd.source.list_max_cnt, spd.source.url)
             spd.run(self.dbs)
             self.infos += spd.infos
             self.dbs.update_act(spd)
-            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps,
-                        spd.succ, spd.infos)
+            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
 
         logger.info("total sources <%d>. new infos <%d>.", len(self.spiders), self.infos)
 
