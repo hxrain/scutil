@@ -158,7 +158,8 @@ class source_base:
         self.url = None  # 采集源对应的站点url
         self.http_timeout = 20  # http请求超时时间
         self.list_url_idx = 0  # 当前概览页号
-        self.list_url_cnt = 1  # 概览翻页数量
+        self.list_url_cnt = 1  # 初始默认的概览翻页数量
+        self.list_inc_cnt = 3  # 达到默认翻页数量的时候,如果仍有信息被采回,则进行默认增量翻页
         self.list_max_cnt = 99999  # 概览翻页最大数量
         self.list_is_json = False  # 告知概览页面是否为json串,进而决定默认格式化方式
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
@@ -368,9 +369,9 @@ class spider_base:
                         self.infos += infos
                         logger.info('source <%s> news <%3d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
 
-                        if infos > 0 and self.source.list_url_idx == self.source.list_url_cnt and self.source.list_url_cnt < self.source.list_max_cnt:
-                            # 到达预期的翻页数量后,发现仍有数据,则自动增长翻页数量
-                            self.source.list_url_cnt = min(self.source.list_url_cnt + 2, self.source.list_max_cnt)
+                        if infos > 0 and self.source.list_inc_cnt > 0 and self.source.list_url_idx == self.source.list_url_cnt:
+                            # 到达预期的翻页数量后,发现仍有数据,则尝试自动增长翻页数量
+                            self.source.list_url_cnt = min(self.source.list_url_cnt + self.source.list_inc_cnt, self.source.list_max_cnt)
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
             else:

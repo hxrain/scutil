@@ -4,19 +4,18 @@ from tkinter.simpledialog import *
 from PIL import ImageTk, Image
 
 #显示给定的图片,得到输入的验证码字符
-def input_validcode(img=None):
+def input_validcode(img):
     root = Tk()
     root.title('输入验证码')
     root.wm_attributes('-topmost', 1)  # 窗口置顶
     root.resizable(width=False, height=False)  # 禁止改变窗口大小
 
     # 准备图像对象
-    if img is None:
-        img_file = Image.open('E:/svn/joinspider/py_spd/cops_punish/src/a.jpg')
+    if isinstance(img, bytes):
+        img_file = io.BytesIO(img)
     else:
-        if isinstance(img, bytes):
-            img = io.BytesIO(img)
         img_file = Image.open(img)
+    img_file = Image.open(img_file)
 
     # 转换图像对象为标准照片对象
     img_photo = ImageTk.PhotoImage(img_file)
