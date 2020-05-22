@@ -1,7 +1,7 @@
 import importlib
 
 from spd_base import *
-from sqlite import *
+from db_sqlite import *
 
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
