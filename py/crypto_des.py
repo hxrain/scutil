@@ -33,15 +33,17 @@ class DESCrypt:
     def decrypt(self, bytes):
         """解密指定的字节数据"""
         pln = self.cryptor.decrypt(bytes)
-        if int(pln[-1]) < self.CR.block_size:
+        if int(pln[-1]) <= self.CR.block_size:
             return self._unpad(pln)
         else:
             return pln
 
 
 def des_base64_decode(dat, key):
-    des = DESCrypt(key.encode('latin-1'))
-    edat = des.decrypt(base64.b64decode(dat))
-    return edat.decode('utf-8')
-
-
+    try:
+        des = DESCrypt(key.encode('latin-1'))
+        chp = base64.b64decode(dat)
+        edat = des.decrypt(chp)
+        return edat.decode('utf-8'), ''
+    except Exception as e:
+        return '', str(e)

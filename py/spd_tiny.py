@@ -159,7 +159,7 @@ class source_base:
         self.http_timeout = 20  # http请求超时时间
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
-        self.list_inc_cnt = 3  # 达到默认翻页数量的时候,如果仍有信息被采回,则进行默认增量翻页
+        self.list_inc_cnt = 2  # 达到默认翻页数量的时候,如果仍有信息被采回,则进行默认增量翻页
         self.list_max_cnt = 99999  # 概览翻页最大数量
         self.list_is_json = False  # 告知概览页面是否为json串,进而决定默认格式化方式
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
