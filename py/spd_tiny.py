@@ -262,7 +262,7 @@ class spider_base:
         self.meter = tick_meter(source.interval)
         self.source.spider = self
 
-    def do_page(self, item, list_url, dbs):
+    def _do_page(self, item, list_url, dbs):
         """进行细览抓取与提取信息的处理"""
         info = info_t(self.source.id)
         # 将概览页提取的信息元组赋值到标准info对象
@@ -310,6 +310,28 @@ class spider_base:
 
         return None
 
+    def _do_page_loop(self, list_items, list_url, dbs):
+        """执行细览抓取处理循环,返回值告知本次成功抓取并保存的信息数量"""
+        infos = 0
+        # 进行细览循环
+        for item in list_items:
+            info = self._do_page(item, list_url, dbs)
+            if info:
+                dbs.save_info(info)
+                infos += 1
+        self.infos += infos
+
+        if self.list_info_bulking is not None:
+            self.list_info_bulking += infos  # 处于增量抓取状态时,累计增量抓取的数量
+
+        return infos
+
+    def _do_list_bulking(self):
+        # 到达预期的翻页数量后,发现仍有数据,则尝试自动增长翻页数量
+        if self.list_info_bulking and self.source.list_inc_cnt > 0 and self.source.list_url_idx == self.source.list_url_cnt:
+            self.source.list_url_cnt = min(self.source.list_url_cnt + self.source.list_inc_cnt, self.source.list_max_cnt)
+            self.list_info_bulking = 0  # 需要开启新一轮增量抓取的时候,清空本轮增量抓取数量
+
     def run(self, dbs):
         """对当前采集任务进行完整流程处理:概览循环与细览循环"""
         if not self.meter.hit():
@@ -319,6 +341,7 @@ class spider_base:
         self.rsps = 0
         self.succ = 0
         self.infos = 0
+        self.list_info_bulking = 0  # None没有进入增量模式.其他为本轮增量翻页的信息抓取数量.初值为0则对首轮进行累计
         self.begin_time = int(time.time())
 
         # 进行入口请求的处理
@@ -355,28 +378,17 @@ class spider_base:
                                            (list_url, list_emptys, self.source.on_list_empty_limit))
                             break
                     else:
-                        reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param[
-                            'METHOD'] == 'post' and 'BODY' in req_param else ''
+                        reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                         list_emptys = 0
                         self.succ += 1
-                        infos = 0
-                        # 进行细览循环
-                        for item in rst:
-                            info = self.do_page(item, list_url, dbs)
-                            if info:
-                                dbs.save_info(info)
-                                infos += 1
-                        self.infos += infos
+                        infos = self._do_page_loop(rst, list_url, dbs)  # 进行概览循环
                         logger.info('source <%s> news <%3d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
-
-                        if infos > 0 and self.source.list_inc_cnt > 0 and self.source.list_url_idx == self.source.list_url_cnt:
-                            # 到达预期的翻页数量后,发现仍有数据,则尝试自动增长翻页数量
-                            self.source.list_url_cnt = min(self.source.list_url_cnt + self.source.list_inc_cnt, self.source.list_max_cnt)
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
             else:
                 logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
 
+            self._do_list_bulking() # 尝试进行概览翻页递增
             list_url = self.source.on_list_url(req_param)
 
         return True
@@ -515,7 +527,7 @@ class collect_manager:
         """对全部爬虫逐一进行调用"""
         self.infos = 0
         for spd in self.spiders:
-            logger.info("source <%s> begin[%d:%d]. <%s>", spd.source.name, spd.source.list_url_cnt, spd.source.list_max_cnt, spd.source.url)
+            logger.info("source <%3d:%s> begin[%d:%d]. <%s>", spd.source.id, spd.source.name, spd.source.list_url_cnt, spd.source.list_max_cnt, spd.source.url)
             spd.run(self.dbs)
             self.infos += spd.infos
             self.dbs.update_act(spd)
