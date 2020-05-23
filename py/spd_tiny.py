@@ -279,6 +279,10 @@ class spider_base:
         req_param = _make_req_param()
         take_page_url = self.source.on_page_url(info, list_url, req_param)
 
+        if info.source_id is None:
+            logger.debug("page_url <%s> is list DISCARD", info.url)
+            return None
+
         # 再进行排重检查
         rid = dbs.check_repeat(info, self.source.on_check_repeats)
         if rid is not None:
@@ -515,7 +519,7 @@ class db_base:
         if len(cond) == 0:
             return None  # 没有给出判重条件,则认为不重复
 
-        val , cnd = self._cat_cond(info,cond)
+        val, cnd = self._cat_cond(info, cond)
         rows, msg = self.dbq.query("select id from tbl_infos where %s limit 1" % cnd, val)
 
         if msg != '':
@@ -544,6 +548,16 @@ class collect_manager:
             source_t = importlib.import_module(source_t).source_t
 
         src = source_t()  # 默认传递采集源的类或被动态装载后得到了采集源的类,创建实例
+
+        # 检查字段有效性
+        if len(src.on_list_rulenames) == 0:
+            logger.warn('<%s> not setup info field.' % src.name)
+            return False
+
+        for field in src.on_list_rulenames:
+            if field not in {'url', 'title', 'content', 'pub_time', 'addr', 'keyword', 'memo'}:
+                logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
+                return False
 
         src.id = self.dbs.register(src.name, src.url)
         if src.id == -1:
