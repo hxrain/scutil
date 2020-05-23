@@ -1,7 +1,7 @@
 import importlib
 
-from spd_base import *
 from db_sqlite import *
+from spd_base import *
 
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
@@ -388,7 +388,7 @@ class spider_base:
             else:
                 logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
 
-            self._do_list_bulking() # 尝试进行概览翻页递增
+            self._do_list_bulking()  # 尝试进行概览翻页递增
             list_url = self.source.on_list_url(req_param)
 
         return True
@@ -475,6 +475,39 @@ class db_base:
 
         return True
 
+    def _cat_cond(self, info: info_t, cond):
+        """ 拼装排重条件与值元组
+            cond为['字段1','字段2']时,代表多个字段为and逻辑
+            cond为[('字段1','字段2'),('字段3','字段4')]时,代表多个字段组为or逻辑,组内字段为and逻辑
+        """
+        vals = ()
+        cons = ()
+
+        # 统计分组的数量
+        grps = 0
+        for i in range(len(cond)):
+            if isinstance(cond[i], tuple):
+                grps += 1
+
+        if grps:
+            # 有分组,需要先对分组中的tuple进行检查修正
+            for i in range(len(cond)):
+                if not isinstance(cond[i], tuple):
+                    cond[i] = (cond[i],)
+
+            for fields in cond:
+                # 对每个组进行处理,拼装and部分的逻辑串
+                vals += tuple(info.__dict__[c] for c in fields)
+                cons += ('(' + ' and '.join(tuple(c + '=?' for c in fields)) + ')',)
+        else:
+            # 无分组,直接拼装and部分的逻辑
+            vals = tuple(info.__dict__[c] for c in cond)
+            cons += (' and '.join(tuple(c + '=?' for c in cond)),)
+
+        # 多个and条件,进行or连接
+        cons = ' or '.join(tuple(c for c in cons))
+        return vals, cons
+
     def check_repeat(self, info: info_t, cond):
         """使用指定的信息对象,根据给定的cond条件(字段名列表),判断其是否重复.
             返回值:None不重复;其他为已有信息的ID
@@ -482,11 +515,7 @@ class db_base:
         if len(cond) == 0:
             return None  # 没有给出判重条件,则认为不重复
 
-        val = tuple(info.__dict__[c] for c in cond)
-        if len(cond) > 1:
-            cnd = ' and '.join(tuple(c + '=?' for c in cond))
-        else:
-            cnd = cond[0] + '=?'
+        val , cnd = self._cat_cond(info,cond)
         rows, msg = self.dbq.query("select id from tbl_infos where %s limit 1" % cnd, val)
 
         if msg != '':
@@ -527,7 +556,8 @@ class collect_manager:
         """对全部爬虫逐一进行调用"""
         self.infos = 0
         for spd in self.spiders:
-            logger.info("source <%3d:%s> begin[%d:%d]. <%s>", spd.source.id, spd.source.name, spd.source.list_url_cnt, spd.source.list_max_cnt, spd.source.url)
+            logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt, spd.source.list_inc_cnt,
+                        spd.source.list_max_cnt, spd.source.url)
             spd.run(self.dbs)
             self.infos += spd.infos
             self.dbs.update_act(spd)
