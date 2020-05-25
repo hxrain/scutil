@@ -184,6 +184,10 @@ class source_base:
         self.list_url_idx = 0
         return None
 
+    def on_ready_info(self,rsp):
+        """如果on_ready给出了入口地址,则这里会进行入口信息的处理.比如获取初始访问key;返回值告知是否继续抓取."""
+        return True
+
     def on_list_format(self, rsp):
         """返回列表页面的格式化内容,默认对html进行新xhtml格式化"""
         if self.list_is_json:
@@ -356,6 +360,9 @@ class spider_base:
             if self.http.take(entry_url, req_param):
                 self.rsps += 1
                 self.succ += 1
+                if not self.source.on_ready_info(self.http.get_BODY()):
+                    logger.warning('entry_url http info extract fail. <%s>' % (entry_url))
+                    return False
             else:
                 logger.warning('entry_url http take error <%s> :: %s' % (entry_url, self.http.get_error()))
                 return False
