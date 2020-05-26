@@ -1,4 +1,4 @@
-import html as hp
+﻿import html as hp
 import http.cookiejar as cookiejar
 import json
 import logging
@@ -581,17 +581,17 @@ def query_xpath_x(cnt_str, cc_xpath, removeTags=None):
     return rs, msg
 
 
-# 查询指定捕获组的内容并转为数字.不成功时返回默认值
-def query_xpath_num(cnt_str, cc_re, defval=1):
-    rs, msg = query_xpath(cnt_str, cc_re)
+# 使用xpath查询指定节点的内容并转为数字.不成功时返回默认值
+def query_xpath_num(cnt_str, cc_xpath, defval=1):
+    rs, msg = query_xpath(cnt_str, cc_xpath)
     if len(rs) != 0:
         return int(rs[0])
     return defval
 
 
-# 查询指定捕获组的内容串.不成功时返回默认值
-def query_xpath_str(cnt_str, cc_re, defval=None):
-    rs, msg = query_xpath(cnt_str, cc_re)
+# 使用xpath查询指定节点的内容串.不成功时返回默认值
+def query_xpath_str(cnt_str, cc_xpath, defval=None):
+    rs, msg = query_xpath(cnt_str, cc_xpath)
     if len(rs) != 0:
         return rs[0]
     return defval
