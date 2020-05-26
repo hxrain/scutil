@@ -184,7 +184,7 @@ class source_base:
         self.list_url_idx = 0
         return None
 
-    def on_ready_info(self,rsp):
+    def on_ready_info(self, rsp):
         """如果on_ready给出了入口地址,则这里会进行入口信息的处理.比如获取初始访问key;返回值告知是否继续抓取."""
         return True
 
@@ -545,6 +545,7 @@ class collect_manager:
     def __init__(self, dbs):
         self.dbs = dbs
         self.spiders = []
+        logger.info('tiny spider collect manager is starting ...')
         pass
 
     def register(self, source_t, spider_t=spider_base):
@@ -596,17 +597,16 @@ class collect_manager:
         self.spiders.clear()
         self.spiders = None
         self.dbs = None
+        logger.info('tiny spider collect manager is stop.')
 
 
-def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', log_con_lvl=logging.INFO,
-                     log_file_lvl=logging.WARNING):
+def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', log_con_lvl=logging.INFO, log_file_lvl=logging.INFO):
     """创建采集系统管理器对象,告知日志路径和数据库路径.
         返回值:None失败.其他为采集系统管理器对象
     """
     global logger
     logger = make_logger(log_path, log_file_lvl)
     bind_logger_console(logger, log_con_lvl)
-    logger.warn('tiny spider collect manager is starting ...')
 
     dbs = db_base(db_path)  # 打开数据库
     if not dbs.opened():
