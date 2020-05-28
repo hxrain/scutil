@@ -110,6 +110,7 @@ sql_tbl = ['''
 logger = None  # 全局日志输出对象
 proxy = None  # 全局代理地址信息
 lists_rate = 1  # 全局概览翻页倍率
+info_upd_mode = False  # 是否开启采集源全局更新模式(根据排重条件查询得到主键id,之后更新此信息)
 
 
 # 绑定全局默认代理地址
@@ -122,6 +123,12 @@ def bing_global_proxy(str):
 def set_lists_rate(r):
     global lists_rate
     lists_rate = r
+
+
+# 设置是否开启采集源全局更新模式
+def set_info_updmode(v):
+    global info_upd_mode
+    info_upd_mode = v
 
 
 # 统一生成默认请求参数
@@ -156,6 +163,7 @@ class source_base:
         self.id = -1  # 采集源注册后得到的唯一标识
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
+        self.info_upd_mode = False  # 是否开启该信息源的更新模式
         self.http_timeout = 20  # http请求超时时间
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
@@ -283,17 +291,22 @@ class spider_base:
         req_param = _make_req_param()
         take_page_url = self.source.on_page_url(info, list_url, req_param)
 
-        if info.source_id is None:
+        if info.source_id is None:  # 在on_page_url调用之后,给出信息废弃的机会,是另一种on_info_filter过滤处理
             logger.debug("page_url <%s> is list DISCARD", info.url)
             return None
 
-        # 再进行排重检查
+        # 进行概览排重检查
         rid = dbs.check_repeat(info, self.source.on_check_repeats)
-        if rid is not None:
-            logger.debug("page_url <%s> is list REPEATED <%d>", info.url, rid)
-            return None
+        if self._is_upd_mode():
+            # 要求进行信息更新,则记录当前已有信息主键id,继续处理
+            self.updid = rid
+        else:
+            # 不要求信息更新,如果信息已存在,则结束处理
+            if rid is not None:
+                logger.debug("page_url <%s> is list REPEATED <%d>", info.url, rid)
+                return None
 
-        pg_info_ok = True
+        page_info_ok = True
         if take_page_url:
             # 需要抓取细览页
             self.reqs += 1
@@ -304,13 +317,23 @@ class spider_base:
             logger.debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
             # 对细览页进行后续处理
             xstr = self.source.on_page_format(self.http.get_BODY())
-            pg_info_ok = self.source.on_page_info(info, list_url, xstr)
-            if pg_info_ok:
+            page_info_ok = self.source.on_page_info(info, list_url, xstr)
+            if page_info_ok:
                 self.succ += 1
 
-        # 再进行信息过滤判断
-        if pg_info_ok and self.source.on_info_filter(info):
-            rid = dbs.check_repeat(info, self.source.on_pages_repeats)
+        # 进行信息过滤判断
+        if not page_info_ok or not self.source.on_info_filter(info):
+            logger.debug("page_url <%s> is page DISCARD", info.url)
+            return None
+
+        # 进行细览排重检查
+        rid = dbs.check_repeat(info, self.source.on_pages_repeats)
+        if self._is_upd_mode():
+            # 要求进行信息更新,则尝试使用细览排重得到的信息主键id
+            if self.updid is None or rid is not None:
+                self.updid = rid
+            return info  # 更新模式,可以存盘
+        else:
             if rid is None:
                 return info  # 细览排重通过,可以存盘
             else:
@@ -323,9 +346,10 @@ class spider_base:
         infos = 0
         # 进行细览循环
         for item in list_items:
+            self.updid = None
             info = self._do_page(item, list_url, dbs)
             if info:
-                dbs.save_info(info)
+                dbs.save_info(info, self.updid)
                 infos += 1
         self.infos += infos
 
@@ -340,6 +364,12 @@ class spider_base:
             self.source.list_url_cnt = min(self.source.list_url_cnt + self.source.list_inc_cnt, self.source.list_max_cnt)
             self.list_info_bulking = 0  # 需要开启新一轮增量抓取的时候,清空本轮增量抓取数量
 
+    def _is_upd_mode(self):
+        """判断当前采集源是否需要进行信息的更新处理"""
+        if info_upd_mode or self.source.info_upd_mode:
+            return True
+        return False
+
     def run(self, dbs):
         """对当前采集任务进行完整流程处理:概览循环与细览循环"""
         if not self.meter.hit():
@@ -349,6 +379,7 @@ class spider_base:
         self.rsps = 0
         self.succ = 0
         self.infos = 0
+        self.updid = None  # 进行细览页循环与信息保存的时候,记录已存在信息的主键ID,决定是否需要对信息进行更新
         self.list_info_bulking = 0  # None没有进入增量模式.其他为本轮增量翻页的信息抓取数量.初值为0则对首轮进行累计
         self.begin_time = int(time.time())
 
@@ -462,8 +493,8 @@ class db_base:
 
         return True
 
-    def save_info(self, info: info_t):
-        """保存指定的信息入库,外面应进行排重判断.返回值告知是否成功"""
+    def save_info(self, info: info_t, updid=None):
+        """保存指定的信息入库,外面应进行排重判断;可指定updid进行信息的强制更新;返回值告知是否成功"""
 
         def d2j(d):
             if d is None:
@@ -474,12 +505,16 @@ class db_base:
                 logger.error('info ext dict2json error <%s>', str(e))
                 return None
 
-        dat = (info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr,
-               info.keyword, d2j(info.ext), info.memo)
+        dat = (info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr, info.keyword, d2j(info.ext), info.memo)
+        if updid is None:
+            # 常规插入模式
+            sql = "insert into tbl_infos(source_id,create_time,title,url,content,pub_time,addr,keyword,ext,memo) values(?,?,?,?,?,?,?,?,?,?)"
+        else:
+            # 数据更新模式
+            dat += (updid,)
+            sql = "update tbl_infos set source_id=?,create_time=?,title=?,url=?,content=?,pub_time=?,addr=?,keyword=?,ext=?,memo=? where id=?"
 
-        ret, msg = self.dbq.exec(
-            "insert into tbl_infos(source_id,create_time,title,url,content,pub_time,addr,keyword,ext,memo) values(?,?,?,?,?,?,?,?,?,?)",
-            dat)
+        ret, msg = self.dbq.exec(sql, dat)
         if not ret:
             logger.error("info <%s> save fail. DB error <%s>", str(dat), msg)
             return False
