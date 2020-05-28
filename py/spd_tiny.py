@@ -413,7 +413,7 @@ class spider_base:
                 if msg == '':
                     if len(rst) == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
-                        logger.debug('list_url pair_extract empty <%s %d> :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY()))
+                        logger.debug('list_url pair_extract empty <%s %d> :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY(), xstr))
                         list_emptys += 1
                         if list_emptys >= self.source.on_list_empty_limit:
                             logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' %

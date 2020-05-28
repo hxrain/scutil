@@ -169,7 +169,8 @@ def save_to_file(fname, strdata, encode='utf-8', mode='w'):
     except Exception as e:
         return False
 
-#挑选出指定串中的unicode转义序列，并转换为标准串
+
+# 挑选出指定串中的unicode转义序列，并转换为标准串
 def uniseq2str(s):
     m = re.findall(r'(\\u[0-9a-fA-F]{4})', s)
     ms = set(m)
@@ -177,6 +178,8 @@ def uniseq2str(s):
         c = i.encode('latin-1').decode('unicode_escape')
         s = s.replace(i, c)
     return s
+
+
 # -----------------------------------------------------------------------------
 # URL编码
 def encodeURIComponent(url):
@@ -184,11 +187,13 @@ def encodeURIComponent(url):
     url = up.quote_plus(url, safe='', encoding='utf-8')
     return url
 
+
 # URI解码
 def decodeURIComponent(url):
     url = up.unquote_plus(url)
     url = uniseq2str(url)
     return url
+
 
 # -----------------------------------------------------------------------------
 def url_ext_match(url, exts):
@@ -259,8 +264,11 @@ def save_file(fn, data, encoding='utf-8'):
     f.write(data)
     f.close()
 
+
 # 十六进制串转换为对应的字符
 import binascii
+
+
 def hexstr_to_chr(hex_str):
     hex = hex_str.encode('utf-8')
     str_bin = binascii.unhexlify(hex)
@@ -437,16 +445,20 @@ def dict2xml(dic, indent=True, utf8=False):
 def json2xml(jstr, indent=True, utf8=False):
     try:
         dic = json.loads(jstr)
+        if isinstance(dic, str):
+            dic = json.loads(dic)
         return dict2xml(dic, indent, utf8)
     except Exception as e:
         return '', 'JSON ERR : ' + str(e)
 
+
 def json2dict(jstr, indent=True, utf8=False):
     try:
         dic = json.loads(jstr)
-        return dic,''
+        return dic, ''
     except Exception as e:
         return [], 'JSON ERR : ' + str(e)
+
 
 # -----------------------------------------------------------------------------
 # 进行html代码修正格式化,得到可解析易读的类似xhtml文本串
