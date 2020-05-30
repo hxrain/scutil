@@ -54,12 +54,12 @@ class dfa_match_t():
         return True
 
     # 从文件装载关键词
-    def dict_load(self, path):
+    def dict_load(self, path,defval=''):
         with open(path, 'r', encoding='utf8') as f:
             for line in f:
                 dat = line.strip().split('@', 1)
                 if len(dat) == 1:
-                    self.dict_add(dat[0])
+                    self.dict_add(dat[0],defval)
                 else:
                     self.dict_add(dat[0], dat[1])
 

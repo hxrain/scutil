@@ -598,7 +598,7 @@ class collect_manager:
             return False
 
         for field in src.on_list_rulenames:
-            if field not in {'url', 'title', 'content', 'pub_time', 'addr', 'keyword', 'memo'}:
+            if field[0]!='_' and field not in {'url', 'title', 'content', 'pub_time', 'addr', 'keyword', 'memo'}:
                 logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
                 return False
 

@@ -67,6 +67,77 @@ def append_lines(fname, dats, encoding=None):
         return False
 
 
+# 文件行输出器
+class append_line_t:
+    def __init__(self, fname, encoding='utf-8'):
+        try:
+            self.fp = open(fname, 'a', encoding=encoding)
+        except Exception as e:
+            print('ERROR: %s' % (str(e)))
+
+    def append(self, line=''):
+        if isinstance(line, list):
+            for l in line:
+                self.fp.writelines([l, '\n'])
+        else:
+            self.fp.writelines([line, '\n'])
+
+    def close(self):
+        if self.fp:
+            self.fp.close()
+            self.fp = None
+
+    def __del__(self):
+        self.close()
+
+
+# 文件行读取器
+class read_lines_t:
+    def __init__(self, fname, encoding='utf-8'):
+        try:
+            self.fp = open(fname, 'r', encoding=encoding)
+        except Exception as e:
+            print('ERROR: %s' % (str(e)))
+
+    def skip(self, lines=100):
+        for i in range(lines):
+            l = self.fp.readline()
+            if l is '': break
+
+    def fetch(self, lines=100):
+        ret = []
+        for i in range(lines):
+            l = self.fp.readline()
+            if l is '': break
+            ret.append(l.rstrip())
+        return ret
+
+    def close(self):
+        if self.fp:
+            self.fp.close()
+            self.fp = None
+
+    def __del__(self):
+        self.close()
+
+# 将infile分隔为多个ofile_prx文件,每个文件最多lines行
+def split_lines_file(infile, ofile_prx, lines):
+    fi = spd_base.read_lines_t(infile)
+    fn = 1
+    ls = []
+    while True:
+        fo = spd_base.append_line_t(ofile_prx % fn)
+        for p in range(lines // 100):
+            ls = fi.fetch()
+            if len(ls) == 0:
+                break
+            fo.append(ls)
+        fo.close()
+        fn += 1
+
+        if len(ls) == 0:
+            break
+
 '''
 lw = lines_writer(0)
 lw.open('tst.txt')
