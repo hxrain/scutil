@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import math
 import json
 
@@ -185,9 +186,14 @@ class TDF_IDF(TDF_IDF_Core):
 
     def load(self, filename):
         '装载词典,返回tdf与idf词典的数量2元组'
+        fn=filename + '.cfg'
+        if not os.path.exists(fn):
+            return (None,None)
+
+        cfg = load_dict(fn)
         self.tdf_dict = load_dict(filename + '.tdf')
         self.idf_dict = load_dict(filename + '.idf')
-        cfg = load_dict(filename + '.cfg')
+
         self.D = cfg['D']
         self.digital_dtf_rate = cfg['digital_dtf_rate']
         self.avg_docs_len = cfg['avg_docs_len']

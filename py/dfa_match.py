@@ -54,18 +54,18 @@ class dfa_match_t():
         return True
 
     # 从文件装载关键词
-    def dict_load(self, path,defval=''):
+    def dict_load(self, path, defval=''):
         with open(path, 'r', encoding='utf8') as f:
             for line in f:
                 dat = line.strip().split('@', 1)
                 if len(dat) == 1:
-                    self.dict_add(dat[0],defval)
+                    self.dict_add(dat[0], defval)
                 else:
                     self.dict_add(dat[0], dat[1])
 
-    def do_filter(self, message, repl="*"):
+    def do_filter(self, message, repl="*", max_match=True):
         """对给定的消息进行关键词匹配过滤,替换为字典中的对应值,或指定的字符"""
-        ms = self.do_match(message)
+        ms = self.do_match(message, max_match=max_match)
         rst = []
         for m in ms:
             if m[2] is None:
@@ -78,14 +78,14 @@ class dfa_match_t():
         return ''.join(rst)
 
     # 对给定的消息进行关键词匹配,得到结果链[(begin,end,val),(begin,end,val),...],val为None说明是原内容部分
-    def do_match(self, message, msg_len=None, isall=True):
+    def do_match(self, message, msg_len=None, isall=True, max_match=True):
         message = message.lower()  # 待处理消息串进行小写转换,消除干扰
         if msg_len is None:
             msg_len = len(message)
         offset = 0
         rst = []
         while offset < msg_len:
-            rc = self.do_check(message, msg_len, offset)
+            rc = self.do_check(message, msg_len, offset, max_match)
             if rc[0] is None:  # 没有找到匹配结果
                 if isall:
                     if offset == 0:
@@ -99,7 +99,7 @@ class dfa_match_t():
             offset = rc[1]  # 从当前匹配的结束位置继续后面的尝试
         return rst
 
-    def do_check(self, message, msg_len=None, offset=0):
+    def do_check(self, message, msg_len=None, offset=0, max_match=True):
         """对给定的消息进行关键词匹配测试,返回值:首个匹配的结果,三元组(begin,end,val)"""
         if msg_len is None:
             msg_len = len(message)
@@ -118,6 +118,11 @@ class dfa_match_t():
                     # 如果当前词链没有结束,则尝试向下深入,不记录结果
                     level = level[char]
                 else:
+                    if max_match and start + step_ins < msg_len:  # 要进行最大化匹配的尝试
+                        nchar = message[start + step_ins]
+                        if nchar in level[char]:
+                            level = level[char]
+                            continue
                     # 如果当前词链标记结束了,说明从start开始到现在的消息内容,是一个完整匹配
                     return (start, start + step_ins, level[char][self.delimit])
             # 跳过当前消息字符,开始下一轮匹配

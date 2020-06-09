@@ -172,6 +172,7 @@ class source_base:
         self.list_is_json = False  # 告知概览页面是否为json串,进而决定默认格式化方式
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
         self.list_url_sleep = 0  # 概览翻页的延迟休眠时间
+        self.last_list_items = -1  # 记录最后一次概览提取元素数量
         self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -598,7 +599,7 @@ class collect_manager:
             return False
 
         for field in src.on_list_rulenames:
-            if field[0]!='_' and field not in {'url', 'title', 'content', 'pub_time', 'addr', 'keyword', 'memo'}:
+            if field[0] != '_' and field not in {'url', 'title', 'content', 'pub_time', 'addr', 'keyword', 'memo'}:
                 logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
                 return False
 

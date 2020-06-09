@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from idf_dict import *
+from nlp_idf_dict import *
 
 
 class BM25_Core:
@@ -59,7 +59,7 @@ class BM25_Query(BM25_Core):
         self.doc_tf_list = []
 
     def append(self, doc, docid, upd_ti=True):
-        '追加文档,并计算词频(可以在多次调用本方法后再最后调用update,最后再调用TDF_IDF.update)'
+        '追加文档,并计算词频(可以在多次调用本方法后,最后调用update,相当于最后调用TDF_IDF.update)'
         doc_tf = {}
         calc_tf(doc, doc_tf)
 
