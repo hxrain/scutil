@@ -1128,60 +1128,6 @@ class ppcef_client_t:
     def make_take_url(self):
         return self.ppcef_url + '?mode=run&url='
 
-    # 设定ppcef抓取完成条件
-    def cond_html(self, result_cc_re, result_cc_xpath=None):
-        self.result_cc_re = result_cc_re
-        self.result_cc_xpath = result_cc_xpath
-
-    # 设定ppcef脚本执行条件
-    def cond_js(self, script_cc_re, script_cc_xpath=None):
-        self.script_cc_re = script_cc_re
-        self.script_cc_xpath = script_cc_xpath
-
-    # 生成访问目标网址并执行js代码的请求内容,返回ppcef访问地址
-    def make_exec(self, req, js, dsturl=None, is_one=True):
-        if self.result_cc_xpath is None and self.result_cc_re is None:
-            return '', 'result_cc is required!'
-
-        req.clear()
-        req['METHOD'] = 'post'
-        HEAD = req['HEAD'] = {}
-
-        if self.result_cc_xpath:
-            HEAD['result_cc_xpath'] = encodeURIComponent(self.result_cc_xpath)
-        if self.result_cc_re:
-            HEAD['result_cc_re'] = encodeURIComponent(self.result_cc_re)
-        if self.script_cc_xpath:
-            HEAD['script_cc_xpath'] = encodeURIComponent(self.script_cc_xpath)
-        if self.script_cc_re:
-            HEAD['script_cc_re'] = encodeURIComponent(self.script_cc_re)
-
-        if is_one:
-            body = """!script_after_once!%s!script_after_once!""" % js
-        else:
-            body = """!script_after!%s!script_after!""" % js
-
-        req['BODY'] = body
-
-        if dsturl is None:
-            url = self.make_take_url()
-        else:
-            url = '%s?url=%s' % (self.ppcef_url, dsturl)
-
-        return url, ''
-
-    # 执行js代码,返回渲染结果
-    def exec(self, js, dsturl=None, is_one=True):
-        req = {}
-        url, msg = self.make_exec(req, js, dsturl, is_one)
-        if msg != '':
-            return '', msg
-
-        if not self.http.take(url, req):
-            return '', self.http.get_error()
-
-        return self.http.get_BODY(), ''
-
     # -----------------------------------------------------
     # 生成浏览抓取指定页面的请求,默认抓取当前ppcef正在显示的内容;返回ppcef的访问地址
     def make_take(self, req, dsturl=None):
@@ -1202,7 +1148,7 @@ class ppcef_client_t:
         return url, ''
 
     # 浏览并抓取指定的页面,默认抓取当前ppcef正在显示的内容
-    def take(self, dsturl=None):
+    def do_take(self, dsturl=None):
         req = {}
         url, msg = self.make_take(req, dsturl)
         if msg != '':
@@ -1213,16 +1159,80 @@ class ppcef_client_t:
 
         return self.http.get_BODY(), ''
 
+    # 设定ppcef抓取完成条件
+    def cond_html_re(self, result_cc_re):
+        self.result_cc_re = result_cc_re
+
+    def cond_html_x(self, result_cc_xpath):
+        self.result_cc_xpath = result_cc_xpath
+
+    # 设定ppcef脚本执行条件
+    def cond_js_re(self, script_cc_re):
+        self.script_cc_re = script_cc_re
+
+    def cond_js_x(self, script_cc_xpath):
+        self.script_cc_xpath = script_cc_xpath
+
+    # 生成访问目标网址并执行js代码的请求内容,返回ppcef访问地址
+    def make_exec(self, req, js, dsturl=None, is_one=True, is_after=False):
+        if self.result_cc_xpath is None and self.result_cc_re is None:
+            return '', 'result_cc is required!'
+
+        req.clear()
+        req['METHOD'] = 'post'
+        HEAD = req['HEAD'] = {}
+
+        if self.result_cc_xpath:
+            HEAD['result_cc_xpath'] = encodeURIComponent(self.result_cc_xpath)
+        if self.result_cc_re:
+            HEAD['result_cc_re'] = encodeURIComponent(self.result_cc_re)
+        if self.script_cc_xpath:
+            HEAD['script_cc_xpath'] = encodeURIComponent(self.script_cc_xpath)
+        if self.script_cc_re:
+            HEAD['script_cc_re'] = encodeURIComponent(self.script_cc_re)
+
+        if is_after:
+            if is_one:
+                body = """!script_after_once!%s!script_after_once!""" % js
+            else:
+                body = """!script_after!%s!script_after!""" % js
+        else:
+            if is_one:
+                body = """!script_befor_once!%s!script_befor_once!""" % js
+            else:
+                body = """!script_befor!%s!script_befor!""" % js
+
+        req['BODY'] = body
+
+        if dsturl is None:
+            url = self.make_take_url()
+        else:
+            url = '%s?url=%s' % (self.ppcef_url, dsturl)
+
+        return url, ''
+
+    # 执行js代码,返回渲染结果
+    def do_exec(self, js, dsturl=None, is_one=True, is_after=False):
+        req = {}
+        url, msg = self.make_exec(req, js, dsturl, is_one, is_after)
+        if msg != '':
+            return '', msg
+
+        if not self.http.take(url, req):
+            return '', self.http.get_error()
+
+        return self.http.get_BODY(), ''
+
     # -----------------------------------------------------
     # 生成页面回退动作请求
-    def make_back(self, req):
+    def make_back(self, req, is_after=False):
         js = 'history.go(-1)'
-        return self.make_exec(req, js)
+        return self.make_exec(req, js, is_after=is_after)
 
     # 发起页面回退动作
-    def back(self):
+    def do_back(self, is_after=False):
         req = {}
-        url, msg = self.make_click(req)
+        url, msg = self.make_back(req, is_after)
         if msg != '':
             return '', msg
 
@@ -1233,14 +1243,19 @@ class ppcef_client_t:
 
     # -----------------------------------------------------
     # 生成对目标选择器的点击请求
-    def make_click(self, req, selector):
-        js = '$(%s).hit()' % selector  # 生成js的点击动作代码
-        return self.make_exec(req, js)
+    def make_hit(self, req, type, selector, key=None, is_after=False):
+        if key is None:
+            js = '_$_("%s").hit("%s")' % (selector.replace('"', '\''), type)  # 生成js的点击动作代码
+        else:
+            js = '_$_("%s").hit("%s",0,%d)' % (selector.replace('"', '\''), type, key)  # 生成js的点击动作代码
+        return self.make_exec(req, js, is_after=is_after)
 
     # 发起对目标选择器的点击动作
-    def click(self, selector):
+    def do_hit(self, type='click', selector='', key=None, is_after=False):
         req = {}
-        url, msg = self.make_click(req, selector)
+        if selector is '':
+            selector = self.script_cc_xpath
+        url, msg = self.make_hit(req, type, selector, key, is_after)
         if msg != '':
             return '', msg
 
@@ -1249,34 +1264,23 @@ class ppcef_client_t:
 
         return self.http.get_BODY(), ''
 
-    # -----------------------------------------------------
-    # 生成对目标选择器的键盘请求
-    def make_keypress(self, req, selector, keycode):
-        js = '$(%s).hit("keypress",0,%d)' % (selector, keycode)  # 生成js的点击动作代码
-        return self.make_exec(req, js)
-
-    # 对目标选择器对应的对象发起键盘事件,默认是回车
-    def keypress(self, selector, keycode=13):
-        req = {}
-        url, msg = self.make_keypress(req, selector, keycode)
-        if msg != '':
-            return '', msg
-
-        if not self.http.take(url, req):
-            return '', self.http.get_error()
-
-        return self.http.get_BODY(), ''
+    # 发起对目标选择器的回车动作
+    def do_enter(self, selector='', is_after=False):
+        return self.do_hit('keypress', selector, 13, is_after)
 
     # -----------------------------------------------------
     # 生成对目标选择器的赋值
-    def make_input_value(self, req, selector, value):
-        js = 'o=$(%s);o.val(%s);' % (selector, value)  # 生成js的点击动作代码
-        return self.make_exec(req, js)
+    def make_input(self, req, value, selector='', is_after=False):
+        js = 'var o=_$_("%s");o.val("%s");' % (selector.replace('"', '\''), value.replace('"', '\''))  # 生成js的点击动作代码
+        return self.make_exec(req, js, is_after=is_after)
 
     # 对目标选择器对应的对象赋值
-    def input_value(self, selector, value):
+    def do_input(self, value, selector='', is_after=False):
         req = {}
-        url, msg = self.make_input_value(req, selector, value)
+        if selector is '':
+            selector = self.script_cc_xpath
+
+        url, msg = self.make_input(req, value, selector, is_after)
         if msg != '':
             return '', msg
 
@@ -1287,14 +1291,16 @@ class ppcef_client_t:
 
     # -----------------------------------------------------
     # 生成对目标选择器的赋值与回车请求
-    def make_input_enter(self, req, selector, value):
-        js = 'o=$(%s);o.val(%s);o.hit("keypress",0,13)' % (selector, value)  # 生成js的点击动作代码
-        return self.make_exec(req, js)
+    def make_input_enter(self, req, value, selector, is_after=False):
+        js = 'var o=_$_("%s");o.val("%s");o.hit("keydown",0,13)' % (selector.replace('"', '\''), value.replace('"', '\''))  # 生成js的点击动作代码
+        return self.make_exec(req, js, is_after=is_after)
 
     # 对目标选择器对应的对象赋值并发起回车事件
-    def input_enter(self, selector, value):
+    def do_input_enter(self, value, selector='', is_after=False):
         req = {}
-        url, msg = self.make_input_enter(req, selector, value)
+        if selector is '':
+            selector = self.script_cc_xpath
+        url, msg = self.make_input_enter(req, value, selector, is_after)
         if msg != '':
             return '', msg
 
