@@ -164,7 +164,7 @@ class source_base:
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
         self.info_upd_mode = False  # 是否开启该信息源的更新模式
-        self.http_timeout = 20  # http请求超时时间
+        self.http_timeout = 20  # http请求超时时间,秒
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
         self.list_inc_cnt = 2  # 达到默认翻页数量的时候,如果仍有信息被采回,则进行默认增量翻页
@@ -203,6 +203,14 @@ class source_base:
             return json2xml(rsp)[0]
         else:
             return format_html(rsp)
+
+    def on_list_begin(self, infos):
+        """对一个概览页开始进行遍历处理之前的事件.infos记录已经抓取的信息数量"""
+        pass
+
+    def on_list_end(self, infos, news):
+        """对一个概览页完成遍历处理之后的事件.infos记录已经抓取的信息总量,news为本次有效信息数量"""
+        pass
 
     def on_page_format(self, rsp):
         """返回细览页面的格式化内容,默认对html进行新xhtml格式化"""
@@ -268,12 +276,21 @@ class spider_base:
     """爬虫任务基类,提供采集任务运行所需功能的核心接口"""
 
     def __init__(self, source):
-        self.source = source
         self.http = spd_base()
+        self.source = source
+        self.source.spider = self  # 给采集源对象绑定当前的爬虫对象实例
         self.http.timeout = self.source.http_timeout
         self.begin_time = 0
         self.meter = tick_meter(source.interval)
-        self.source.spider = self
+
+    # 对采集源待调用方法进行统一包装,防范意外错误
+    def call_src_method(self, method, *args):
+        try:
+            call = getattr(self.source, method)  # 获取指定的方法
+            return call(*args)  # 调用指定的方法
+        except Exception as e:
+            logger.error('<%s> running call <%s> error <%s>', self.source.name, method, str(e))  # 统一记录错误
+            return None
 
     def _do_page(self, item, list_url, dbs):
         """进行细览抓取与提取信息的处理"""
@@ -285,12 +302,12 @@ class spider_base:
         info.url = up.urljoin(list_url, info.url)
 
         # 先进行一下过滤判断
-        if not self.source.on_info_filter(info):
+        if not self.call_src_method('on_info_filter', info):
             return None
 
         # 给出对info.url的处理机会,并用来判断是否需要抓取细览页
         req_param = _make_req_param()
-        take_page_url = self.source.on_page_url(info, list_url, req_param)
+        take_page_url = self.call_src_method('on_page_url', info, list_url, req_param)
 
         if info.source_id is None:  # 在on_page_url调用之后,给出信息废弃的机会,是另一种on_info_filter过滤处理
             logger.debug("page_url <%s> is list DISCARD", info.url)
@@ -317,13 +334,13 @@ class spider_base:
             self.rsps += 1
             logger.debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
             # 对细览页进行后续处理
-            xstr = self.source.on_page_format(self.http.get_BODY())
-            page_info_ok = self.source.on_page_info(info, list_url, xstr)
+            xstr = self.call_src_method('on_page_format',self.http.get_BODY())
+            page_info_ok = self.call_src_method('on_page_info',info, list_url, xstr)
             if page_info_ok:
                 self.succ += 1
 
         # 进行信息过滤判断
-        if not page_info_ok or not self.source.on_info_filter(info):
+        if not page_info_ok or not self.call_src_method('on_info_filter',info):
             logger.debug("page_url <%s> is page DISCARD", info.url)
             return None
 
@@ -345,14 +362,20 @@ class spider_base:
     def _do_page_loop(self, list_items, list_url, dbs):
         """执行细览抓取处理循环,返回值告知本次成功抓取并保存的信息数量"""
         infos = 0
+        self.call_src_method('on_list_begin', self.infos)  # 概览页处理开始
+
         # 进行细览循环
-        for item in list_items:
+        tol_items = len(list_items)
+        for i in range(tol_items):
+            item = list_items[i]
             self.updid = None
+            self.source.list_item_index = (i + 1, tol_items)  # 告知采集源,当前的概览页条目索引信息
             info = self._do_page(item, list_url, dbs)
             if info:
                 dbs.save_info(info, self.updid)
                 infos += 1
         self.infos += infos
+        self.call_src_method('on_list_end',self.infos, infos)  # 概览页处理完成
 
         if self.list_info_bulking is not None:
             self.list_info_bulking += infos  # 处于增量抓取状态时,累计增量抓取的数量
@@ -386,13 +409,13 @@ class spider_base:
 
         # 进行入口请求的处理
         req_param = _make_req_param()
-        entry_url = self.source.on_ready(req_param)
+        entry_url = self.call_src_method('on_ready',req_param)
         if entry_url is not None:
             self.reqs += 1
             if self.http.take(entry_url, req_param):
                 self.rsps += 1
                 self.succ += 1
-                if not self.source.on_ready_info(self.http.get_BODY()):
+                if not self.call_src_method('on_ready_info',self.http.get_BODY()):
                     logger.warning('entry_url http info extract fail. <%s>' % (entry_url))
                     return False
             else:
@@ -400,7 +423,7 @@ class spider_base:
                 return False
 
         # 进行概览抓取循环
-        list_url = self.source.on_list_url(req_param)
+        list_url = self.call_src_method('on_list_url',req_param)
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
@@ -408,7 +431,7 @@ class spider_base:
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.rsps += 1
                 # 提取概览页信息列表
-                xstr = self.source.on_list_format(self.http.get_BODY())
+                xstr = self.call_src_method('on_list_format',self.http.get_BODY())
                 rst, msg = pair_extract(xstr, self.source.on_list_rules)
                 self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
                 if msg == '':
@@ -432,7 +455,7 @@ class spider_base:
                 logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
 
             self._do_list_bulking()  # 尝试进行概览翻页递增
-            list_url = self.source.on_list_url(req_param)
+            list_url = self.call_src_method('on_list_url',req_param)
 
         return True
 

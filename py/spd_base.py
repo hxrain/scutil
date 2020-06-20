@@ -631,6 +631,37 @@ def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
 
 
 # -----------------------------------------------------------------------------
+# 对html/table信息列进行提取的功能封装
+class table_xpath:
+    def __init__(self, page, rule_key, rule_val, logger=None):
+        '''构造函数传入含有table的page内容串,以及table中的key列与val列的xpath表达式'''
+        self.dct = None
+        self.logger = logger
+        self.page = page
+
+        rst, msg = pair_extract(page, [rule_key, rule_val])
+        if msg != '':
+            if self.logger:
+                self.logger.warn('page table xpath parse error <%s>:\n%s', msg, page)
+            return
+
+        self.dct = make_pairs_dict(rst)
+
+    def __getitem__(self, item):
+        '''使用['key']的方式访问对应的值'''
+        return self.value(item)
+
+    def value(self, item, defval=None):
+        '''访问对应的值'''
+        v = get_dict_value(self.dct, item, defval)
+        if v is None:
+            if self.logger:
+                self.logger.warn('page table xpath dict error <%s>:\n%s', item, self.page)
+            return None
+        return extract_xml_text(v)
+
+
+# -----------------------------------------------------------------------------
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath
 # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
 # 元素可以进行etree高级访问
@@ -1030,6 +1061,29 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     return True
 
 
+def make_head(req_dict, head_str):
+    ''' 将如下的http头域字符串转换为key/value字典,并放入请求头域
+    User-Agent: Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0
+    Accept: application/json, text/javascript, */*; q=0.01
+    Accept-Language: zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2
+    Accept-Encoding: gzip, deflate
+    Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+    X-Requested-With: XMLHttpRequest
+    Origin: http://credit.fgw.panjin.gov.cn
+    Connection: keep-alive
+    Referer: http://credit.fgw.panjin.gov.cn/doublePublicity/doublePublicityPage?type=4&columnCode=top_xygs
+    '''
+    lines = head_str.split('\n')
+    if 'HEAD' not in req_dict:
+        req_dict['HEAD'] = {}
+
+    for line in lines:
+        line = line.strip()
+        if line is '': continue
+        kv = line.split(':', 1)
+        req_dict['HEAD'][kv[0].strip()] = kv[1].strip()
+
+
 # -----------------------------------------------------------------------------
 def load_cookie_storage(filename):
     '从文件中装载cookie内容,返回RequestsCookieJar对象'
@@ -1119,10 +1173,12 @@ class ppcef_client_t:
         self.ppcef_url = 'http://%s/' % addr
         # 页面完成判断条件,如果完成判断成立则不会运行脚本,直接返回页面内容
         self.result_cc_xpath = None
-        self.result_cc_re = 'html'  # 默认遇到html标签就返回页面内容,此时不会执行任何脚本动作.
+        self.result_cc_re = None  # 默认遇到html标签就返回页面内容,此时不会执行任何脚本动作.
         # 脚本执行判断条件,条件符合才会运行脚本
         self.script_cc_xpath = None
         self.script_cc_re = None
+        # 目标tab模式
+        self.tabflag = None  # tabflag标记,用完即毁.现在可用'new'在新窗口
 
     # 生成直接抓取当前ppcef内容页的访问url
     def make_take_url(self):
@@ -1140,6 +1196,9 @@ class ppcef_client_t:
             HEAD['result_cc_xpath'] = encodeURIComponent(self.result_cc_xpath)
         if self.result_cc_re:
             HEAD['result_cc_re'] = encodeURIComponent(self.result_cc_re)
+        if self.tabflag is not None:
+            HEAD['tabflag'] = self.tabflag
+            self.tabflag = None  # tabflag标记,用完即毁
 
         if dsturl is None:
             url = self.make_take_url()
@@ -1160,17 +1219,13 @@ class ppcef_client_t:
         return self.http.get_BODY(), ''
 
     # 设定ppcef抓取完成条件
-    def cond_html_re(self, result_cc_re):
+    def cond_html(self, result_cc_re, result_cc_xpath=None):
         self.result_cc_re = result_cc_re
-
-    def cond_html_x(self, result_cc_xpath):
         self.result_cc_xpath = result_cc_xpath
 
     # 设定ppcef脚本执行条件
-    def cond_js_re(self, script_cc_re):
+    def cond_js(self, script_cc_re, script_cc_xpath=None):
         self.script_cc_re = script_cc_re
-
-    def cond_js_x(self, script_cc_xpath):
         self.script_cc_xpath = script_cc_xpath
 
     # 生成访问目标网址并执行js代码的请求内容,返回ppcef访问地址
@@ -1190,6 +1245,9 @@ class ppcef_client_t:
             HEAD['script_cc_xpath'] = encodeURIComponent(self.script_cc_xpath)
         if self.script_cc_re:
             HEAD['script_cc_re'] = encodeURIComponent(self.script_cc_re)
+        if self.tabflag is not None:
+            HEAD['tabflag'] = self.tabflag
+            self.tabflag = None  # tabflag标记,用完即毁
 
         if is_after:
             if is_one:
@@ -1243,7 +1301,9 @@ class ppcef_client_t:
 
     # -----------------------------------------------------
     # 生成对目标选择器的点击请求
-    def make_hit(self, req, type, selector, key=None, is_after=False):
+    def make_hit(self, req, type='click', selector='', key=None, is_after=False):
+        if selector is '':
+            selector = self.script_cc_xpath
         if key is None:
             js = '_$_("%s").hit("%s")' % (selector.replace('"', '\''), type)  # 生成js的点击动作代码
         else:
