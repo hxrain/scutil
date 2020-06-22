@@ -251,6 +251,10 @@ class source_base:
         """可以对info内容进行修正,填充细览请求参数req.返回值告知实际抓取细览页的url地址."""
         return None
 
+    def on_page_take(self, info, page_url, req):
+        """发起对page_url的http抓取动作,在self.spider.http中保存了抓取结果.返回值:是否抓取成功."""
+        return self.spider.http.take(page_url, req)
+
     def on_page_info(self, info, list_url, page):
         """从page中提取必要的细览页信息放入info中.返回值告知是否处理成功"""
         return True
@@ -328,19 +332,19 @@ class spider_base:
         if take_page_url:
             # 需要抓取细览页
             self.reqs += 1
-            if not self.http.take(take_page_url, req_param):
+            if not self.call_src_method('on_page_take', info, take_page_url, req_param):
                 logger.warning('page_url http take error <%s> :: %s' % (take_page_url, self.http.get_error()))
                 return None
             self.rsps += 1
             logger.debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
             # 对细览页进行后续处理
-            xstr = self.call_src_method('on_page_format',self.http.get_BODY())
-            page_info_ok = self.call_src_method('on_page_info',info, list_url, xstr)
+            xstr = self.call_src_method('on_page_format', self.http.get_BODY())
+            page_info_ok = self.call_src_method('on_page_info', info, list_url, xstr)
             if page_info_ok:
                 self.succ += 1
 
         # 进行信息过滤判断
-        if not page_info_ok or not self.call_src_method('on_info_filter',info):
+        if not page_info_ok or not self.call_src_method('on_info_filter', info):
             logger.debug("page_url <%s> is page DISCARD", info.url)
             return None
 
@@ -375,7 +379,7 @@ class spider_base:
                 dbs.save_info(info, self.updid)
                 infos += 1
         self.infos += infos
-        self.call_src_method('on_list_end',self.infos, infos)  # 概览页处理完成
+        self.call_src_method('on_list_end', self.infos, infos)  # 概览页处理完成
 
         if self.list_info_bulking is not None:
             self.list_info_bulking += infos  # 处于增量抓取状态时,累计增量抓取的数量
@@ -409,13 +413,13 @@ class spider_base:
 
         # 进行入口请求的处理
         req_param = _make_req_param()
-        entry_url = self.call_src_method('on_ready',req_param)
+        entry_url = self.call_src_method('on_ready', req_param)
         if entry_url is not None:
             self.reqs += 1
             if self.http.take(entry_url, req_param):
                 self.rsps += 1
                 self.succ += 1
-                if not self.call_src_method('on_ready_info',self.http.get_BODY()):
+                if not self.call_src_method('on_ready_info', self.http.get_BODY()):
                     logger.warning('entry_url http info extract fail. <%s>' % (entry_url))
                     return False
             else:
@@ -423,7 +427,7 @@ class spider_base:
                 return False
 
         # 进行概览抓取循环
-        list_url = self.call_src_method('on_list_url',req_param)
+        list_url = self.call_src_method('on_list_url', req_param)
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
@@ -431,7 +435,7 @@ class spider_base:
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.rsps += 1
                 # 提取概览页信息列表
-                xstr = self.call_src_method('on_list_format',self.http.get_BODY())
+                xstr = self.call_src_method('on_list_format', self.http.get_BODY())
                 rst, msg = pair_extract(xstr, self.source.on_list_rules)
                 self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
                 if msg == '':
@@ -455,7 +459,7 @@ class spider_base:
                 logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
 
             self._do_list_bulking()  # 尝试进行概览翻页递增
-            list_url = self.call_src_method('on_list_url',req_param)
+            list_url = self.call_src_method('on_list_url', req_param)
 
         return True
 
@@ -636,13 +640,17 @@ class collect_manager:
     def run(self):
         """对全部爬虫逐一进行调用"""
         self.infos = 0
+        logger.info("total sources <%3d>", len(self.spiders))
+        idx = 1
         for spd in self.spiders:
+            logger.info("progress <%3d/%d>", idx, len(self.spiders))
             logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt, spd.source.list_inc_cnt,
                         spd.source.list_max_cnt, spd.source.url)
             spd.run(self.dbs)
             self.infos += spd.infos
             self.dbs.update_act(spd)
             logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
+            idx += 1
 
         logger.info("total sources <%d>. new infos <%d>.", len(self.spiders), self.infos)
 

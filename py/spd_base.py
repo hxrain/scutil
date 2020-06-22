@@ -1177,6 +1177,8 @@ class ppcef_client_t:
         # 脚本执行判断条件,条件符合才会运行脚本
         self.script_cc_xpath = None
         self.script_cc_re = None
+        # 最长的页面等待装载时间
+        self.max_wait_sec = None
         # 目标tab模式
         self.tabflag = None  # tabflag标记,用完即毁.现在可用'new'在新窗口
 
@@ -1199,6 +1201,8 @@ class ppcef_client_t:
         if self.tabflag is not None:
             HEAD['tabflag'] = self.tabflag
             self.tabflag = None  # tabflag标记,用完即毁
+        if self.max_wait_sec:
+            HEAD['max_wait_sec'] = str(self.max_wait_sec)
 
         if dsturl is None:
             url = self.make_take_url()
@@ -1248,6 +1252,8 @@ class ppcef_client_t:
         if self.tabflag is not None:
             HEAD['tabflag'] = self.tabflag
             self.tabflag = None  # tabflag标记,用完即毁
+        if self.max_wait_sec:
+            HEAD['max_wait_sec'] = str(self.max_wait_sec)
 
         if is_after:
             if is_one:

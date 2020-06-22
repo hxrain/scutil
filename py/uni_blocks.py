@@ -281,6 +281,7 @@ _SBC_CASE_SIGN_LOW = ord(u'！')
 _SBC_CASE_SIGN_HIGH = ord(u'～')
 _SBC_CASE_LOWER_DIFF = _SBC_CASE_SIGN_LOW - ord('!')
 
+
 # 全角字符转换为ascii字符
 def sbccase_to_ascii(ch):
     code = ord(ch)
@@ -301,6 +302,26 @@ def unicode_block_of(code):
     return _UNICODE_BLOCK_NAMES[bisect.bisect_right(_UNICODE_BLOCK_STARTS, code) - 1]
 
 
+# 根据给定的unicode字符查询其对应的块名字
 def unichar_block_of(uchar):
     return unicode_block_of(ord(uchar))
 
+
+# 筛选unicode字符集范围内,与特定字符集enc的交集字符
+def make_charset_list(enc='gbk', limit=0x10000, show=False):
+    rst = []
+    tol = len(_UNICODE_BLOCKS)
+    for i in range(tol):
+        u = _UNICODE_BLOCKS[i]
+        n = _UNICODE_BLOCKS[i + 1]
+        if u[0] >= limit: break
+        if u[1] is None: continue
+        for j in range(u[0], n[0]):
+            c = chr(j)
+            try:
+                c.encode(enc)
+                rst.append(c)
+                if show: print(c)
+            except:
+                pass
+    return rst
