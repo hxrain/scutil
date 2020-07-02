@@ -15,9 +15,10 @@ class s3db:
     def open(self, dbpath):
         if self.conn is not None:
             return True
-        try:
-            self.conn = s.connect(dbpath)
 
+        try:
+            self.conn = s.connect(dbpath, check_same_thread=False)
+            return True
         except Exception as e:
             return False
 
@@ -34,6 +35,7 @@ class s3db:
             return False
 
     def opt_def(self):
+        """设置默认优化参数"""
         self.opt_set('Synchronous', 'OFF')
         self.opt_set('Journal_Mode', 'WAL')
         self.opt_set('Cache Size', '5000')
@@ -59,15 +61,23 @@ class s3db:
 
 class s3query:
     def __init__(self, db):
-        self.cur = db.conn.cursor()
-        self.conn = db.conn
+        self.db = db
+        if db.conn:
+            self.open(db)
 
-    def exec(self, sql, w=None, cmt=True):
+    # 初始化查询对象,可指定数据库对象
+    def open(self, db=None):
+        if db is None:
+            db = self.db
+        self.conn = db.conn
+        self.cur = db.conn.cursor()
+
+    def exec(self, sql, param=None, cmt=True):
         try:
-            if w is None:
+            if param is None:
                 self.cur.execute(sql)
             else:
-                self.cur.execute(sql, w)
+                self.cur.execute(sql, param)
             if cmt:
                 self.conn.commit()
             return True, ''
@@ -75,12 +85,12 @@ class s3query:
             self.conn.rollback()
             return False, str(e)
 
-    def query(self, sql, w=None):
+    def query(self, sql, param=None):
         try:
-            if w is None:
+            if param is None:
                 self.cur.execute(sql)
             else:
-                self.cur.execute(sql, w)
+                self.cur.execute(sql, param)
             return self.cur.fetchall(), ''
         except Exception as e:
             return None, str(e)
@@ -97,6 +107,7 @@ class s3query:
             self.cur.close()
         self.cur = None
         self.conn = None
+        self.db = None
 
 
 class s3tbl(s3query):
@@ -123,16 +134,16 @@ class s3tbl(s3query):
             self.insert(t, False)
         self.conn.commit()
 
-    def update(self, vals, w=None, cmt=True):
-        if w is None:
+    def update(self, vals, where=None, cmt=True):
+        if where is None:
             return super().exec(self.sql_update, vals, cmt)
         else:
-            return super().exec(self.sql_update, vals + w, cmt)
+            return super().exec(self.sql_update, vals + where, cmt)
 
-    def query(self, w=None, sql=None):
+    def query(self, param=None, sql=None):
         if sql is None:
             sql = self.sql_select
-        return super().query(sql, w)
+        return super().query(sql, param)
 
     def close(self):
         super().close()

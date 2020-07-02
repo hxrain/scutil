@@ -202,7 +202,7 @@ class source_base:
         if self.list_is_json:
             return json2xml(rsp)[0]
         else:
-            return format_html(rsp)
+            return format_xhtml(rsp)
 
     def on_list_begin(self, infos):
         """对一个概览页开始进行遍历处理之前的事件.infos记录已经抓取的信息数量"""
@@ -217,7 +217,7 @@ class source_base:
         if self.page_is_json:
             return json2xml(rsp)[0]
         else:
-            return format_html(rsp)
+            return format_xhtml(rsp)
 
     def make_list_urlz(self, req):
         """生成概览列表url,self.list_url_idx从0开始;返回值:概览所需抓取的url,None则尝试调用make_list_url"""
@@ -243,6 +243,10 @@ class source_base:
 
         return url
 
+    def on_list_take(self, list_url, req):
+        """发起对list_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
+        return self.spider.http.take(list_url, req)
+
     def on_info_filter(self, info):
         """对待入库的信息进行过滤,判断是应该入库.返回值:是否可以入库"""
         return True
@@ -252,7 +256,7 @@ class source_base:
         return None
 
     def on_page_take(self, info, page_url, req):
-        """发起对page_url的http抓取动作,在self.spider.http中保存了抓取结果.返回值:是否抓取成功."""
+        """发起对page_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
         return self.spider.http.take(page_url, req)
 
     def on_page_info(self, info, list_url, page):
@@ -431,7 +435,7 @@ class spider_base:
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
-            if self.http.take(list_url, req_param):
+            if self.call_src_method('on_list_take', list_url, req_param):
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.rsps += 1
                 # 提取概览页信息列表
@@ -457,7 +461,7 @@ class spider_base:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
             else:
                 logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
-
+            dbs.update_act(self, True)  # 进行中间状态更新
             self._do_list_bulking()  # 尝试进行概览翻页递增
             list_url = self.call_src_method('on_list_url', req_param)
 
@@ -509,9 +513,10 @@ class db_base:
         logger.info('source register OK! <%3d : %s : %s>', rows[0][0], name, site_url)
         return rows[0][0]
 
-    def update_act(self, spd: spider_base):
+    def update_act(self, spd: spider_base, during=False):
         """更新采集源的动作信息"""
-        dat = (spd.begin_time, int(time.time()), spd.reqs, spd.rsps, spd.succ, spd.source.id)
+        end_time = int(time.time())
+        dat = (spd.begin_time, end_time, spd.reqs, spd.rsps, spd.succ, spd.source.id)
         ret, msg = self.dbq.exec(
             "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=? where id=?",
             dat)

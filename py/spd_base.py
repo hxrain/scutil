@@ -539,19 +539,18 @@ def format_html(html_soup):
     try:
         root = etree.HTML(html_soup)
         return etree.tostring(root, encoding='unicode', pretty_print=True, method='html')
-    except:
+    except Exception as e:
         return html_soup
 
 
 # -----------------------------------------------------------------------------
 # 进行html代码修正格式化,得到可解析易读的类似xhtml文本串
-def format_html2(html_soup):
+def format_xhtml(html_soup):
     try:
         root = html.fromstring(html_soup)
-        return html.tostring(root, encoding='unicode', pretty_print=True, method='html')
-    except:
+        return html.tostring(root, encoding='unicode', pretty_print=True, method='xml')
+    except Exception as e:
         return html_soup
-
 
 # -----------------------------------------------------------------------------
 # 清理html页面内容,移除style样式定义与script脚本段
@@ -559,17 +558,18 @@ def clean_html(html_str):
     try:
         cleaner = Cleaner(style=True, scripts=True, page_structure=False, safe_attrs_only=False)
         return cleaner.clean_html(html_str)
-    except:
+    except Exception as e:
         return html_str
-
 
 # -----------------------------------------------------------------------------
-def html2xhtml(html_str):
+def html_to_xhtml(html_str):
+    """将html_str严格的转换为xhtml格式,带着完整的命名空间限定"""
     try:
-        return html.html_to_xhtml(html_str)
-    except:
+        root = etree.HTML(html_str)
+        html.html_to_xhtml(root)
+        return html.tostring(root, encoding='utf-8', pretty_print=True, method='xml').decode('utf-8')
+    except Exception as e:
         return html_str
-
 
 # -----------------------------------------------------------------------------
 # 进行xml代码修正格式化
@@ -577,17 +577,7 @@ def format_xml(html_soup, desc, chs='utf-8'):
     try:
         root = etree.fromstring(html_soup.encode(chs))
         return desc + '\n' + etree.tostring(root, encoding=chs, pretty_print=True, method='xml').decode(chs)
-    except:
-        return html_soup
-
-
-# -----------------------------------------------------------------------------
-# 进行xml代码修正格式化
-def format_xml2(html_soup):
-    try:
-        root = html.fromstring(html_soup)
-        return html.tostring(root, encoding='utf-8', pretty_print=True, method='xml').decode('utf-8')
-    except:
+    except Exception as e:
         return html_soup
 
 
@@ -711,6 +701,17 @@ def query_xpath_str(cnt_str, cc_xpath, defval=None):
     if len(rs) != 0:
         return rs[0]
     return defval
+
+
+def xml_filter(xstr, xp_node, xp_field):
+    """对xstr记录的xml进行xpath过滤检查,如果xp_node指出的节点中没有xp_field,则删除该节点"""
+    xnodes = query_xpath_x(xstr, xp_node)[0]
+    ret = xstr
+    for n in xnodes:
+        f = query_xpath_x('<?xml version="1.0" ?>\n' + n, xp_field)[0]
+        if len(f) == 0:
+            ret = ret.replace(n, '')
+    return ret
 
 
 # 可进行多次xpath查询的功能对象
