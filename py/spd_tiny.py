@@ -32,6 +32,7 @@ from spd_base import *
     last_req_count	integer     采集源最后活动中的请求数量
     last_rsp_count	integer     采集源最后活动中的回应数量
     last_req_succ   integer     采集源最后活动中的请求完成数量
+    last_infos_count integer    采集源最后活动中的有效信息数量
 """
 
 """信息主表(tbl_infos)字段说明:
@@ -58,7 +59,8 @@ sql_tbl = ['''
               "last_end_time" integer NOT NULL DEFAULT 0,
               "last_req_count" integer NOT NULL DEFAULT 0,
               "last_rsp_count" integer NOT NULL DEFAULT 0,
-              "last_req_succ" integer NOT NULL DEFAULT 0
+              "last_req_succ" integer NOT NULL DEFAULT 0,
+              "last_infos_count" integer NOT NULL DEFAULT 0
            );
            ''',
            '''
@@ -167,13 +169,13 @@ class source_base:
         self.http_timeout = 20  # http请求超时时间,秒
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
-        self.list_inc_cnt = 2  # 达到默认翻页数量的时候,如果仍有信息被采回,则进行默认增量翻页
+        self.list_inc_cnt = 2  # 达到默认翻页数量上限的时候,如果仍有信息被采回,则进行自动增量翻页的数量
         self.list_max_cnt = 99999  # 概览翻页最大数量
         self.list_is_json = False  # 告知概览页面是否为json串,进而决定默认格式化方式
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
         self.list_url_sleep = 0  # 概览翻页的延迟休眠时间
         self.last_list_items = -1  # 记录最后一次概览提取元素数量
-        self.on_list_empty_limit = 1  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
+        self.on_list_empty_limit = 3  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
         self.on_check_repeats = []  # 概览排重检查所需的info字段列表
@@ -198,7 +200,7 @@ class source_base:
         return True
 
     def on_list_format(self, rsp):
-        """返回列表页面的格式化内容,默认对html进行新xhtml格式化"""
+        """返回列表页面的格式化内容,默认对html进行新xhtml格式化;返回值:None告知停止循环;其他为xml格式内容"""
         if self.list_is_json:
             return json2xml(rsp)[0]
         else:
@@ -438,8 +440,11 @@ class spider_base:
             if self.call_src_method('on_list_take', list_url, req_param):
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.rsps += 1
-                # 提取概览页信息列表
+                # 格式化概览页内容为xpath格式
                 xstr = self.call_src_method('on_list_format', self.http.get_BODY())
+                if xstr is None: #如果返回值为None则意味着要求停止翻页
+                    break
+                # 提取概览页信息列表
                 rst, msg = pair_extract(xstr, self.source.on_list_rules)
                 self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
                 if msg == '':
@@ -516,9 +521,9 @@ class db_base:
     def update_act(self, spd: spider_base, during=False):
         """更新采集源的动作信息"""
         end_time = int(time.time())
-        dat = (spd.begin_time, end_time, spd.reqs, spd.rsps, spd.succ, spd.source.id)
+        dat = (spd.begin_time, end_time, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.source.id)
         ret, msg = self.dbq.exec(
-            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=? where id=?",
+            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?",
             dat)
         if not ret:
             logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
