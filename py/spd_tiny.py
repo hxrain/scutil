@@ -175,6 +175,7 @@ class source_base:
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
         self.list_url_sleep = 0  # 概览翻页的延迟休眠时间
         self.last_list_items = -1  # 记录最后一次概览提取元素数量
+        self.list_take_retry = 1  # 概览页面抓取并提取信息的动作重试次数
         self.on_list_empty_limit = 3  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -404,6 +405,31 @@ class spider_base:
             return True
         return False
 
+    def _do_list_take(self, list_url, req_param):
+        """尝试多次进行概览页的抓取与内容提取.返回值:(xstr格式化后的概览页内容,rst提取得到的细览信息列表,msg错误消息).xstr为None的时候要求结束采集源的执行"""
+        xstr = ''
+        rst = []
+        msg = ''
+        for r in range(self.source.list_take_retry):
+            if not self.call_src_method('on_list_take', list_url, req_param):
+                continue
+
+            logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+            # 格式化概览页内容为xpath格式
+            xstr = self.call_src_method('on_list_format', self.http.get_BODY())
+            if xstr is None:  # 如果返回值为None则意味着要求停止翻页
+                return xstr, rst, msg
+
+            # 提取概览页信息列表
+            rst, msg = pair_extract(xstr, self.source.on_list_rules)
+            self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
+            if msg != '' or self.source.last_list_items == 0:
+                continue
+            else:
+                break
+
+        return xstr, rst, msg
+
     def run(self, dbs):
         """对当前采集任务进行完整流程处理:概览循环与细览循环"""
         if not self.meter.hit():
@@ -437,24 +463,20 @@ class spider_base:
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
-            if self.call_src_method('on_list_take', list_url, req_param):
+            xstr, rst, msg = self._do_list_take(list_url, req_param)
+            if xstr is None:
+                break #要求采集源停止运行
+            if xstr: #抓取成功
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.rsps += 1
                 # 格式化概览页内容为xpath格式
-                xstr = self.call_src_method('on_list_format', self.http.get_BODY())
-                if xstr is None: #如果返回值为None则意味着要求停止翻页
-                    break
-                # 提取概览页信息列表
-                rst, msg = pair_extract(xstr, self.source.on_list_rules)
-                self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
                 if msg == '':
-                    if len(rst) == 0:
+                    if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         logger.debug('list_url pair_extract empty <%s %d> :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY(), xstr))
                         list_emptys += 1
                         if list_emptys >= self.source.on_list_empty_limit:
-                            logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' %
-                                           (list_url, list_emptys, self.source.on_list_empty_limit))
+                            logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
                             break
                     else:
                         reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''

@@ -58,6 +58,14 @@ class s3db:
             self.conn.rollback()
             return False, str(e)
 
+'''
+import db_sqlite as dbs
+db=dbs.s3db('spd.sqlite3')
+q=dbs.s3query(db)
+rows,msg=q.query('select * from tbl_infos')
+for row in rows:
+    print(row[0],row[1])
+'''
 
 class s3query:
     def __init__(self, db):
