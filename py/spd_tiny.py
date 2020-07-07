@@ -174,8 +174,10 @@ class source_base:
         self.list_is_json = False  # 告知概览页面是否为json串,进而决定默认格式化方式
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
         self.list_url_sleep = 0  # 概览翻页的延迟休眠时间
+        self.page_url_sleep = 0  # 细览翻页的延迟休眠时间
         self.last_list_items = -1  # 记录最后一次概览提取元素数量
         self.list_take_retry = 1  # 概览页面抓取并提取信息的动作重试次数
+        self.page_take_retry = 1  # 细览页面抓取动作重试次数
         self.on_list_empty_limit = 3  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
         self.on_list_rulenames = []  # 概览页面的信息提取规则名称列表,需与info_t的字段名字相符且与on_list_rules的顺序一致
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
@@ -230,18 +232,21 @@ class source_base:
         """生成概览列表url,self.list_url_idx从1开始;返回值:概览所需抓取的url,None则停止循环"""
         return None
 
+    def check_list_end(self, req):
+        """判断概览翻页循环是否应该结束.返回值:概览所需抓取的url,None则停止循环"""
+        return None
+
     def on_list_url(self, req):
         """告知待抓取的概览URL地址,填充req请求参数.返回None停止采集"""
         if not self.can_listing():
-            return None  # 循环条件不允许了,直接返回
-
-        if self.list_url_sleep > 0:  # 根据需要进行概览采集休眠
-            time.sleep(self.list_url_sleep)
+            return self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
 
         url = self.make_list_urlz(req)  # 先尝试生成0序列的概览列表地址
 
         self.list_url_idx += 1  # 概览页索引增加
-        if self.can_listing() and url is None:
+        if url is None:
+            if not self.can_listing():
+                return self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
             url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
 
         return url
@@ -283,6 +288,11 @@ class tick_meter:
         return False
 
 
+def spd_sleep(sec):
+    logger.debug('time.sleep(%d)' % (sec))
+    time.sleep(sec)
+
+
 class spider_base:
     """爬虫任务基类,提供采集任务运行所需功能的核心接口"""
 
@@ -302,6 +312,27 @@ class spider_base:
         except Exception as e:
             logger.error('<%s> running call <%s> error <%s>', self.source.name, method, str(e))  # 统一记录错误
             return None
+
+    def _do_page_take(self, info, list_url, page_url, req_param):
+        """尝试对细览页进行循环重试抓取"""
+        take_stat = False
+        info_stat = True
+        for i in range(self.source.page_take_retry):
+            take_stat = self.call_src_method('on_page_take', info, page_url, req_param)
+            if self.source.page_url_sleep:
+                spd_sleep(self.source.page_url_sleep)  # 细览页面需要间隔休眠
+
+            if not take_stat:
+                logger.warning('page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
+                continue
+
+            # 对细览页进行后续处理
+            xstr = self.call_src_method('on_page_format', self.http.get_BODY())
+            info_stat = self.call_src_method('on_page_info', info, list_url, xstr)
+            if not info_stat:
+                continue
+            break
+        return (take_stat, info_stat)
 
     def _do_page(self, item, list_url, dbs):
         """进行细览抓取与提取信息的处理"""
@@ -337,16 +368,13 @@ class spider_base:
 
         page_info_ok = True
         if take_page_url:
-            # 需要抓取细览页
+            # 需要抓取细览页并提取信息
             self.reqs += 1
-            if not self.call_src_method('on_page_take', info, take_page_url, req_param):
-                logger.warning('page_url http take error <%s> :: %s' % (take_page_url, self.http.get_error()))
+            take_stat, page_info_ok = self._do_page_take(info, list_url, take_page_url, req_param)
+            if not take_stat:
                 return None
             self.rsps += 1
             logger.debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
-            # 对细览页进行后续处理
-            xstr = self.call_src_method('on_page_format', self.http.get_BODY())
-            page_info_ok = self.call_src_method('on_page_info', info, list_url, xstr)
             if page_info_ok:
                 self.succ += 1
 
@@ -412,6 +440,8 @@ class spider_base:
         msg = ''
         for r in range(self.source.list_take_retry):
             if not self.call_src_method('on_list_take', list_url, req_param):
+                if self.source.list_url_sleep > 0:  # 根据需要进行概览采集休眠
+                    spd_sleep(self.source.list_url_sleep)
                 continue
 
             logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
@@ -419,6 +449,9 @@ class spider_base:
             xstr = self.call_src_method('on_list_format', self.http.get_BODY())
             if xstr is None:  # 如果返回值为None则意味着要求停止翻页
                 return xstr, rst, msg
+
+            if self.source.list_url_sleep > 0:  # 根据需要进行概览采集休眠
+                spd_sleep(self.source.list_url_sleep)
 
             # 提取概览页信息列表
             rst, msg = pair_extract(xstr, self.source.on_list_rules)
@@ -449,6 +482,7 @@ class spider_base:
         if entry_url is not None:
             self.reqs += 1
             if self.http.take(entry_url, req_param):
+                logger.debug('entry_url take <%s>:: %d' % (entry_url, self.http.get_status_code()))
                 self.rsps += 1
                 self.succ += 1
                 if not self.call_src_method('on_ready_info', self.http.get_BODY()):
@@ -465,9 +499,8 @@ class spider_base:
             self.reqs += 1
             xstr, rst, msg = self._do_list_take(list_url, req_param)
             if xstr is None:
-                break #要求采集源停止运行
-            if xstr: #抓取成功
-                logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                break  # 要求采集源停止运行
+            if xstr:  # 抓取成功
                 self.rsps += 1
                 # 格式化概览页内容为xpath格式
                 if msg == '':

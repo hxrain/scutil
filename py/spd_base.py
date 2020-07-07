@@ -552,6 +552,7 @@ def format_xhtml(html_soup):
     except Exception as e:
         return html_soup
 
+
 # -----------------------------------------------------------------------------
 # 清理html页面内容,移除style样式定义与script脚本段
 def clean_html(html_str):
@@ -560,6 +561,7 @@ def clean_html(html_str):
         return cleaner.clean_html(html_str)
     except Exception as e:
         return html_str
+
 
 # -----------------------------------------------------------------------------
 def html_to_xhtml(html_str):
@@ -570,6 +572,7 @@ def html_to_xhtml(html_str):
         return html.tostring(root, encoding='utf-8', pretty_print=True, method='xml').decode('utf-8')
     except Exception as e:
         return html_str
+
 
 # -----------------------------------------------------------------------------
 # 进行xml代码修正格式化
@@ -618,37 +621,6 @@ def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
     if dt is None:
         dt = time.localtime()
     return time.strftime(fmt, dt)
-
-
-# -----------------------------------------------------------------------------
-# 对html/table信息列进行提取的功能封装
-class table_xpath:
-    def __init__(self, page, rule_key, rule_val, logger=None):
-        '''构造函数传入含有table的page内容串,以及table中的key列与val列的xpath表达式'''
-        self.dct = None
-        self.logger = logger
-        self.page = page
-
-        rst, msg = pair_extract(page, [rule_key, rule_val])
-        if msg != '':
-            if self.logger:
-                self.logger.warn('page table xpath parse error <%s>:\n%s', msg, page)
-            return
-
-        self.dct = make_pairs_dict(rst)
-
-    def __getitem__(self, item):
-        '''使用['key']的方式访问对应的值'''
-        return self.value(item)
-
-    def value(self, item, defval=None):
-        '''访问对应的值'''
-        v = get_dict_value(self.dct, item, defval)
-        if v is None:
-            if self.logger:
-                self.logger.warn('page table xpath dict error <%s>:\n%s', item, self.page)
-            return None
-        return extract_xml_text(v)
 
 
 # -----------------------------------------------------------------------------
@@ -861,6 +833,37 @@ def get_dict_value(dct, key, defval=None):
 
 
 # -----------------------------------------------------------------------------
+# 对html/table信息列进行提取的功能封装
+class table_xpath:
+    def __init__(self, page, rule_key, rule_val, logger=None):
+        '''构造函数传入含有table的page内容串,以及table中的key列与val列的xpath表达式'''
+        self.dct = None
+        self.logger = logger
+        self.page = page
+
+        rst, msg = pair_extract(page, [rule_key, rule_val])
+        if msg != '':
+            if self.logger:
+                self.logger.warn('page table xpath parse error <%s>:\n%s', msg, page)
+            return
+
+        self.dct = make_pairs_dict(rst)
+
+    def __getitem__(self, item):
+        '''使用['key']的方式访问对应的值'''
+        return self.value(item)
+
+    def value(self, item, defval=None):
+        '''访问对应的值'''
+        v = get_dict_value(self.dct, item, defval)
+        if v is None:
+            if self.logger:
+                self.logger.warn('page table xpath dict error <%s>:\n%s', item, self.page)
+            return None
+        return extract_xml_text(v)
+
+
+# -----------------------------------------------------------------------------
 # 对cnt_str进行re查询,re表达式为cc_re,提取的结果序号为idx,(默认为全部匹配结果)
 # 返回值为([结果列表],'错误说明'),如果错误说明串不为空则代表发生了错误
 def query_re(cnt_str, cc_re, idx=None):
@@ -1013,6 +1016,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
                               timeout=timeout, allow_redirects=allow_redirects, verify=SSL_VERIFY)
     except Exception as e:
         rst['error'] = e
+        rst['status_code'] = 999
         return False
     finally:
         # 清理掉临时附着的cookie
@@ -1375,3 +1379,56 @@ class ppcef_client_t:
             return '', self.http.get_error()
 
         return self.http.get_BODY(), ''
+
+
+"""
+ic = items_comb()
+ic.append(['A', 'B', 'C'])
+ic.append(['x', 'y', 'z'])
+ic.append(['1', '2', '3'])
+print(ic.total())
+
+for i in range(ic.total()):
+    print(ic.item(), ic.next())
+
+while True:
+    print(ic.item())
+    if ic.next():
+        break
+"""
+class items_comb():
+    """多列表项组合管理器"""
+
+    def __init__(self):
+        self.lists = []
+        self.lists_pos = []
+
+    def append(self, items):
+        """追加一个列表项"""
+        self.lists.append(items)
+        self.lists_pos.append(0)
+
+    def total(self):
+        """计算现有列表项排列组合总数"""
+        ret = 1
+        for l in range(len(self.lists)):
+            ret *= len(self.lists[l])
+        return ret
+
+    def next(self):
+        """调整当前组合序列索引,便于调用item时得到下一种组合结果.返回值:是否为最后一种组合"""
+        levels = len(self.lists)
+        for l in range(levels - 1, -1, -1):
+            idx = self.lists_pos[l]
+            if idx < len(self.lists[l]) - 1:
+                self.lists_pos[l] += 1
+                return False
+            self.lists_pos[l] = 0
+        return True
+
+    def item(self):
+        """获取当前组合"""
+        rst = []
+        for i in range(len(self.lists_pos)):
+            rst.append(self.lists[i][self.lists_pos[i]])
+        return rst
