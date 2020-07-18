@@ -1,6 +1,7 @@
 import importlib
 
 from db_sqlite import *
+from mutex_lock import *
 from spd_base import *
 
 """说明:
@@ -240,7 +241,7 @@ class source_base:
         """告知待抓取的概览URL地址,填充req请求参数.返回None停止采集"""
         if not self.can_listing():
             rc = self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
-            if rc is None:return None
+            if rc is None: return None
 
         url = self.make_list_urlz(req)  # 先尝试生成0序列的概览列表地址
         self.list_url_idx += 1  # 概览页索引增加
@@ -447,7 +448,7 @@ class spider_base:
                     spd_sleep(self.source.list_url_sleep)
                 continue
 
-            if self.http.get_status_code()==200:
+            if self.http.get_status_code() == 200:
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
             else:
                 logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
@@ -462,7 +463,7 @@ class spider_base:
             # 提取概览页信息列表
             rst, msg = pair_extract(xstr, self.source.on_list_rules)
             self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
-            if xstr=='__EMPTY__':
+            if xstr == '__EMPTY__':
                 break
 
             if msg != '' or self.source.last_list_items == 0:
@@ -515,8 +516,9 @@ class spider_base:
                 if msg == '':
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
-                        if xstr!='__EMPTY__':
-                            logger.debug('list_url pair_extract empty <%s %d> :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY(), xstr))
+                        if xstr != '__EMPTY__':
+                            logger.debug(
+                                'list_url pair_extract empty <%s %d> :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY(), xstr))
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
                                 logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
@@ -530,12 +532,15 @@ class spider_base:
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
             else:
-                logger.warning('list_url http take error <%s> :: %d :: %s' % (list_url, self.http.get_status_code(),self.http.get_error()))
+                logger.warning('list_url http take error <%s> :: %d :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_error(), msg))
             dbs.update_act(self, True)  # 进行中间状态更新
             self._do_list_bulking()  # 尝试进行概览翻页递增
             list_url = self.call_src_method('on_list_url', req_param)
 
         return True
+
+
+locker = lock_t()
 
 
 class db_base:
@@ -583,6 +588,7 @@ class db_base:
         logger.info('source register OK! <%3d : %s : %s>', rows[0][0], name, site_url)
         return rows[0][0]
 
+    @guard(locker)
     def update_act(self, spd: spider_base, during=False):
         """更新采集源的动作信息"""
         end_time = int(time.time())
@@ -596,6 +602,7 @@ class db_base:
 
         return True
 
+    @guard(locker)
     def save_info(self, info: info_t, updid=None):
         """保存指定的信息入库,外面应进行排重判断;可指定updid进行信息的强制更新;返回值告知是否成功"""
 
@@ -657,6 +664,7 @@ class db_base:
         cons = ' or '.join(tuple(c for c in cons))
         return vals, cons
 
+    @guard(locker)
     def check_repeat(self, info: info_t, cond):
         """使用指定的信息对象,根据给定的cond条件(字段名列表),判断其是否重复.
             返回值:None不重复;其他为已有信息的ID
@@ -712,22 +720,38 @@ class collect_manager:
         self.spiders.append(spider_t(src))
         return True
 
+    @guard(locker)
+    def _inc_infos_(self, inc):
+        self.infos += inc
+
+    def _run_one(self, spd):
+        logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt, spd.source.list_inc_cnt,
+                    spd.source.list_max_cnt, spd.source.url)
+        spd.run(self.dbs)
+        self._inc_infos_(spd.infos)
+        self.dbs.update_act(spd)
+        logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
+
     def run(self):
         """对全部爬虫逐一进行调用"""
         self.infos = 0
-        logger.info("total sources <%3d>", len(self.spiders))
-        idx = 1
-        for spd in self.spiders:
-            logger.info("progress <%3d/%d>", idx, len(self.spiders))
-            logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt, spd.source.list_inc_cnt,
-                        spd.source.list_max_cnt, spd.source.url)
-            spd.run(self.dbs)
-            self.infos += spd.infos
-            self.dbs.update_act(spd)
-            logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
-            idx += 1
+        total_spiders = len(self.spiders)
+        logger.info("total sources <%3d>", total_spiders)
+        if locker.inited():  # 使用多线程并发运行全部的爬虫
+            threads = []
+            for spd in self.spiders:
+                threads.append(start_thread(self._run_one, spd))  # 将全部爬虫都放入线程中
 
-        logger.info("total sources <%d>. new infos <%d>.", len(self.spiders), self.infos)
+            for thd in threads:  # 等待全部线程执行完毕
+                thd.join()
+        else:
+            idx = 1
+            for spd in self.spiders:  # 在主线程中顺序执行全部的爬虫
+                logger.info("progress <%3d/%d>", idx, total_spiders)
+                self._run_one(spd)
+                idx += 1
+
+        logger.info("total sources <%d>. new infos <%d>.", total_spiders, self.infos)
 
     def loop(self):
         """进行持续循环运行"""

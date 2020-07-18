@@ -1156,6 +1156,9 @@ class spd_base:
         # 定义结果对象
         self.rst = {}
 
+    def _rst_val(self,key,defval):
+        return self.rst[key] if key in self.rst else defval
+
     # 抓取指定的url,通过req可以传递灵活的控制参数
     def take(self, url, req=None):
         self.rst = {}
@@ -1167,27 +1170,27 @@ class spd_base:
 
     # 获取过程中出现的错误
     def get_error(self):
-        return self.rst['error']
+        return self._rst_val('error','')
 
     # 获取回应状态码
     def get_status_code(self):
-        return self.rst['status_code']
+        return self._rst_val('status_code',0)
 
     # 获取回应状态简述
     def get_status_reason(self):
-        return self.rst['status_reason']
+        return self._rst_val('status_reason','')
 
     # 获取回应头,字典
     def get_HEAD(self):
-        return self.rst['HEAD']
+        return self._rst_val('HEAD',{})
 
     # 获取会话回应cookie字典
     def get_COOKIE(self):
-        return self.rst['COOKIE']
+        return self._rst_val('COOKIE',{})
 
     # 获取回应内容,解压缩转码后的内容
     def get_BODY(self):
-        return self.rst['BODY'] if 'BODY' in self.rst else None
+        return self._rst_val('BODY',None)
 
 
 # 封装对ppcef的功能调用
