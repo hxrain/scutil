@@ -81,6 +81,7 @@ class s3query:
         self.cur = db.conn.cursor()
 
     def exec(self, sql, param=None, cmt=True):
+        """执行sql语句,不要求获取结果集"""
         try:
             if param is None:
                 self.cur.execute(sql)
@@ -93,15 +94,27 @@ class s3query:
             self.conn.rollback()
             return False, str(e)
 
-    def query(self, sql, param=None):
+    def query(self, sql, param=None,fetchsize=None):
+        """执行sql查询,得到结果集(默认是得到全部,也可以指定获取的数量)"""
         try:
             if param is None:
                 self.cur.execute(sql)
             else:
                 self.cur.execute(sql, param)
-            return self.cur.fetchall(), ''
+            if fetchsize is None:
+                return self.cur.fetchall(), ''
+            else:
+                return self.cur.fetchmany(size=fetchsize), ''
         except Exception as e:
             return None, str(e)
+
+    def fetch(self, fetchsize):
+        """在query之后,获取结果集的后续部分"""
+        try:
+            return self.cur.fetchmany(size=fetchsize), ''
+        except Exception as e:
+            return None, str(e)
+
 
     def has(self, name, type='table'):
         """判断指定的库表对象table/index/view是否存在.返回值:None查询失败,结果未知;True/False告知是否存在"""

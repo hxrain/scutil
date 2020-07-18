@@ -233,22 +233,25 @@ class source_base:
         return None
 
     def check_list_end(self, req):
-        """判断概览翻页循环是否应该结束.返回值:概览所需抓取的url,None则停止循环"""
+        """判断概览翻页循环是否应该结束.返回值:None则停止循环"""
         return None
 
     def on_list_url(self, req):
         """告知待抓取的概览URL地址,填充req请求参数.返回None停止采集"""
         if not self.can_listing():
-            return self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
+            rc = self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
+            if rc is None:return None
 
         url = self.make_list_urlz(req)  # 先尝试生成0序列的概览列表地址
-
         self.list_url_idx += 1  # 概览页索引增加
-        if url is None:
-            if not self.can_listing():
-                return self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
-            url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
+        if url is not None:
+            return url
 
+        if not self.can_listing():
+            rc = self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
+            if rc is None: return None
+
+        url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
     def on_list_take(self, list_url, req):
@@ -444,7 +447,10 @@ class spider_base:
                     spd_sleep(self.source.list_url_sleep)
                 continue
 
-            logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+            if self.http.get_status_code()==200:
+                logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+            else:
+                logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
             # 格式化概览页内容为xpath格式
             xstr = self.call_src_method('on_list_format', self.http.get_BODY())
             if xstr is None:  # 如果返回值为None则意味着要求停止翻页
@@ -456,6 +462,9 @@ class spider_base:
             # 提取概览页信息列表
             rst, msg = pair_extract(xstr, self.source.on_list_rules)
             self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
+            if xstr=='__EMPTY__':
+                break
+
             if msg != '' or self.source.last_list_items == 0:
                 continue
             else:
@@ -506,11 +515,12 @@ class spider_base:
                 if msg == '':
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
-                        logger.debug('list_url pair_extract empty <%s %d> :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY(), xstr))
-                        list_emptys += 1
-                        if list_emptys >= self.source.on_list_empty_limit:
-                            logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
-                            break
+                        if xstr!='__EMPTY__':
+                            logger.debug('list_url pair_extract empty <%s %d> :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY(), xstr))
+                            list_emptys += 1
+                            if list_emptys >= self.source.on_list_empty_limit:
+                                logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
+                                break
                     else:
                         reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                         list_emptys = 0
@@ -520,7 +530,7 @@ class spider_base:
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
             else:
-                logger.warning('list_url http take error <%s> :: %s' % (list_url, self.http.get_error()))
+                logger.warning('list_url http take error <%s> :: %d :: %s' % (list_url, self.http.get_status_code(),self.http.get_error()))
             dbs.update_act(self, True)  # 进行中间状态更新
             self._do_list_bulking()  # 尝试进行概览翻页递增
             list_url = self.call_src_method('on_list_url', req_param)

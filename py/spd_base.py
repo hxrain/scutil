@@ -6,6 +6,7 @@ import logging.handlers
 import os
 import re
 import time
+import datetime
 import urllib.parse as up
 from xml.dom import minidom
 
@@ -622,6 +623,30 @@ def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
         dt = time.localtime()
     return time.strftime(fmt, dt)
 
+def get_curr_date():
+    """得到当前日期,ISO串"""
+    now = datetime.datetime.now()
+    return now.strftime('%Y-%m-%d')
+
+def adj_date_day(datestr, day):
+    """对给定的日期串datestr进行天数day增减运算,得到新的日期,ISO串"""
+    date = datetime.datetime.strptime(datestr, '%Y-%m-%d')
+    date += datetime.timedelta(days=day)
+    return date.strftime('%Y-%m-%d')
+
+def date_to_utc(datestr):
+    """将日期串转换为UTC时间秒"""
+    return int(datetime.datetime.strptime(datestr, '%Y-%m-%d').timestamp())
+
+def utc_to_datetime(sec):
+    """把UTC秒转换为ISO标准时间串"""
+    date=datetime.datetime.fromtimestamp(sec)
+    return date.strftime('%Y-%m-%d %H:%M:%S')
+
+def utc_to_date(sec):
+    """把UTC秒转换为ISO标准日期串"""
+    date=datetime.datetime.fromtimestamp(sec)
+    return date.strftime('%Y-%m-%d')
 
 # -----------------------------------------------------------------------------
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath
@@ -709,7 +734,7 @@ class xpath:
                 pass
 
         if self.cnt_str is None:
-            self.cnt_str = format_html2(cnt_str)
+            self.cnt_str = format_xhtml(cnt_str)
             try:
                 self.rootNode = etree.HTML(self.cnt_str)
             except:
@@ -1382,6 +1407,7 @@ class ppcef_client_t:
 
 
 """
+#多项列表排列组合应用样例,先访问,再调整
 ic = items_comb()
 ic.append(['A', 'B', 'C'])
 ic.append(['x', 'y', 'z'])
@@ -1396,8 +1422,10 @@ while True:
     if ic.next():
         break
 """
+
+
 class items_comb():
-    """多列表项组合管理器"""
+    """多列表项排列组合管理器"""
 
     def __init__(self):
         self.lists = []
@@ -1416,15 +1444,15 @@ class items_comb():
         return ret
 
     def next(self):
-        """调整当前组合序列索引,便于调用item时得到下一种组合结果.返回值:是否为最后一种组合"""
+        """调整当前组合序列索引,便于调用item时得到下一种组合结果.返回值:是否已经归零"""
         levels = len(self.lists)
-        for l in range(levels - 1, -1, -1):
-            idx = self.lists_pos[l]
+        for l in range(levels - 1, -1, -1):  # 从后向前遍历
+            idx = self.lists_pos[l]  # 取出当前级链表元素索引
             if idx < len(self.lists[l]) - 1:
-                self.lists_pos[l] += 1
+                self.lists_pos[l] += 1  # 索引没有超出链表范围,则增加后结束
                 return False
-            self.lists_pos[l] = 0
-        return True
+            self.lists_pos[l] = 0  # 索引超出链表范围时,归零,准备处理上一级链表元素索引
+        return True  # 全部级别都处理完毕,这是一轮遍历结束了.
 
     def item(self):
         """获取当前组合"""
