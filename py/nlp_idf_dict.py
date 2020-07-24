@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import os
-import math
 import json
+import math
+import os
 
 # 标点符号与停用词
 PUNCTUATIONS = {'“', '”', '、', '！', '!', '|', '：', '，', '；', '。', ':', ',', ' ', '\\', '#', '&', '/', '<', '>', '+',
@@ -164,43 +164,57 @@ class TDF_IDF_Core:
             return self.avg_tdf
         return self.tdf_dict[word] / self.D
 
+    def adj_number_idf(self,digital_dtf_rate):
+        # 尝试校正数字的idf
+        if not digital_dtf_rate or digital_dtf_rate<=0:
+            return
+        avg_tdf = self.avg_tdf * digital_dtf_rate
+        if avg_tdf > self.D: avg_tdf = self.D
 
-class TDF_IDF(TDF_IDF_Core):
-    'TDF_IDF词典的完整功能'
+        for k in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+            if k not in self.idf_dict:
+                continue
+            self.idf_dict[k] = math.log(self.D - avg_tdf + 0.5) - math.log(avg_tdf + 0.5)
+
+
+def tdf_idf_save(dst: TDF_IDF_Core, filename):
+    '保存TDF_IDF词典到文件'
+    save_dict(filename + '.tdf', dst.tdf_dict)
+    save_dict(filename + '.idf', dst.idf_dict)
+    cfg = {'D': dst.D,
+           'digital_dtf_rate': dst.digital_dtf_rate,
+           'avg_docs_len': dst.avg_docs_len,
+           'avg_idf': dst.avg_idf,
+           'avg_tdf': dst.avg_tdf,
+           'EPSILON': dst.EPSILON,
+           }
+    save_dict(filename + '.cfg', cfg)
+
+
+def tdf_idf_load(dst: TDF_IDF_Core, filename):
+    '装载TDF_IDF词典,返回tdf与idf词典的数量2元组'
+    fn = filename + '.cfg'
+    if not os.path.exists(fn):
+        return (None, None)
+
+    cfg = load_dict(fn)
+    dst.tdf_dict = load_dict(filename + '.tdf')
+    dst.idf_dict = load_dict(filename + '.idf')
+
+    dst.D = cfg['D']
+    dst.digital_dtf_rate = cfg['digital_dtf_rate']
+    dst.avg_docs_len = cfg['avg_docs_len']
+    dst.avg_idf = cfg['avg_idf']
+    dst.avg_tdf = cfg['avg_tdf']
+    dst.EPSILON = cfg['EPSILON']
+    return (len(dst.tdf_dict), len(dst.idf_dict))
+
+
+class TDF_IDF_Maker(TDF_IDF_Core):
+    'TDF_IDF词典生成器'
 
     def __init__(self):
         TDF_IDF_Core.__init__(self)
-
-    def save(self, filename):
-        '保存词典到文件'
-        save_dict(filename + '.tdf', self.tdf_dict)
-        save_dict(filename + '.idf', self.idf_dict)
-        cfg = {'D': self.D,
-               'digital_dtf_rate': self.digital_dtf_rate,
-               'avg_docs_len': self.avg_docs_len,
-               'avg_idf': self.avg_idf,
-               'avg_tdf': self.avg_tdf,
-               'EPSILON': self.EPSILON,
-               }
-        save_dict(filename + '.cfg', cfg)
-
-    def load(self, filename):
-        '装载词典,返回tdf与idf词典的数量2元组'
-        fn=filename + '.cfg'
-        if not os.path.exists(fn):
-            return (None,None)
-
-        cfg = load_dict(fn)
-        self.tdf_dict = load_dict(filename + '.tdf')
-        self.idf_dict = load_dict(filename + '.idf')
-
-        self.D = cfg['D']
-        self.digital_dtf_rate = cfg['digital_dtf_rate']
-        self.avg_docs_len = cfg['avg_docs_len']
-        self.avg_idf = cfg['avg_idf']
-        self.avg_tdf = cfg['avg_tdf']
-        self.EPSILON = cfg['EPSILON']
-        return (len(self.tdf_dict), len(self.idf_dict))
 
     def append(self, doc_tf):
         # 根据最新的文档词频,更新整体词文档词频
@@ -224,19 +238,13 @@ class TDF_IDF(TDF_IDF_Core):
         self.avg_tdf = (total_tdf / self.D)
 
         # 尝试校正数字的idf
-        if self.digital_dtf_rate:
-            avg_tdf = self.avg_tdf * self.digital_dtf_rate
-            if avg_tdf > self.D: avg_tdf = self.D
-
-            for k in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
-                if k not in self.idf_dict:
-                    continue
-                self.idf_dict[k] = math.log(self.D - avg_tdf + 0.5) - math.log(avg_tdf + 0.5)
+        self.adj_number_idf(self.digital_dtf_rate)
 
         # 最后计算平均IDF的时候,排除文档频率为1的词,避免干扰得到较大的平均值.
         total_idf = sum(map(lambda k: float(self.idf_dict[k]) if self.tdf_dict[k] != 1 else 0, self.idf_dict.keys()))
         self.avg_idf = total_idf / len(self.idf_dict.keys())
         # print(self.idf_dict)
+
 
 
 def idf_keywords(tf_dict, idf_dict):
