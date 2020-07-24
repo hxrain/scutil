@@ -442,7 +442,11 @@ class spider_base:
         xstr = ''
         rst = []
         msg = ''
-        for r in range(self.source.list_take_retry):
+        for r in range(max(self.source.list_take_retry,1)):
+            xstr = ''
+            rst = []
+            msg = ''
+
             if not self.call_src_method('on_list_take', list_url, req_param):
                 if self.source.list_url_sleep > 0:  # 根据需要进行概览采集休眠
                     spd_sleep(self.source.list_url_sleep)
@@ -452,6 +456,9 @@ class spider_base:
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
             else:
                 logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                if self.http.get_status_code() >= 400:
+                    break
+
             # 格式化概览页内容为xpath格式
             xstr = self.call_src_method('on_list_format', self.http.get_BODY())
             if xstr is None:  # 如果返回值为None则意味着要求停止翻页
@@ -508,8 +515,6 @@ class spider_base:
         while list_url is not None:
             self.reqs += 1
             xstr, rst, msg = self._do_list_take(list_url, req_param)
-            if xstr is None:
-                break  # 要求采集源停止运行
             if xstr:  # 抓取成功
                 self.rsps += 1
                 # 格式化概览页内容为xpath格式
@@ -517,12 +522,15 @@ class spider_base:
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if xstr != '__EMPTY__':
-                            logger.debug(
-                                'list_url pair_extract empty <%s %d> :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_BODY(), xstr))
+                            logger.warning('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
                                 logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
                                 break
+                        else:
+                            list_emptys = 0
+                            self.succ += 1
+                            logger.info('source <%s> none <  0> list <%s>' % (self.source.name, list_url))
                     else:
                         reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                         list_emptys = 0
@@ -531,11 +539,15 @@ class spider_base:
                         logger.info('source <%s> news <%3d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
-            else:
-                logger.warning('list_url http take error <%s> :: %d :: %s :: %s' % (list_url, self.http.get_status_code(), self.http.get_error(), msg))
-            dbs.update_act(self, True)  # 进行中间状态更新
+
+
+            if xstr is None:
+                dbs.update_act(self, False)  # 进行中间状态更新
+                break  # 要求采集源停止运行
+
             self._do_list_bulking()  # 尝试进行概览翻页递增
             list_url = self.call_src_method('on_list_url', req_param)
+            dbs.update_act(self, list_url is not None)  # 进行中间状态更新
 
         return True
 
@@ -593,9 +605,7 @@ class db_base:
         """更新采集源的动作信息"""
         end_time = int(time.time())
         dat = (spd.begin_time, end_time, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.source.id)
-        ret, msg = self.dbq.exec(
-            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?",
-            dat)
+        ret, msg = self.dbq.exec("update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?",dat)
         if not ret:
             logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
             return False

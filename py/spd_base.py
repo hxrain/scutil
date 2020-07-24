@@ -256,9 +256,9 @@ def uniseq2str(s):
 
 # -----------------------------------------------------------------------------
 # URL编码
-def encodeURIComponent(url):
+def encodeURIComponent(url,encode='utf-8'):
     url = hp.unescape(url)
-    url = up.quote_plus(url, safe='', encoding='utf-8')
+    url = up.quote_plus(url, safe='', encoding=encode)
     return url
 
 
