@@ -442,7 +442,7 @@ class spider_base:
         xstr = ''
         rst = []
         msg = ''
-        for r in range(max(self.source.list_take_retry,1)):
+        for r in range(max(self.source.list_take_retry, 1)):
             xstr = ''
             rst = []
             msg = ''
@@ -452,15 +452,18 @@ class spider_base:
                     spd_sleep(self.source.list_url_sleep)
                 continue
 
+            rsp_body = self.http.get_BODY()
             if self.http.get_status_code() == 200:
                 logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                if not rsp_body:
+                    logger.warn('list_url http take empty <%s> :: %d' % (list_url, self.http.get_status_code()))
             else:
                 logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if self.http.get_status_code() >= 400:
                     break
 
             # 格式化概览页内容为xpath格式
-            xstr = self.call_src_method('on_list_format', self.http.get_BODY())
+            xstr = self.call_src_method('on_list_format', rsp_body)
             if xstr is None:  # 如果返回值为None则意味着要求停止翻页
                 return xstr, rst, msg
 
@@ -540,7 +543,6 @@ class spider_base:
                 else:
                     logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
 
-
             if xstr is None:
                 dbs.update_act(self, False)  # 进行中间状态更新
                 break  # 要求采集源停止运行
@@ -605,7 +607,7 @@ class db_base:
         """更新采集源的动作信息"""
         end_time = int(time.time())
         dat = (spd.begin_time, end_time, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.source.id)
-        ret, msg = self.dbq.exec("update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?",dat)
+        ret, msg = self.dbq.exec("update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?", dat)
         if not ret:
             logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
             return False

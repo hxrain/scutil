@@ -9,6 +9,7 @@ import time
 import datetime
 import urllib.parse as up
 from xml.dom import minidom
+import zipfile
 
 import requests
 from lxml import etree
@@ -615,6 +616,17 @@ def replace_re(cnt_str, cc_re, cc_dst):
     except Exception as e:
         return cnt_str, str(e)
 
+def zip_file(srcdir,outfile):
+    """把原目录srcdir中的文件全部打包放在outfile压缩文件中.返回值:空正常;否则为错误信息"""
+    try:
+        ls=os.listdir(srcdir)
+        zf=zipfile.ZipFile(outfile,'w')
+        for f in ls:
+            zf.write(srcdir+'/'+f,f)
+        zf.close()
+        return ''
+    except Exception as e:
+        return str(e)
 
 # -----------------------------------------------------------------------------
 # 获取时间串,默认为当前时间
