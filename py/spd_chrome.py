@@ -534,6 +534,8 @@ class spd_chrome:
         try:
             t = self._tab(tab)
             rst = t.call_method('Runtime.evaluate', expression=js, returnByValue=True, _timeout=self.proto_timeout)
+            if rst is None:
+                return '','Runtime.evaluate result is empty.'
             ret = rst['result']
             if 'value' in ret:
                 return ret['value'], ''

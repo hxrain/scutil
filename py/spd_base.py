@@ -920,7 +920,7 @@ def query_re(cnt_str, cc_re, idx=None):
 # 查询指定捕获组的内容并转为数字.不成功时返回默认值
 def query_re_num(cnt_str, cc_re, defval=1):
     rs, msg = query_re(cnt_str, cc_re)
-    if len(rs) != 0:
+    if len(rs) != 0 and rs[0]!='':
         return int(rs[0])
     return defval
 

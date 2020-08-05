@@ -1,8 +1,11 @@
+import argparse
 import importlib
+import sys
 
 from db_sqlite import *
 from mutex_lock import *
 from spd_base import *
+from spd_chrome import *
 
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
@@ -268,7 +271,10 @@ class source_base:
         return None
 
     def on_page_take(self, info, page_url, req):
-        """发起对page_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
+        """发起对page_url的http抓取动作,self.spider.http.rst['BODY'] 中保存了抓取结果;
+                                      self.spider.http.rst['status_code'] 记录http状态码;
+                                      self.spider.http.rst['error'] 记录错误原因.
+        返回值:是否抓取成功."""
         return self.spider.http.take(page_url, req)
 
     def on_page_info(self, info, list_url, page):
@@ -301,7 +307,7 @@ class spider_base:
     """爬虫任务基类,提供采集任务运行所需功能的核心接口"""
 
     def __init__(self, source):
-        self.http = spd_base()
+        self.http = spd_base.spd_base()
         self.source = source
         self.source.spider = self  # 给采集源对象绑定当前的爬虫对象实例
         self.http.timeout = self.source.http_timeout
@@ -607,7 +613,8 @@ class db_base:
         """更新采集源的动作信息"""
         end_time = int(time.time())
         dat = (spd.begin_time, end_time, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.source.id)
-        ret, msg = self.dbq.exec("update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?", dat)
+        ret, msg = self.dbq.exec(
+            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?", dat)
         if not ret:
             logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
             return False
@@ -729,7 +736,8 @@ class collect_manager:
         if src.id == -1:
             return False
 
-        self.spiders.append(spider_t(src))
+        spd = spider_t(src)
+        self.spiders.append(spd)
         return True
 
     @guard(locker)
@@ -799,3 +807,58 @@ def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', 
 
     cm = collect_manager(dbs)
     return cm
+
+
+def run_collect_sys(dbg_src=None):
+    # 定义并处理命令行参数
+    def get_params():
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--workdir", type=str, default='', help="spider work dir.")
+        parser.add_argument("--tagname", type=str, default='', help="spider tag name.")
+        parser.add_argument("--dbname", type=str, default='', help="sqlite3 db file name.")
+        parser.add_argument("--logname", type=str, default='', help="spider log file name.")
+        parser.add_argument("--prefix", type=str, default='src_', help="source file name prefix.")
+        parser.add_argument("--thread", type=int, default=0, help="enable thread mode.")
+        parser.add_argument("--debug", type=int, default=0, help="enable debug info output.")
+        return parser.parse_args()
+
+    args = get_params()
+
+    # 获取当前文件所在路径,添加到python搜索路径中
+    curdir = args.workdir if args.workdir != '' else os.path.dirname(os.path.abspath(sys.argv[0]))
+    sys.path.append(curdir)
+    sys.path.append(curdir + '/spd')
+    sys.path.append(curdir + '/src')
+
+    # 是否开启多线程并发模式
+    if args.thread:
+        locker.init()
+
+    # 获取运行文件名称作为标记
+    tag = args.tagname if args.tagname != '' else re.split('[\\\\/]', sys.argv[0])[-1].split('.')[0]
+
+    dbname = args.dbname if args.dbname != '' else './%s.sqlite3' % tag
+    logname = args.logname if args.logname != '' else './%s.log' % tag
+
+    # 获取采集系统对象并打开数据库与日志
+    cm = make_collect_mgr(logname, dbname, logging.INFO)
+    if cm is None:
+        print('SDP INIT FAIL!')
+        exit(-1)
+
+    # 注册采集源
+    if dbg_src:
+        cm.register('src.%s' % dbg_src)
+    else:
+        # 装载采集源列表
+        srcs = os.listdir(curdir + '/src')
+        for s in srcs:
+            if not s.startswith(args.prefix):
+                continue
+            if not s.endswith('.py'):
+                continue
+            cm.register('src.%s' % s[:-3])
+
+    # 运行全部采集爬虫
+    cm.run()
+    cm.close()
