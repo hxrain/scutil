@@ -535,7 +535,7 @@ class spd_chrome:
             t = self._tab(tab)
             rst = t.call_method('Runtime.evaluate', expression=js, returnByValue=True, _timeout=self.proto_timeout)
             if rst is None:
-                return '','Runtime.evaluate result is empty.'
+                return '', 'Runtime.evaluate result is empty.'
             ret = rst['result']
             if 'value' in ret:
                 return ret['value'], ''
@@ -578,8 +578,10 @@ class spd_chrome:
         for i in range(loops):
             html, msg = self.dhtml(tab_id)
             if msg != '':
-                return None, msg
-            xhtml = spd_base.format_html(html)
+                time.sleep(0.5)
+                continue
+
+            xhtml = spd_base.format_html(html)  # 执行xpath之前先进行xhtml格式化
             r, msg = spd_base.query_xpath_x(xhtml, xpath)
             if msg != '':
                 return None, msg
