@@ -1,4 +1,5 @@
 import xlsxwriter
+
 from hash_util import *
 
 '''
@@ -32,11 +33,13 @@ class xlsx_writer:
         self.keys = None
         self.keyIdx = keyIdx
 
-    def create(self, sheet_name, cols=None):
+    def create(self, sheet_name, cols=None, chk_keys=True):
         """创建数据表,告知表名与列头"""
         self.sheet = self.book.add_worksheet(sheet_name)
 
-        self.keys = set()
+        if chk_keys:
+            self.keys = set()
+
         # 添加列头
         if cols:
             self.rows = 0
@@ -49,13 +52,17 @@ class xlsx_writer:
         """追加一个元组"""
         if not self.sheet:
             return -1
-        key = calc_key(t, self.keyIdx)
-        if key in self.keys:
-            return 0
+
+        if self.keys:
+            key = calc_key(t, self.keyIdx)
+            if key in self.keys:
+                return 0
+            self.keys.add(key)
+
         self.rows += 1
         for col in range(len(t)):
             self.sheet.write(self.rows, col, t[col])
-        self.keys.add(key)
+
         return 2
 
     def appendx(self, lst):

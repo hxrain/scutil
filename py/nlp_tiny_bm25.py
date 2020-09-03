@@ -13,22 +13,39 @@ class BM25_Core:
         self.B = 0.75
         # IDF-IDF计数器
         self.idf_dict = idf_dict
+        # 相对缺失的字词默认词频
+        self.missing_f = 0
+
+    def _switch_check(self, w1, w2):
+        """检查w1和w2的长度,按最长的在前面返回"""
+        if len(w1) >= len(w2):
+            return w1, w2
+        else:
+            return w2, w1
 
     def sim(self, query, df, dlen):
-        '计算query查询词列表与给定的文档词频表df的相似度,dlen为f的原始文档词数'
+        '计算query查询词列表与给定的文档词频表df的相似度,dlen为df的原始文档词数'
         score = 0
         for word in query:
+
             if word not in df:
-                continue
+                if self.missing_f:
+                    dfw = self.missing_f
+                else:
+                    continue
+            else:
+                dfw = df[word]
+
             idf = self.idf_dict.get_idf(word)
-            A = idf * df[word] * (self.K1 + 1)
+            A = idf * dfw * (self.K1 + 1)
             B = (1 - self.B + self.B * dlen / self.idf_dict.avg_docs_len)
-            score += (A / (df[word] + self.K1 * B))
+            score += (A / (dfw + self.K1 * B))
 
         return score
 
     def sim2s(self, words1, words2):
         '计算words1与words2词列表在当前词频词典下的相似度比分'
+        words1, words2 = self._switch_check(words1, words2)
         df2 = {}
         calc_tf(words2, df2)
         return self.sim(words1, df2, len(words2))
@@ -41,6 +58,7 @@ class BM25_Core:
 
     def sim2p(self, words1, words2):
         '计算words1与words2词列表在当前词频词典下的相似度百分比'
+        words1, words2 = self._switch_check(words1, words2)
         score1 = math.fabs(self.sim_self(words1))
         score2 = math.fabs(self.sim2s(words1, words2))
 

@@ -297,6 +297,21 @@ def sbccase_to_ascii_str(u):
     return ''.join([sbccase_to_ascii(ch) for ch in u])
 
 
+# 强制进行中文符号到英文符号的映射
+_SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']'}
+
+
+def sbccase_to_ascii_str2(u,force=True):
+    """进行额外的常见中文符号转为英文符号"""
+    lst = []
+    for ch in u:
+        if force and ch in _SBC_CHR_CONV_TBL:
+            ch = _SBC_CHR_CONV_TBL[ch]
+        ch = sbccase_to_ascii(ch)
+        lst.append(ch)
+    return ''.join(lst)
+
+
 # 根据给定的unicode字符码查询其对应的块名字
 def unicode_block_of(code):
     return _UNICODE_BLOCK_NAMES[bisect.bisect_right(_UNICODE_BLOCK_STARTS, code) - 1]
@@ -325,3 +340,41 @@ def make_charset_list(enc='gbk', limit=0x10000, show=False):
             except:
                 pass
     return rst
+
+
+def is_number_char(char):
+    """判断是否为数字字符"""
+    return char >= '0' and char <= '9'
+
+
+def is_english_lc(char):
+    """判断是否为英文小写字符"""
+    return char >= 'a' and char <= 'z'
+
+
+def is_english_cl(char):
+    """判断是否为英文大写字符"""
+    return char >= 'a' and char <= 'Z'
+
+
+def is_alpha_num(char):
+    """判断是否为数字与英文字母"""
+    return is_number_char(char) or is_english_lc(char) or is_english_cl(char)
+
+def with_numalp(s):
+    """查找字符串s前后两端的数字与字母的数量"""
+    sl = len(s)
+    hc = 0
+    tc = 0
+    for i in range(sl):
+        if is_alpha_num(s[i]):
+            hc += 1
+        else:
+            break
+
+    for i in range(sl):
+        if is_alpha_num(s[sl - i - 1]):
+            tc += 1
+        else:
+            break
+    return hc, tc

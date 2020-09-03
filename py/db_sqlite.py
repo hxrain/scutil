@@ -58,6 +58,15 @@ class s3db:
             self.conn.rollback()
             return False, str(e)
 
+    def commit(self):
+        try:
+            self.conn.commit()
+            return True, ''
+        except Exception as e:
+            self.conn.rollback()
+            return False, str(e)
+
+
 '''
 import db_sqlite as dbs
 db=dbs.s3db('spd.sqlite3')
@@ -66,6 +75,7 @@ rows,msg=q.query('select * from tbl_infos')
 for row in rows:
     print(row[0],row[1])
 '''
+
 
 class s3query:
     def __init__(self, db):
@@ -94,7 +104,7 @@ class s3query:
             self.conn.rollback()
             return False, str(e)
 
-    def query(self, sql, param=None,fetchsize=None):
+    def query(self, sql, param=None, fetchsize=None):
         """执行sql查询,得到结果集(默认是得到全部,也可以指定获取的数量)"""
         try:
             if param is None:
@@ -115,6 +125,43 @@ class s3query:
         except Exception as e:
             return None, str(e)
 
+    def append(self, obj, cmt=True):
+        """轻量级ORM插入实现,obj的类型为表名,obj内含属性为表中字段与对应的值"""
+
+        def _insert(obj, cmt):
+            tbl = type(obj).__name__
+            val = []
+            fds = []
+            dmy = []
+            for f in obj.__dict__:
+                fds.append(f)
+                val.append(obj.__dict__[f])
+                dmy.append('?')
+            sql = 'insert into %s (%s) values(%s)' % (tbl, ','.join(fds), ','.join(dmy))
+            return self.exec(sql, val, cmt)
+
+        if isinstance(obj, list) or isinstance(obj, tuple):
+            for o in obj:
+                _insert(o, False)
+            if cmt:
+                return self.db.commit()
+            else:
+                return True,''
+        else:
+            return _insert(obj, cmt)
+
+    def extract(self, sql, filter_fun, param=None, fetchsize=100):
+        """执行查询,给出sql和参数param,对结果行进行filter_fun过滤,可设定提取批尺寸fetchsize"""
+        rc = 0
+        rows, msg = self.query(sql, param, fetchsize)
+        if msg: return rc, msg
+        while len(rows):
+            for row in rows:
+                filter_fun(row)
+                rc += 1
+            rows, msg = self.fetch(fetchsize)
+            if msg: return rc, msg
+        return rc, msg
 
     def has(self, name, type='table'):
         """判断指定的库表对象table/index/view是否存在.返回值:None查询失败,结果未知;True/False告知是否存在"""

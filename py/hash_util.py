@@ -83,7 +83,7 @@ def sha(str):
 
 
 # 因子选斐波那契序数,给定不同的因子可造就一系列的哈希函数族
-def rx_hash_gold(x, factor=17711):
+def rx_hash_gold(x, factor=_fibonacci_seqs[18]):
     return x * factor
 
 
@@ -104,7 +104,7 @@ def rx_hash_skeeto3(x, f=_skeeto_3f[0]):
     return x
 
 
-# 对x计算n个哈希函数的结果
+# 对x计算n个skeeto3哈希函数的结果
 def rx_hash_skeeto3_f(x, n):
     return [rx_hash_skeeto3(x, _skeeto_3f[i]) for i in range(n)]
 
@@ -115,28 +115,169 @@ def rx_int_list_mod(ints, bits=64):
 
 
 # 根据数组序列,叠加rst生成64bit整数的布隆投影哈希值
-def mk_bloom_code(ints, rst=0, xormode=False):
+def mk_bloom_code(poslst, rst=0, xormode=False):
     if xormode:
-        for i in ints:
+        for i in poslst:
             flag = (1 << i)
             if rst & flag:
                 rst = rst & ~flag
             else:
                 rst |= flag
     else:
-        for i in ints:
+        for i in poslst:
             rst |= (1 << i)
     return rst
 
 
-# 生成指定字符串的整体布隆投影哈希,hashdeep告知每个字符的样本深度,xormode控制是否进行影子的异或翻转
-def rx_bloom_hash(str, hashdeep=4, xormode=True):
+# 生成指定字符串的整体布隆投影哈希,deep告知每个字符的样本深度,xormode控制是否进行影子的异或翻转
+def rx_bloom_hash(str, deep=4, xormode=True):
     hc = 0
     for c in str:
         x = ord(c)
-        hashs = rx_hash_skeeto3_f(x, hashdeep)
-        # 对N个哈希值进行比特数组的回绕处理
-        ints = rx_int_list_mod(hashs)
+        hashs = rx_hash_skeeto3_f(x, deep)
+        # 根据hashdeep个哈希值计算比特数组中的位置
+        poslst = rx_int_list_mod(hashs)
         # 根据投影位置数组生成最终的布隆值
-        hc = mk_bloom_code(ints, hc, xormode)
+        hc = mk_bloom_code(poslst, hc, xormode)
     return hc
+
+
+def string_hash(v, hashfunc, bitsmask):
+    """基于数字hash函数的字符串hash函数"""
+    if not v:
+        return 0
+    x = 0
+    for c in v:
+        x = x + x ^ hashfunc(ord(c))
+    return x & bitsmask
+
+
+class simhash():
+    """simhash相关功能封装"""
+
+    def __init__(self, hashbits=64, hashfunc=rx_hash_skeeto3, whtfunc=None):
+        self.hashbits = hashbits  # 最终结果bit位数
+        self.bitsmask = (1 << self.hashbits) - 1  # 最终结果bit位数对应的二进制掩码
+        self.hashfunc = hashfunc  # 整数哈希函数
+        self.whtfunc = whtfunc  # 权重计算方法
+
+    def hash(self, tokens):
+        v = [0] * self.hashbits
+        for x in tokens:
+            t = string_hash(x, self.hashfunc, self.bitsmask)
+            w = self._weight_func(x)
+            for i in range(self.hashbits):
+                if t & (1 << i):
+                    v[i] += w
+                else:
+                    v[i] -= w
+        fingerprint = 0
+        for i in range(self.hashbits):
+            if v[i] >= 0:
+                fingerprint += 1 << i
+        return fingerprint
+
+    def _weight_func(self, v):
+        """获取v的权重"""
+        w = 0
+        if self.whtfunc:
+            w = self.whtfunc(v)
+        else:
+            for c in v:
+                w += 1
+        return w
+
+    def distance(self, hash1, hash2):
+        """计算hamming距离,两个simhash值的差异度"""
+        x = (hash1 ^ hash2) & self.bitsmask
+        tot = 0
+        while x:
+            tot += 1
+            x &= x - 1
+        return tot
+
+    def similarity(self, hash1, hash2, base=None):
+        """计算两个simhash的相似度"""
+        dst = self.distance(hash1, hash2)
+        if not base: base = self.hashbits
+        if dst >= base: return 0
+        return (base - dst) / base
+
+
+def simhash_equ(hash1, hash2, limit=3):
+    """判断两个simhash的结果是否相同"""
+    x = (hash1 ^ hash2)
+    tot = 0
+    n = limit
+    while x and n >= 0:
+        tot += 1
+        x &= x - 1
+        n -= 1
+    return tot <= limit
+
+
+def jacard_sim(s1, s2):
+    """对于集合或链表s1和s2,计算杰卡德相似度;返回值:(相同元素数,元素总数)"""
+    if len(s1) == 0 or len(s2) == 0:
+        return 0, 0
+
+    if not isinstance(s1, set):
+        s1 = set(s1)
+    if not isinstance(s2, set):
+        s2 = set(s2)
+
+    i = s1.intersection(s2)
+    u = s1.union(s2)
+    return len(i), len(u)
+
+
+class super_shingle:
+    """基于k-shingle的supershingle哈希计算器"""
+
+    def __init__(self, k=6, m=6, hashbits=32):
+        self.k = k
+        assert (m <= len(_skeeto_3f) / 2)
+        self.m = m
+        self.hashbits = hashbits  # 最终结果bit位数
+        self.bitsmask = (1 << self.hashbits) - 1  # 最终结果bit位数对应的二进制掩码
+        self.hashfunc = rx_hash_skeeto3
+
+    def hash(self, s):
+        """计算字符串s的supershingle哈希,得到长度为m的{int}集合"""
+        if not s: return None
+        shingles = []
+        l = len(s)
+        for i in range(l - self.k + 1):
+            shingles.append(string_hash(s[i:i + self.k], self.hashfunc, self.bitsmask))
+        rst = set()
+        for j in range(self.m):
+            minval = self._shingle_min(shingles, j)
+            if minval in rst:
+                minval = self._shingle_min(shingles, j + self.m)  # 做一个冲突预防,使用后面的hash算法重新生成
+            rst.add(minval)
+        return rst
+
+    def _shingle_min(self, shingles, hashfunc_idx):
+        """内置功能,对shingles列表按哈希族函数i计算,并得到最小的结果"""
+        if len(shingles)==0:
+            return None
+        mins = []
+        for s in shingles:
+            mins.append(self.hashfunc(s, _skeeto_3f[hashfunc_idx + 1]) & self.bitsmask)
+        return min(mins)
+
+    def distance(self, hash1, hash2):
+        """计算两个super_shingle集合的差异度"""
+        si, su = jacard_sim(hash1, hash2)
+        return self.m - si
+
+    def similarity(self, hash1, hash2):
+        """计算两个super_shingle集合的(相似度,相似量)"""
+        si, su = jacard_sim(hash1, hash2)
+        return si / self.m, si
+
+
+def super_shingle_equ(s1, s2, limit=2):
+    """判断两个super_shingle哈希结果是否相同"""
+    si, su = jacard_sim(s1, s2)
+    return si >= limit

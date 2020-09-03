@@ -7,9 +7,9 @@ import os
 # 标点符号与停用词
 PUNCTUATIONS = {'“', '”', '、', '！', '!', '|', '：', '，', '；', '。', ':', ',', ' ', '\\', '#', '&', '/', '<', '>', '+',
                 ';', '·', '×', '—', '‘', '’', '…', '《', '》', '『', '』', '【', '】', '（', '）', '(', ')', '[', ']', '{', '}',
-                '？', '`', '~', '～', '@', '#', '\n', '\r', '\t', '\'', '=', '「', '」', '・', '_', '.', '●', '«', '»',
+                '？', '`', '~', '～', '@', '#', '\n', '\r', '\t', '\'', '=', '「', '」', '・', '_', '.', '●', '«', '»', 'Φ',
                 '㎡', '﹙', '﹚', '．', '"', '／', '?', '＋', '－', '•', '%', '〔', '〕', '＃', '^', '*', '$', '-', '\u200b',
-                '\u200c', '\u200d', '\xa0', '％', '\u3000', '\u200d', '＆', '丶', '\ufeff', '\x7f', '\ue772', '\ue618',
+                '\u200c', '\u200d', '\xa0', '％', '\u3000', '\u200d', '＆', '丶', '\ufeff', '\x7f', '\ue772', '\ue618','▪',
                 '\ufffd', '\ue5ca', '\xed'}
 
 
@@ -164,17 +164,16 @@ class TDF_IDF_Core:
             return self.avg_tdf
         return self.tdf_dict[word] / self.D
 
-    def adj_number_idf(self,digital_dtf_rate):
-        # 尝试校正数字的idf
-        if not digital_dtf_rate or digital_dtf_rate<=0:
+    def adjust_digital(self,rate):
+        # 基于平均idf的倍数校正数字的idf
+        if not rate or rate<=0:
             return
-        avg_tdf = self.avg_tdf * digital_dtf_rate
-        if avg_tdf > self.D: avg_tdf = self.D
+        adj_tdf = self.avg_tdf * rate
 
         for k in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
             if k not in self.idf_dict:
                 continue
-            self.idf_dict[k] = math.log(self.D - avg_tdf + 0.5) - math.log(avg_tdf + 0.5)
+            self.idf_dict[k] = adj_tdf
 
 
 def tdf_idf_save(dst: TDF_IDF_Core, filename):

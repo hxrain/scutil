@@ -138,10 +138,12 @@ def set_info_updmode(v):
 
 
 # 统一生成默认请求参数
-def _make_req_param():
+def _make_req_param(source):
     req = {}
-    if proxy:
-        req['PROXY'] = proxy
+    if source.proxy_addr:
+        req['PROXY'] = source.proxy_addr #先尝试绑定采集源特定代理服务器
+    elif proxy:
+        req['PROXY'] = proxy #再尝试绑定全局代理服务器
     return req
 
 
@@ -170,6 +172,7 @@ class source_base:
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
         self.info_upd_mode = False  # 是否开启该信息源的更新模式
+        self.proxy_addr = None #代理服务器地址,格式为 http://192.168.20.108:808
         self.http_timeout = 20  # http请求超时时间,秒
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
@@ -358,7 +361,7 @@ class spider_base:
             return None
 
         # 给出对info.url的处理机会,并用来判断是否需要抓取细览页
-        req_param = _make_req_param()
+        req_param = _make_req_param(self.source)
         take_page_url = self.call_src_method('on_page_url', info, list_url, req_param)
 
         if info.source_id is None:  # 在on_page_url调用之后,给出信息废弃的机会,是另一种on_info_filter过滤处理
@@ -454,6 +457,7 @@ class spider_base:
             msg = ''
 
             if not self.call_src_method('on_list_take', list_url, req_param):
+                logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if self.source.list_url_sleep > 0:  # 根据需要进行概览采集休眠
                     spd_sleep(self.source.list_url_sleep)
                 continue
@@ -503,7 +507,7 @@ class spider_base:
         self.begin_time = int(time.time())
 
         # 进行入口请求的处理
-        req_param = _make_req_param()
+        req_param = _make_req_param(self.source)
         entry_url = self.call_src_method('on_ready', req_param)
         if entry_url is not None:
             self.reqs += 1
@@ -848,7 +852,11 @@ def run_collect_sys(dbg_src=None):
 
     # 注册采集源
     if dbg_src:
-        cm.register('src.%s' % dbg_src)
+        if isinstance(dbg_src,str):
+            cm.register('src.%s' % dbg_src)
+        if isinstance(dbg_src,list):
+            for s in dbg_src:
+                cm.register('src.%s' % s)
     else:
         # 装载采集源列表
         srcs = os.listdir(curdir + '/src')

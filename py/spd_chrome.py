@@ -53,6 +53,23 @@ class GenericAttr(object):
         self.tab.set_listener("%s.%s" % (self.name, key), value)
 
 
+class cycle_t:
+    '周期计时器'
+
+    def __init__(self, interval_ms):
+        self.last_time = 0
+        self.interval_ms = interval_ms
+        self.hit()
+
+    def hit(self):
+        '检查周期事件是否发生'
+        now = int(time.time() * 1000)
+        if now - self.last_time > self.interval_ms:
+            self.last_time = now
+            return True
+        return False
+
+
 # chrome浏览器Tab页操控功能
 class Tab(object):
     status_initial = 'initial'
@@ -67,6 +84,7 @@ class Tab(object):
 
         self._websocket_url = kwargs.get("webSocketDebuggerUrl")  # 操纵tab的websocket地址
         self._kwargs = kwargs
+        self.cycle = cycle_t(1000 * 60 * 5)
 
         self._cur_id = 1000  # 交互消息的初始流水序号
 
@@ -255,6 +273,16 @@ class Tab(object):
             self.call_method('Network.enable', _timeout=1)
         return True
 
+    def reopen(self):
+        if self._ws:
+            self._ws.close()
+            self._ws = None
+        self._ws = websocket.create_connection(self._websocket_url, enable_multithread=True)
+
+        if self.recv_req_event_rule:
+            self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
+            self.call_method('Network.enable', _timeout=1)
+
     def close(self):
         """停止tab交互,关闭websocket连接"""
         if not self._started:
@@ -264,6 +292,7 @@ class Tab(object):
         self._started = False
         if self._ws:
             self._ws.close()
+            self._ws = None
         self._data_requestWillBeSent.clear()
         return True
 
@@ -337,7 +366,7 @@ class Browser(object):
 
 dom100 = '''
 //DOM选取功能封装:el为选择表达式或已选取的对象;parent为选取的父节点范围作用域,也可以为父节点的选取表达式
-var $ = function(el, parent) {
+var _$_ = function(el, parent) {
 	//最终返回的API对象,初始的时候其持有的el元素对象为null
 	var api = { el: null }
 	//内部使用的CSS选择器单节点查询函数
@@ -520,6 +549,8 @@ class spd_chrome:
         """控制指定的tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
         try:
             t = self._tab(tab)
+            if t.cycle.hit():
+                t.reopen() #尝试周期性进行ws连接的重连
             rst = t.call_method('Page.navigate', url=url, _timeout=self.proto_timeout)
             return rst, ''
         except Exception as e:
