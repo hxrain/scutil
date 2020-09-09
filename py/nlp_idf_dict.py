@@ -5,15 +5,15 @@ import math
 import os
 
 # 标点符号与停用词
-PUNCTUATIONS = {'“', '”', '、', '！', '!', '|', '：', '，', '；', '。', ':', ',', ' ', '\\', '#', '&', '/', '<', '>', '+',
+PUNCTUATIONS = {'“', '”', '、', '！', '!', '|', '：', '，', '；', '。', ':', ',', ' ', '\\', '#', '&', '/', '<', '>', '+','°',
                 ';', '·', '×', '—', '‘', '’', '…', '《', '》', '『', '』', '【', '】', '（', '）', '(', ')', '[', ']', '{', '}',
                 '？', '`', '~', '～', '@', '#', '\n', '\r', '\t', '\'', '=', '「', '」', '・', '_', '.', '●', '«', '»', 'Φ',
                 '㎡', '﹙', '﹚', '．', '"', '／', '?', '＋', '－', '•', '%', '〔', '〕', '＃', '^', '*', '$', '-', '\u200b',
-                '\u200c', '\u200d', '\xa0', '％', '\u3000', '\u200d', '＆', '丶', '\ufeff', '\x7f', '\ue772', '\ue618','▪',
+                '\u200c', '\u200d', '\xa0', '％', '\u3000', '\u200d', '＆', '丶', '\ufeff', '\x7f', '\ue772', '\ue618', '▪',
                 '\ufffd', '\ue5ca', '\xed'}
 
 
-def preproc_doc(txt, drop_crlf=True, drop_punc=True):
+def preproc_doc(txt, drop_crlf=True, drop_punc=True, puns=PUNCTUATIONS):
     '对给定字符串进行预处理,返回分词过滤后的词列表(简化的单字切分)'
     ret = []
     for c in txt:
@@ -26,7 +26,7 @@ def preproc_doc(txt, drop_crlf=True, drop_punc=True):
                 continue
             else:
                 c = '\n'
-        elif c in PUNCTUATIONS:
+        elif c in puns:
             # 标点符号都丢弃
             if drop_punc:
                 continue
@@ -164,9 +164,9 @@ class TDF_IDF_Core:
             return self.avg_tdf
         return self.tdf_dict[word] / self.D
 
-    def adjust_digital(self,rate):
+    def adjust_digital(self, rate):
         # 基于平均idf的倍数校正数字的idf
-        if not rate or rate<=0:
+        if not rate or rate <= 0:
             return
         adj_tdf = self.avg_tdf * rate
 
@@ -243,7 +243,6 @@ class TDF_IDF_Maker(TDF_IDF_Core):
         total_idf = sum(map(lambda k: float(self.idf_dict[k]) if self.tdf_dict[k] != 1 else 0, self.idf_dict.keys()))
         self.avg_idf = total_idf / len(self.idf_dict.keys())
         # print(self.idf_dict)
-
 
 
 def idf_keywords(tf_dict, idf_dict):
