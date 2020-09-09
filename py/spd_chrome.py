@@ -500,6 +500,14 @@ class spd_chrome:
         except Exception as e:
             return '', str(e)
 
+    def new(self):
+        """打开一个新的tab页.返回值:(tab页对象,错误消息)"""
+        try:
+            tab = self.browser.new_tab('', self.proto_timeout)
+            return tab, ''
+        except Exception as e:
+            return None, str(e)
+
     def list(self):
         """列出现有打开的tab页,返回值:([{tab信息}列表],错误消息)
             按最后的活动顺序排列,元素0总是当前激活的tab页
@@ -516,6 +524,8 @@ class spd_chrome:
             # tab参数为序号的时候,需要进行列表查询并动态获取id
             lst = self.browser.list_tab(self.proto_timeout)
             id = lst[tab]['id']
+        elif isinstance(tab, Tab):
+            return tab
         else:
             id = tab
         return self.browser._tabs[id]
@@ -545,16 +555,30 @@ class spd_chrome:
         except Exception as e:
             return '', str(e)
 
-    def goto(self, tab, url):
+    def _goto(self, tab, url):
         """控制指定的tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
         try:
             t = self._tab(tab)
             if t.cycle.hit():
-                t.reopen() #尝试周期性进行ws连接的重连
+                t.reopen()  # 尝试周期性进行ws连接的重连
             rst = t.call_method('Page.navigate', url=url, _timeout=self.proto_timeout)
             return rst, ''
         except Exception as e:
-            return '', str(e)
+            return None, str(e)
+
+    def goto(self, tab, url, retry=3):
+        """控制指定的tab页浏览指定的url.返回值(是否完成,{'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
+        ok = False
+        r = None
+        m = ''
+        for i in range(retry):
+            r, m = self._goto(tab, url)
+            if r and 'errorText' not in r:
+                ok = True
+                break
+            time.sleep(1)
+
+        return ok, r, m
 
     def dhtml(self, tab):
         """获取指定tab页当前的动态渲染后的html内容.返回值(内容串,错误消息)"""
