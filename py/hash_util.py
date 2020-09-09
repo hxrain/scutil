@@ -142,7 +142,7 @@ def rx_bloom_hash(str, deep=4, xormode=True):
     return hc
 
 
-def string_hash(v, hashfunc, bitsmask):
+def string_hash(v, hashfunc=rx_hash_skeeto3, bitsmask=(1 << 64) - 1):
     """基于数字hash函数的字符串hash函数"""
     if not v:
         return 0
@@ -204,7 +204,7 @@ class simhash():
         return (base - dst) / base
 
 
-def simhash_equ(hash1, hash2, limit=3):
+def simhash_equ(hash1, hash2, limit=4):
     """判断两个simhash的结果是否相同"""
     x = (hash1 ^ hash2)
     tot = 0
@@ -246,8 +246,8 @@ class super_shingle:
         """计算字符串s的supershingle哈希,得到长度为m的{int}集合"""
         if not s: return None
         shingles = []
-        l = len(s)
-        for i in range(l - self.k + 1):
+        loop = max(1, len(s) - self.k + 1)
+        for i in range(loop):
             shingles.append(string_hash(s[i:i + self.k], self.hashfunc, self.bitsmask))
         rst = set()
         for j in range(self.m):
@@ -259,7 +259,7 @@ class super_shingle:
 
     def _shingle_min(self, shingles, hashfunc_idx):
         """内置功能,对shingles列表按哈希族函数i计算,并得到最小的结果"""
-        if len(shingles)==0:
+        if len(shingles) == 0:
             return None
         mins = []
         for s in shingles:
