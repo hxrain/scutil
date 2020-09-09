@@ -301,7 +301,7 @@ def sbccase_to_ascii_str(u):
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']'}
 
 
-def sbccase_to_ascii_str2(u,force=True):
+def sbccase_to_ascii_str2(u, force=True):
     """进行额外的常见中文符号转为英文符号"""
     lst = []
     for ch in u:
@@ -354,12 +354,13 @@ def is_english_lc(char):
 
 def is_english_cl(char):
     """判断是否为英文大写字符"""
-    return char >= 'a' and char <= 'Z'
+    return char >= 'A' and char <= 'Z'
 
 
 def is_alpha_num(char):
     """判断是否为数字与英文字母"""
     return is_number_char(char) or is_english_lc(char) or is_english_cl(char)
+
 
 def with_numalp(s):
     """查找字符串s前后两端的数字与字母的数量"""
@@ -378,3 +379,10 @@ def with_numalp(s):
         else:
             break
     return hc, tc
+
+
+def rreplace(self, old, new, max=None):
+    """从字符串的右边进行替换"""
+    count = len(self) if not max else max
+    tmp=self.rsplit(old, count)
+    return new.join(tmp)
