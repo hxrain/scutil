@@ -234,25 +234,50 @@ class tiny_proxy_handler:
         '返回值告知proxy循环是否停止'
         return False
 
-    def on_req(self, session):
+    def on_get_dst(self, session):
+        """根据session中的信息,查找对应的目标代理地址"""
+        return ('127.0.0.1', 8899, 'usr', 'pwd')
+
+    def on_log(self, *args):
+        out_list = []
+        for a in args:
+            if type(a).__name__ == 'str':
+                out_list.append(a)
+            elif hasattr(a, '__str__'):
+                out_list.append(str(a))
+            else:
+                out_list.append(a.__class__)
+        out_str = ''.join(out_list)
+        self.do_log(out_str)
+
+    def do_log(self, out_str):
+        print(out_str)
+
+
+# -----------------------------------------------------------------------------
+def tiny_proxy_svr(port, handler, maxconn=200):
+    'http代理服务器主体循环功能函数'
+
+    # -----------------------------------------------------
+    def on_req(session, handler):
         '代理请求处理入口,在多线程中被运行'
         try:
-            if not self._do_req(session):
-                session.log('TinyProxyFor End.')
+            if not _do_req(session, handler):
+                session.log('TinyProxyFor Fail.')
         except Exception as e:
             print(e)
             pass
         session.src_sock.close()
         session.dst_sock.close()
 
-    def _do_req(self, session):
+    def _do_req(session, handler):
         '真正的代理请求处理函数,在多线程中被运行'
         if not session.src_sock.wait_head():
             session.log('recv src head fail')
             return False
 
         # 根据当前请求的会话信息,获取目标代理地址
-        session.proxy_info = self.on_get_dst(session)
+        session.proxy_info = handler.on_get_dst(session)
 
         # 连接目标代理地址
         dst_sck = make_tcp_conn(session.proxy_info[0], session.proxy_info[1])
@@ -326,30 +351,7 @@ class tiny_proxy_handler:
         session.log('TinyProxyFor End.')
         return True
 
-    def on_get_dst(self, session):
-        """根据session中的信息,查找对应的目标代理地址"""
-        return ('127.0.0.1', 8899, 'usr', 'pwd')
-
-    def on_log(self, *args):
-        out_list = []
-        for a in args:
-            if type(a).__name__ == 'str':
-                out_list.append(a)
-            elif hasattr(a, '__str__'):
-                out_list.append(str(a))
-            else:
-                out_list.append(a.__class__)
-        out_str = ''.join(out_list)
-        self.do_log(out_str)
-
-    def do_log(self, out_str):
-        print(out_str)
-
-
-# -----------------------------------------------------------------------------
-def tiny_proxy_svr(port, handler, maxconn=200):
-    'http代理服务器主体循环功能函数'
-
+    # -----------------------------------------------------
     # 生成server对象
     svr = tiny_tcp_svr_sock()
     # 初始化并绑定端口
@@ -370,7 +372,7 @@ def tiny_proxy_svr(port, handler, maxconn=200):
         handler.on_log('INFO:', get_sock_info(clt_sock), 'TinyProxyFor Accept.')
 
         # 调用回调函数,进行proxy请求的处理,启动新的连接处理过程
-        start_thread(handler.on_req, session)
+        start_thread(on_req, session, handler)
 
     svr.uninit()
 
@@ -378,4 +380,5 @@ def tiny_proxy_svr(port, handler, maxconn=200):
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     handler = tiny_proxy_handler()
+    print('TinyProxyFor Start.')
     tiny_proxy_svr(7878, handler)
