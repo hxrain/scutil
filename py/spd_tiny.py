@@ -117,7 +117,7 @@ logger = None  # 全局日志输出对象
 proxy = None  # 全局代理地址信息
 lists_rate = 1  # 全局概览翻页倍率
 info_upd_mode = False  # 是否开启采集源全局更新模式(根据排重条件查询得到主键id,之后更新此信息)
-
+locker = lock_t() #全局多线程保护锁
 
 # 绑定全局默认代理地址
 def bing_global_proxy(str):
@@ -584,9 +584,6 @@ class spider_base:
             dbs.update_act(self, list_url is not None)  # 进行中间状态更新
 
         return True
-
-
-locker = lock_t()
 
 
 class db_base:
