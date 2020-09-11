@@ -261,6 +261,28 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
+    def chrome_take(self, url, chrome,tab,cond_re):
+        """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
+        r=chrome.goto(tab, url)  # 控制浏览器访问入口url
+        if not r[0]:
+            self.spider.http.rst['BODY'] = ''
+            self.spider.http.rst['status_code'] = 999
+            self.spider.http.rst['error'] = ''
+            return False
+
+        rsp, msg = chrome.wait_re(tab, cond_re)  # 等待页面装载完成
+        if msg != '':
+            self.spider.http.rst['BODY'] = ''
+            self.spider.http.rst['status_code'] = 998
+            self.spider.http.rst['error'] = msg
+            return False
+        else:
+            self.spider.http.rst['BODY'] = rsp
+            self.spider.http.rst['status_code'] = 200
+            self.spider.http.rst['error'] = ''
+            return True
+
+
     def on_list_take(self, list_url, req):
         """发起对list_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
         return self.spider.http.take(list_url, req)

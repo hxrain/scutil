@@ -204,7 +204,7 @@ class simhash():
         return (base - dst) / base
 
 
-def simhash_equ(hash1, hash2, limit=4):
+def simhash_equ(hash1, hash2, limit=3):
     """判断两个simhash的结果是否相同"""
     x = (hash1 ^ hash2)
     tot = 0
@@ -246,15 +246,16 @@ class super_shingle:
         """计算字符串s的supershingle哈希,得到长度为m的{int}集合"""
         if not s: return None
         shingles = []
-        loop = max(1, len(s) - self.k + 1)
+        loop = max(1, len(s) - self.k + 1)  # n-gram循环数量做最小限定
         for i in range(loop):
-            shingles.append(string_hash(s[i:i + self.k], self.hashfunc, self.bitsmask))
+            shingles.append(string_hash(s[i:i + self.k], self.hashfunc, self.bitsmask))  # 循环得到全部子片的哈希值
+
         rst = set()
-        for j in range(self.m):
-            minval = self._shingle_min(shingles, j)
+        for j in range(self.m):  # 对m个二级哈希函数进行遍历
+            minval = self._shingle_min(shingles, j)  # 计算当前二级哈希函数下,全部子片哈希值再哈希后的最小哈希
             if minval in rst:
                 minval = self._shingle_min(shingles, j + self.m)  # 做一个冲突预防,使用后面的hash算法重新生成
-            rst.add(minval)
+            rst.add(minval)  # 用再次降维后的最小哈希值作为当前二级哈希处理后的结果
         return rst
 
     def _shingle_min(self, shingles, hashfunc_idx):
