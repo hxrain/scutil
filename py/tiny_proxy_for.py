@@ -127,7 +127,7 @@ class tiny_proxy_sock:
         self.data = b""
         self.head = None
 
-    def read_data(self, wait_time=0.5, MAXSIZE=1024 * 8):
+    def read_data(self, wait_time=10, MAXSIZE=1024 * 8):
         # 等待数据到达
         rlist, wlist, elist = select.select([self.sock], [], [], wait_time)
         if self.sock not in rlist:
@@ -146,19 +146,22 @@ class tiny_proxy_sock:
         '判断接收的是否为CONNECT方法'
         return get_value(self.head, 'method') == 'CONNECT'
 
-    def wait_head(self, wait_time=10, wait_one=0.5, is_req=True):
+    def wait_head(self, wait_time=120, wait_one=5, is_req=True):
         '在给定的时间范围内接收请求,返回值告知是否成功,请求内容可以在head和data中获取'
         self.head = None
         self.data = b""
+        self.raw = b''
+        self.rawrc = 0
 
         for i in range(int(wait_time / wait_one) + 1):
             # 进行分时循环接收
-            data, rc = self.read_data(wait_one)
-            if rc <= 0:  # 对方断开或超时
-                # print(rc)
-                return False
+            self.raw, self.rawrc = self.read_data(wait_one)
+            if self.rawrc < 0:  # 连接断开或接收错误
+                break
+            if self.rawrc == 0:
+                continue
 
-            self.data += data  # 所有接收过的数据,都先放在这里,等待可能的转发使用
+            self.data += self.raw  # 所有接收过的数据,都先放在这里,等待可能的转发使用
 
             if self.head is None:
                 hb = self.data.find(b'\r\n\r\n')  # 查找http请求的head和body的分隔符
@@ -166,13 +169,10 @@ class tiny_proxy_sock:
                 self.head = parse_http_head(self.data[0:hb + 2], is_req)  # 解析请求头
                 if self.head is None:
                     return False  # 头格式错误
-                else:
-                    # 正确处理body数据
-                    if len(data) > hb + 4:
-                        self.data = self.data[hb + 4:]
-                    else:
-                        self.data = None
-                    break
+                # 需要截取保存body数据
+                hb += 4
+                self.data = self.data[hb:] if len(self.raw) > hb else None
+                break
         return self.head is not None
 
     def send_data(self, data):
@@ -268,7 +268,8 @@ def tiny_proxy_svr(port, handler, maxconn=200):
             print(e)
             pass
         session.src_sock.close()
-        session.dst_sock.close()
+        if session.dst_sock:
+            session.dst_sock.close()
 
     def _do_req(session, handler):
         '真正的代理请求处理函数,在多线程中被运行'
