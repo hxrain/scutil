@@ -192,6 +192,13 @@ class tiny_proxy_sock:
         self.data = None
 
 
+def get_sock_addr(sock, islocal=False):
+    if islocal:
+        sa = sock.getsockname()
+    else:
+        sa = sock.getpeername()
+    return sa
+
 def get_sock_info(sock):
     """获取sock对应的本端和对端地址信息"""
     p = sock.getpeername()

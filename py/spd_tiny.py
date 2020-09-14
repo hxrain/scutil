@@ -117,7 +117,8 @@ logger = None  # 全局日志输出对象
 proxy = None  # 全局代理地址信息
 lists_rate = 1  # 全局概览翻页倍率
 info_upd_mode = False  # 是否开启采集源全局更新模式(根据排重条件查询得到主键id,之后更新此信息)
-locker = lock_t() #全局多线程保护锁
+locker = lock_t()  # 全局多线程保护锁
+
 
 # 绑定全局默认代理地址
 def bing_global_proxy(str):
@@ -141,9 +142,9 @@ def set_info_updmode(v):
 def _make_req_param(source):
     req = {}
     if source.proxy_addr:
-        req['PROXY'] = source.proxy_addr #先尝试绑定采集源特定代理服务器
+        req['PROXY'] = source.proxy_addr  # 先尝试绑定采集源特定代理服务器
     elif proxy:
-        req['PROXY'] = proxy #再尝试绑定全局代理服务器
+        req['PROXY'] = proxy  # 再尝试绑定全局代理服务器
     return req
 
 
@@ -172,7 +173,7 @@ class source_base:
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
         self.info_upd_mode = False  # 是否开启该信息源的更新模式
-        self.proxy_addr = None #代理服务器地址,格式为 http://192.168.20.108:808
+        self.proxy_addr = None  # 代理服务器地址,格式为 http://192.168.20.108:808
         self.http_timeout = 20  # http请求超时时间,秒
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
@@ -261,9 +262,9 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
-    def chrome_take(self, url, chrome,tab,cond_re):
+    def chrome_take(self, url, chrome, tab, cond_re):
         """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
-        r=chrome.goto(tab, url)  # 控制浏览器访问入口url
+        r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 999
@@ -281,7 +282,6 @@ class source_base:
             self.spider.http.rst['status_code'] = 200
             self.spider.http.rst['error'] = ''
             return True
-
 
     def on_list_take(self, list_url, req):
         """发起对list_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
@@ -305,22 +305,6 @@ class source_base:
     def on_page_info(self, info, list_url, page):
         """从page中提取必要的细览页信息放入info中.返回值告知是否处理成功"""
         return True
-
-
-class tick_meter:
-    '毫秒间隔计时器'
-
-    def __init__(self, interval_ms, first_hit=True):
-        self.last_time = 0 if first_hit else int(time.time() * 1000)
-        self.interval = interval_ms
-
-    def hit(self):
-        '判断当前时间是否超过了最后触发时间一定的间隔'
-        cur_time = int(time.time() * 1000)
-        if cur_time - self.last_time > self.interval:
-            self.last_time = cur_time
-            return True
-        return False
 
 
 def spd_sleep(sec):
@@ -871,9 +855,9 @@ def run_collect_sys(dbg_src=None):
 
     # 注册采集源
     if dbg_src:
-        if isinstance(dbg_src,str):
+        if isinstance(dbg_src, str):
             cm.register('src.%s' % dbg_src)
-        if isinstance(dbg_src,list):
+        if isinstance(dbg_src, list):
             for s in dbg_src:
                 cm.register('src.%s' % s)
     else:

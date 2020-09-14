@@ -1,3 +1,4 @@
+import datetime
 import html as hp
 import http.cookiejar as cookiejar
 import json
@@ -6,10 +7,9 @@ import logging.handlers
 import os
 import re
 import time
-import datetime
 import urllib.parse as up
-from xml.dom import minidom
 import zipfile
+from xml.dom import minidom
 
 import requests
 from lxml import etree
@@ -257,7 +257,7 @@ def uniseq2str(s):
 
 # -----------------------------------------------------------------------------
 # URL编码
-def encodeURIComponent(url,encode='utf-8'):
+def encodeURIComponent(url, encode='utf-8'):
     url = hp.unescape(url)
     url = up.quote_plus(url, safe='', encoding=encode)
     return url
@@ -616,17 +616,19 @@ def replace_re(cnt_str, cc_re, cc_dst):
     except Exception as e:
         return cnt_str, str(e)
 
-def zip_file(srcdir,outfile):
+
+def zip_file(srcdir, outfile):
     """把原目录srcdir中的文件全部打包放在outfile压缩文件中.返回值:空正常;否则为错误信息"""
     try:
-        ls=os.listdir(srcdir)
-        zf=zipfile.ZipFile(outfile,'w')
+        ls = os.listdir(srcdir)
+        zf = zipfile.ZipFile(outfile, 'w')
         for f in ls:
-            zf.write(srcdir+'/'+f,f)
+            zf.write(srcdir + '/' + f, f)
         zf.close()
         return ''
     except Exception as e:
         return str(e)
+
 
 # -----------------------------------------------------------------------------
 # 获取时间串,默认为当前时间
@@ -635,10 +637,12 @@ def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
         dt = time.localtime()
     return time.strftime(fmt, dt)
 
+
 def get_curr_date():
     """得到当前日期,ISO串"""
     now = datetime.datetime.now()
     return now.strftime('%Y-%m-%d')
+
 
 def adj_date_day(datestr, day):
     """对给定的日期串datestr进行天数day增减运算,得到新的日期,ISO串"""
@@ -646,19 +650,44 @@ def adj_date_day(datestr, day):
     date += datetime.timedelta(days=day)
     return date.strftime('%Y-%m-%d')
 
+
 def date_to_utc(datestr):
     """将日期串转换为UTC时间秒"""
     return int(datetime.datetime.strptime(datestr, '%Y-%m-%d').timestamp())
 
+
+def datetime_to_utc(datestr):
+    """将日期串转换为UTC时间秒"""
+    return int(datetime.datetime.strptime(datestr, '%Y-%m-%d %H:%M:%S').timestamp())
+
+
 def utc_to_datetime(sec):
     """把UTC秒转换为ISO标准时间串"""
-    date=datetime.datetime.fromtimestamp(sec)
+    date = datetime.datetime.fromtimestamp(sec)
     return date.strftime('%Y-%m-%d %H:%M:%S')
+
 
 def utc_to_date(sec):
     """把UTC秒转换为ISO标准日期串"""
-    date=datetime.datetime.fromtimestamp(sec)
+    date = datetime.datetime.fromtimestamp(sec)
     return date.strftime('%Y-%m-%d')
+
+
+class tick_meter:
+    '毫秒间隔计时器'
+
+    def __init__(self, interval_ms, first_hit=True):
+        self.last_time = 0 if first_hit else int(time.time() * 1000)
+        self.interval = interval_ms
+
+    def hit(self):
+        '判断当前时间是否超过了最后触发时间一定的间隔'
+        cur_time = int(time.time() * 1000)
+        if cur_time - self.last_time > self.interval:
+            self.last_time = cur_time
+            return True
+        return False
+
 
 # -----------------------------------------------------------------------------
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath
@@ -818,6 +847,8 @@ def pair_extract(xml, xpaths, removeTags=None):
         返回值:[()],errmsg
     """
     qr = {}
+    if len(xpaths) == 0:
+        return [], ''
     try:
         xp = xpath(xml)
         rows = 99999999999
@@ -920,7 +951,7 @@ def query_re(cnt_str, cc_re, idx=None):
 # 查询指定捕获组的内容并转为数字.不成功时返回默认值
 def query_re_num(cnt_str, cc_re, defval=1):
     rs, msg = query_re(cnt_str, cc_re)
-    if len(rs) != 0 and rs[0]!='':
+    if len(rs) != 0 and rs[0] != '':
         return int(rs[0])
     return defval
 
@@ -1168,7 +1199,7 @@ class spd_base:
         # 定义结果对象
         self.rst = {}
 
-    def _rst_val(self,key,defval):
+    def _rst_val(self, key, defval):
         return self.rst[key] if key in self.rst else defval
 
     # 抓取指定的url,通过req可以传递灵活的控制参数
@@ -1182,27 +1213,27 @@ class spd_base:
 
     # 获取过程中出现的错误
     def get_error(self):
-        return self._rst_val('error','')
+        return self._rst_val('error', '')
 
     # 获取回应状态码
     def get_status_code(self):
-        return self._rst_val('status_code',0)
+        return self._rst_val('status_code', 0)
 
     # 获取回应状态简述
     def get_status_reason(self):
-        return self._rst_val('status_reason','')
+        return self._rst_val('status_reason', '')
 
     # 获取回应头,字典
     def get_HEAD(self):
-        return self._rst_val('HEAD',{})
+        return self._rst_val('HEAD', {})
 
     # 获取会话回应cookie字典
     def get_COOKIE(self):
-        return self._rst_val('COOKIE',{})
+        return self._rst_val('COOKIE', {})
 
     # 获取回应内容,解压缩转码后的内容
     def get_BODY(self):
-        return self._rst_val('BODY',None)
+        return self._rst_val('BODY', None)
 
 
 # 封装对ppcef的功能调用
