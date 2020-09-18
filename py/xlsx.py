@@ -23,15 +23,22 @@ class xlsx_writer:
         # 打开文件
         self.book = xlsxwriter.Workbook(fname)
         # 定义单元格样式
-        self.cell_style = self.book.add_format({
+        self.cell_style = []
+        self.make_format({
             'text_wrap': False,
             'valign': 'vcenter',
-            'align': 'fill',
+            'align': 'left',
         })
+
         self.sheet = None
         self.rows = 0
         self.keys = None
         self.keyIdx = keyIdx
+
+    def make_format(self, styles):
+        fmt = self.book.add_format(styles)
+        self.cell_style.append(fmt)
+        return len(self.cell_style) - 1
 
     def create(self, sheet_name, cols=None, chk_keys=True):
         """创建数据表,告知表名与列头"""
@@ -48,7 +55,7 @@ class xlsx_writer:
         else:
             self.rows = -1
 
-    def append(self, t):
+    def append(self, t, fmts=None):
         """追加一个元组"""
         if not self.sheet:
             return -1
@@ -59,9 +66,12 @@ class xlsx_writer:
                 return 0
             self.keys.add(key)
 
+        if fmts is None:
+            fmts = [0] * len(t)
+
         self.rows += 1
         for col in range(len(t)):
-            self.sheet.write(self.rows, col, t[col])
+            self.sheet.write(self.rows, col, t[col], self.cell_style[fmts[col]])
 
         return 2
 

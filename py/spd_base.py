@@ -99,20 +99,39 @@ class read_lines_t:
         try:
             self.fp = open(fname, 'r', encoding=encoding)
         except Exception as e:
+            self.fp = None
             print('ERROR: %s' % (str(e)))
 
     def skip(self, lines=100):
+        if not self.fp:
+            return False
+
         for i in range(lines):
             l = self.fp.readline()
             if l is '': break
+        return True
 
     def fetch(self, lines=100):
+        if not self.fp:
+            return []
         ret = []
         for i in range(lines):
             l = self.fp.readline()
             if l is '': break
             ret.append(l.rstrip())
         return ret
+
+    def loop(self, looper):
+        if not self.fp:
+            return 0
+        rc = 0
+        while True:
+            l = self.fp.readline()
+            if l is '': break
+            rc += 1
+            looper(l, rc)
+
+        return rc
 
     def close(self):
         if self.fp:

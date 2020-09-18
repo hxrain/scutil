@@ -161,11 +161,11 @@ class simhash():
         self.hashfunc = hashfunc  # 整数哈希函数
         self.whtfunc = whtfunc  # 权重计算方法
 
-    def hash(self, tokens):
+    def hash(self, tokens, use_weight=True):
         v = [0] * self.hashbits
         for x in tokens:
             t = string_hash(x, self.hashfunc, self.bitsmask)
-            w = self._weight_func(x)
+            w = self._weight_func(x, use_weight)
             for i in range(self.hashbits):
                 if t & (1 << i):
                     v[i] += w
@@ -177,10 +177,10 @@ class simhash():
                 fingerprint += 1 << i
         return fingerprint
 
-    def _weight_func(self, v):
+    def _weight_func(self, v, use_weight):
         """获取v的权重"""
         w = 0
-        if self.whtfunc:
+        if self.whtfunc and use_weight:
             w = self.whtfunc(v)
         else:
             for c in v:
@@ -234,7 +234,7 @@ def jacard_sim(s1, s2):
 class super_shingle:
     """基于k-shingle的supershingle哈希计算器"""
 
-    def __init__(self, k=6, m=6, hashbits=32):
+    def __init__(self, k=8, m=6, hashbits=32):
         self.k = k
         assert (m <= len(_skeeto_3f) / 2)
         self.m = m
@@ -259,7 +259,7 @@ class super_shingle:
         return rst
 
     def _shingle_min(self, shingles, hashfunc_idx):
-        """内置功能,对shingles列表按哈希族函数i计算,并得到最小的结果"""
+        """内置功能,对shingles列表按哈希族函数hashfunc_idx计算,并得到最小的结果"""
         if len(shingles) == 0:
             return None
         mins = []
