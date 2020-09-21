@@ -218,7 +218,7 @@ def simhash_equ(hash1, hash2, limit=3):
 
 def jacard_sim(s1, s2):
     """对于集合或链表s1和s2,计算杰卡德相似度;返回值:(相同元素数,元素总数)"""
-    if len(s1) == 0 or len(s2) == 0:
+    if not s1 or not s2 or len(s1) == 0 or len(s2) == 0:
         return 0, 0
 
     if not isinstance(s1, set):
@@ -234,10 +234,12 @@ def jacard_sim(s1, s2):
 class super_shingle:
     """基于k-shingle的supershingle哈希计算器"""
 
-    def __init__(self, k=8, m=6, hashbits=32):
+    def __init__(self, k=8, s=4, m=6, hashbits=32):
+        """k为子片文字长度;s为子片跳跃步长;m为子片哈希二次投影结果数"""
         self.k = k
         assert (m <= len(_skeeto_3f) / 2)
         self.m = m
+        self.s = s
         self.hashbits = hashbits  # 最终结果bit位数
         self.bitsmask = (1 << self.hashbits) - 1  # 最终结果bit位数对应的二进制掩码
         self.hashfunc = rx_hash_skeeto3
@@ -247,7 +249,7 @@ class super_shingle:
         if not s: return None
         shingles = []
         loop = max(1, len(s) - self.k + 1)  # n-gram循环数量做最小限定
-        for i in range(loop):
+        for i in range(0, loop, self.s):
             shingles.append(string_hash(s[i:i + self.k], self.hashfunc, self.bitsmask))  # 循环得到全部子片的哈希值
 
         rst = set()
