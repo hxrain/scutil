@@ -999,7 +999,7 @@ def find_chs_by_head(heads):
 
 # -----------------------------------------------------------------------------
 def find_chs_by_cnt(cnt):
-    rp = '<meta[^<>]+charset\s*?=\s*?(.*?)([; ">]+)'
+    rp = '<meta[^<>]+charset\s*?=\s*?"?(.*?)[; ">]+'
     if type(cnt).__name__ == 'bytes':
         rp = rp.encode('utf-8')
     m = re.search(rp, cnt)

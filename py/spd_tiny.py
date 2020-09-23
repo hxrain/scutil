@@ -725,7 +725,8 @@ class collect_manager:
         if type(source_t).__name__ == 'module':  # 传递模块对象,引用默认类
             source_t = source_t.source_t
         elif type(source_t).__name__ == 'str':  # 传递模块名字,动态装载
-            source_t = importlib.import_module(source_t).source_t
+            m = importlib.import_module(source_t)
+            source_t = m.source_t
 
         src = source_t()  # 默认传递采集源的类或被动态装载后得到了采集源的类,创建实例
 
