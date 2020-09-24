@@ -121,3 +121,20 @@ class BM25_Query(BM25_Core):
             # 使用最终的评分进行TOP结果记录
             rec_top_result(scores, score, dtf[2], top_limit)
         return scores
+
+class bm25_calc():
+    """演示bm25相似度计算的集成用法"""
+    def __init__(self, isquery=False, idf_dict_file='title_ss_rc'):
+        self.tf_dct = TDF_IDF_Core()
+        tdf_idf_load(self.tf_dct, idf_dict_file)  # 先装载预先统计好的词频词典
+        self.tf_dct.adjust_digital(1)
+
+        if isquery:
+            self.be = BM25_Query(self.tf_dct)
+        else:
+            self.be = BM25_Core(self.tf_dct)
+        self.be.missing_f = -0.1
+        self.be.B = 0.4
+
+    def sim(self, title_a, title_b):
+        return self.be.sim2p(title_a, title_b)

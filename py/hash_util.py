@@ -216,7 +216,30 @@ def simhash_equ(hash1, hash2, limit=3):
     return tot <= limit
 
 
-def jacard_sim(s1, s2):
+def simhash_distance(hash1, hash2):
+    """计算hamming距离,两个simhash值的差异度"""
+    x = (hash1 ^ hash2)
+    tot = 0
+    while x:
+        tot += 1
+        x &= x - 1
+    return tot
+
+
+def uint16_split(hash, bits=64):
+    """将给定的整数进行16比特拆分,得到多个分量的短整数列表"""
+    lc = bits // 16
+    mask = 0xffffffffffffffff
+    rst = []
+    for i in range(lc):
+        sh = (lc - i - 1) * 16
+        rst.append((hash & mask) >> sh)
+        mask = mask >> 16
+    return rst
+
+
+
+def jacard_sim(s1, s2, is_union=True):
     """对于集合或链表s1和s2,计算杰卡德相似度;返回值:(相同元素数,元素总数)"""
     if not s1 or not s2 or len(s1) == 0 or len(s2) == 0:
         return 0, 0
@@ -227,7 +250,7 @@ def jacard_sim(s1, s2):
         s2 = set(s2)
 
     i = s1.intersection(s2)
-    u = s1.union(s2)
+    u = s1.union(s2) if is_union else []
     return len(i), len(u)
 
 
