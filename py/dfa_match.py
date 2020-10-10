@@ -1,8 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import json
-
 
 # DFA前向最大匹配算法
 class dfa_match_t():

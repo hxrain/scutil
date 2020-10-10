@@ -109,39 +109,6 @@ def rx_hash_skeeto3_f(x, n):
     return [rx_hash_skeeto3(x, _skeeto_3f[i]) for i in range(n)]
 
 
-# 对数字列表中的每个元素取模
-def rx_int_list_mod(ints, bits=64):
-    return [i % bits for i in ints]
-
-
-# 根据数组序列,叠加rst生成64bit整数的布隆投影哈希值
-def mk_bloom_code(poslst, rst=0, xormode=False):
-    if xormode:
-        for i in poslst:
-            flag = (1 << i)
-            if rst & flag:
-                rst = rst & ~flag
-            else:
-                rst |= flag
-    else:
-        for i in poslst:
-            rst |= (1 << i)
-    return rst
-
-
-# 生成指定字符串的整体布隆投影哈希,deep告知每个字符的样本深度,xormode控制是否进行影子的异或翻转
-def rx_bloom_hash(str, deep=4, xormode=True):
-    hc = 0
-    for c in str:
-        x = ord(c)
-        hashs = rx_hash_skeeto3_f(x, deep)
-        # 根据hashdeep个哈希值计算比特数组中的位置
-        poslst = rx_int_list_mod(hashs)
-        # 根据投影位置数组生成最终的布隆值
-        hc = mk_bloom_code(poslst, hc, xormode)
-    return hc
-
-
 def string_hash(v, hashfunc=rx_hash_skeeto3, bitsmask=(1 << 64) - 1):
     """基于数字hash函数的字符串hash函数"""
     if not v:

@@ -384,5 +384,59 @@ def with_numalp(s):
 def rreplace(self, old, new, max=None):
     """从字符串的右边进行替换"""
     count = len(self) if not max else max
-    tmp=self.rsplit(old, count)
+    tmp = self.rsplit(old, count)
     return new.join(tmp)
+
+
+def eat_rep_substr(txt, sublen_zh=3, sublen_en=8):
+    """从txt中消除重复的子串内容"""
+
+    def find_max_repstr(tlen, txt, bp, sublen=3):
+        """从txt的bp处开始向后查找最长的重复子串,返回值:-1未找到;其他为从bp开始的子串结束点"""
+        ep = bp + sublen
+        while ep <= tlen:
+            if txt[ep:].find(txt[bp:ep]) != -1:
+                ep += 1
+            else:
+                break
+        return ep - 1 if ep > bp + sublen else -1
+
+    def chk_sub_zh(tlen, txt, bp):
+        """判断从当前位置向后,是否应该使用汉字短串判断"""
+        ep = min(bp + sublen_zh, tlen)
+        while bp < ep:
+            if is_alpha_num(txt[bp]):
+                return False
+            bp += 1
+        return True
+
+    eats = []
+    tlen = len(txt)
+    bp = 0
+    while bp < tlen:  # 逐一遍历找到最大重复子串的位置
+        if chk_sub_zh(tlen, txt, bp):
+            ep = find_max_repstr(tlen, txt, bp, sublen_zh)
+        else:
+            ep = find_max_repstr(tlen, txt, bp, sublen_en)
+        if ep != -1:
+            eats.append((bp, ep))
+            bp = ep
+        else:
+            bp += 1
+
+    if len(eats) == 0:
+        return txt
+
+    # 将重复子串范围内的序号全部列出为集合
+    pnt = set()
+    for e in eats:
+        for p in range(e[0], e[1]):
+            pnt.add(p)
+
+    # 跳过重复子串的位置,生成最终结果串
+    rst = []
+    for i in range(tlen):
+        if i in pnt:
+            continue
+        rst.append(txt[i])
+    return ''.join(rst)

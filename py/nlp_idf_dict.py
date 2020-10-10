@@ -175,6 +175,17 @@ class TDF_IDF_Core:
                 continue
             self.idf_dict[k] = adj_tdf
 
+    def adjust_alpha(self, rate):
+        # 基于平均idf的倍数校正数字的idf
+        if not rate or rate <= 0:
+            return
+        adj_tdf = self.avg_tdf * rate
+
+        for k in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']:
+            if k not in self.idf_dict:
+                continue
+            self.idf_dict[k] = adj_tdf
+
 
 def tdf_idf_save(dst: TDF_IDF_Core, filename):
     '保存TDF_IDF词典到文件'
