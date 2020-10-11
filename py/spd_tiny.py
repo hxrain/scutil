@@ -168,6 +168,8 @@ class source_base:
 
     def __init__(self):
         """记录采集源动作信息"""
+        self.spider = None  # 运行时绑定的爬虫功能对象
+        self.order_level = 0  # 运行优先级,高优先级的先执行,比如需要人工交互的
         self.interval = 1000 * 60 * 30  # 采集源任务运行间隔
         self.id = -1  # 采集源注册后得到的唯一标识
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
@@ -191,7 +193,6 @@ class source_base:
         self.on_list_rules = []  # 概览页面的信息xpath提取规则列表
         self.on_check_repeats = []  # 概览排重检查所需的info字段列表
         self.on_pages_repeats = []  # 细览排重检查所需的info字段列表
-        pass
 
     def warn(self, msg):
         logger.warn('source <%s : %s> %s' % (self.name, self.url, msg))
@@ -262,16 +263,16 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
-    def chrome_take(self, url, chrome, tab, cond_re):
+    def chrome_take(self, url, chrome, tab, cond_re, max_sec=600):
         """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 999
-            self.spider.http.rst['error'] = ''
+            self.spider.http.rst['error'] = 'chrome open fail.'
             return False
 
-        rsp, msg = chrome.wait_re(tab, cond_re)  # 等待页面装载完成
+        rsp, msg = chrome.wait_re(tab, cond_re, max_sec)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 998
@@ -549,7 +550,7 @@ class spider_base:
                         else:
                             list_emptys = 0
                             self.succ += 1
-                            logger.info('source <%s> none <  0> list <%s>' % (self.source.name, list_url))
+                            logger.info('source <%s> none <  -> list <%s>' % (self.source.name, list_url))
                     else:
                         reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                         list_emptys = 0
@@ -714,9 +715,15 @@ class db_base:
 class collect_manager:
     """采集系统管理器"""
 
-    def __init__(self, dbs):
+    def __init__(self, dbs, threads=0):
         self.dbs = dbs
         self.spiders = []
+        if threads:
+            self.threads = threads + 8
+            locker.init()
+        else:
+            self.threads = 0
+
         logger.info('tiny spider collect manager is starting ...')
         pass
 
@@ -745,7 +752,10 @@ class collect_manager:
             return False
 
         spd = spider_t(src)
-        self.spiders.append(spd)
+        if src.order_level:
+            self.spiders.insert(0, spd)
+        else:
+            self.spiders.append(spd)
         return True
 
     @guard(locker)
@@ -765,13 +775,20 @@ class collect_manager:
         self.infos = 0
         total_spiders = len(self.spiders)
         logger.info("total sources <%3d>", total_spiders)
-        if locker.inited():  # 使用多线程并发运行全部的爬虫
-            threads = []
-            for spd in self.spiders:
-                threads.append(start_thread(self._run_one, spd))  # 将全部爬虫都放入线程中
+        if self.threads:  # 使用多线程并发运行全部的爬虫
+            task_ids = [i - 1 for i in range(len(self.spiders), 0, -1)]  # 待处理任务索引列表,倒序,便于后面pop使用
+            threads = []  # 运行中线程对象列表
+            while len(task_ids) or len(threads):
+                wait_threads(threads, 0.1)  # 等待这一批线程中结束的部分
+                tc = self.threads - len(threads)
+                if tc == 0:  # 没有结束的,那么就继续等
+                    continue
 
-            for thd in threads:  # 等待全部线程执行完毕
-                thd.join()
+                for i in range(tc):  # 循环补充新的线程任务
+                    if len(task_ids) == 0:
+                        break  # 没有待处理任务了,结束
+                    spd = self.spiders[task_ids.pop()]  # 得到待处理任务
+                    threads.append(start_thread(self._run_one, spd))  # 创建线程,执行任务,并记录线程对象
         else:
             idx = 1
             for spd in self.spiders:  # 在主线程中顺序执行全部的爬虫
@@ -794,7 +811,7 @@ class collect_manager:
         logger.info('tiny spider collect manager is stop.')
 
 
-def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', log_con_lvl=logging.INFO, log_file_lvl=logging.INFO):
+def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', threads=0, log_con_lvl=logging.INFO, log_file_lvl=logging.INFO):
     """创建采集系统管理器对象,告知日志路径和数据库路径.
         返回值:None失败.其他为采集系统管理器对象
     """
@@ -813,7 +830,7 @@ def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', 
             if not ret:
                 logger.error("DB init create fail! < %s >" % msg)
 
-    cm = collect_manager(dbs)
+    cm = collect_manager(dbs, threads)
     return cm
 
 
@@ -838,10 +855,6 @@ def run_collect_sys(dbg_src=None):
     sys.path.append(curdir + '/spd')
     sys.path.append(curdir + '/src')
 
-    # 是否开启多线程并发模式
-    if args.thread:
-        locker.init()
-
     # 获取运行文件名称作为标记
     tag = args.tagname if args.tagname != '' else re.split('[\\\\/]', sys.argv[0])[-1].split('.')[0]
 
@@ -849,7 +862,8 @@ def run_collect_sys(dbg_src=None):
     logname = args.logname if args.logname != '' else './%s.log' % tag
 
     # 获取采集系统对象并打开数据库与日志
-    cm = make_collect_mgr(logname, dbname, logging.INFO)
+    cm = make_collect_mgr(logname, dbname, args.thread,
+                          logging.DEBUG if args.debug else logging.INFO)
     if cm is None:
         print('SDP INIT FAIL!')
         exit(-1)

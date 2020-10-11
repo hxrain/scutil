@@ -55,7 +55,31 @@ def guard(locker):  # 顶层装饰函数,用来接收用户参数,返回外层�
 
 
 # 创建并启动一个线程
-def start_thread(fun, *args):
+def start_thread(fun, *args, run=True):
     thd = Thread(target=fun, args=args)
-    thd.start()
+    if run:
+        thd.start()
     return thd
+
+
+def wait_thread(thd, timeout=None):
+    """等待线程结束.返回值:1成功;0超时;-1错误"""
+    try:
+        thd.join(timeout)
+        if thd.isAlive():
+            return 0
+        return 1
+    except Exception as e:
+        print(e)
+        return -1
+
+
+def wait_threads(thds, timeout=None):
+    """逐一判断,等待线程列表中的线程结束.返回值:从thds中被移除的线程对象"""
+    rst = []
+    for t in thds:
+        if wait_thread(t, timeout) > 0:
+            rst.append(t)
+    for t in rst:
+        thds.remove(t)
+    return rst

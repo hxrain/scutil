@@ -568,9 +568,9 @@ class spd_chrome:
 
     def goto(self, tab, url, retry=3):
         """控制指定的tab页浏览指定的url.返回值(是否完成,{'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
-        ok = False
-        r = None
-        m = ''
+        ok = False  # 是否完成
+        r = None  # tab信息
+        m = ''  # 返回的消息
         for i in range(retry):
             r, m = self._goto(tab, url)
             if r and 'errorText' not in r:
