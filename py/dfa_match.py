@@ -4,9 +4,10 @@
 
 # DFA前向最大匹配算法
 class dfa_match_t():
-    def __init__(self):
+    def __init__(self,value_is_list=False):
         self.keyword_chains = {}
         self.delimit = '\x00'  # 结束
+        self.value_is_list = value_is_list  # 是否使用list记录匹配的多值列表
 
     def dict_add(self, keyword, val='\x00'):
         keyword = keyword.lower().strip()  # 关键词变小写并丢弃首尾空白
@@ -24,9 +25,17 @@ class dfa_match_t():
                 # 如果当前字符在当前层,则沿着该字符的分支进入下一层(获得dict的对应value)
                 level = level[char]
                 if i == key_len - 1:
-                    # 如果全部层级都处理完毕,则最后要标记关键词结束,或者是用新值替代旧值
-                    if self.delimit not in level or level[self.delimit] != val:
-                        level[self.delimit] = val
+                    if self.value_is_list:
+                        # 记录值列表
+                        if self.delimit not in level:
+                            if self.delimit in level:
+                                level[self.delimit].append(val)
+                            else:
+                                level[self.delimit] = [val]
+                    else:
+                        # 如果全部层级都处理完毕,则最后要标记关键词结束,或者是用新值替代旧值
+                        if self.delimit not in level:
+                            level[self.delimit] = val
             else:
                 # 当前字符对应当前层级新分支
                 if not isinstance(level, dict):
@@ -43,7 +52,10 @@ class dfa_match_t():
                     # 当前层级向下递进
                     level = level[char]
                 # 最后字符对应着结束标记
-                last_level[char] = {self.delimit: val}
+                if self.value_is_list:
+                    last_level[char] = {self.delimit: [val]}
+                else:
+                    last_level[char] = {self.delimit: val}
                 break
         return True
 
@@ -137,10 +149,20 @@ class dfa_match_t():
 
     def do_check(self, message, msg_len=None, offset=0, max_match=True, isall=True):
         """对给定的消息进行关键词匹配测试,返回值:匹配结果,[三元组(begin,end,val)列表]"""
+        rst = []
+
+        def cb(b, e, v):
+            rst.append((b, e, v))
+
+        self.do_loop(cb, message, msg_len, offset, max_match, isall)
+        return rst
+
+    def do_loop(self, cb, message, msg_len=None, offset=0, max_match=True, isall=True):
+        """对给定的消息进行关键词匹配循环,返回值:匹配结果,[三元组(begin,end,val)列表]"""
         if msg_len is None:
             msg_len = len(message)
         start = offset  # 记录当前正处理的字符位置
-        rst = []
+        rc = 0
         # 对消息进行逐一字符的过滤处理
         while start < msg_len:
             # 得到词链树的根
@@ -159,11 +181,13 @@ class dfa_match_t():
                         nchar = message[start + step_ins]
                         if nchar in level[char]:
                             if isall:  # 记录匹配的全部中间结果
-                                rst.append((start, start + step_ins, level[char][self.delimit]))
+                                cb(start, start + step_ins, level[char][self.delimit])
+                                rc += 1
                             level = level[char]
                             continue
                     # 如果当前词链标记结束了,说明从start开始到现在的消息内容,是一个完整匹配
-                    rst.append((start, start + step_ins, level[char][self.delimit]))
+                    cb(start, start + step_ins, level[char][self.delimit])
+                    rc += 1
             # 跳过当前消息字符,开始下一轮匹配
             start += 1
-        return rst
+        return rc
