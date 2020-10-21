@@ -8,9 +8,13 @@ class dfa_match_t():
         self.keyword_chains = {}
         self.delimit = '\x00'  # 结束
         self.value_is_list = value_is_list  # 是否使用list记录匹配的多值列表
+        self.keyword_lower = False
 
     def dict_add(self, keyword, val='\x00'):
-        keyword = keyword.lower().strip()  # 关键词变小写并丢弃首尾空白
+        keyword = keyword.strip()  # 关键词丢弃首尾空白
+        if self.keyword_lower:
+            keyword = keyword.lower() # 关键词变小写
+
         if not keyword or val is None:
             return False
 
