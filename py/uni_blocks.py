@@ -362,6 +362,28 @@ def is_alpha_num(char):
     return is_number_char(char) or is_english_lc(char) or is_english_cl(char)
 
 
+def is_ascii_char(char):
+    """判断是否为ascii字符"""
+    return ord(char) <= 255
+
+
+def is_ascii_str(s):
+    """判断是否为ascii字符串"""
+    for c in s:
+        if not is_ascii_char(c):
+            return False
+    return True
+
+
+def ascii_chars(s):
+    """查询s中ascii字符的数量"""
+    r = 0
+    for c in s:
+        if is_ascii_char(c):
+            r += 1
+    return r
+
+
 def with_numalp(s):
     """查找字符串s前后两端的数字与字母的数量"""
     sl = len(s)
