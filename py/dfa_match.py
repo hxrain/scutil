@@ -27,14 +27,13 @@ class dfa_match_t():
                 if i == key_len - 1:
                     if self.value_is_list:
                         # 记录值列表
-                        if self.delimit not in level:
-                            if self.delimit in level:
-                                level[self.delimit].append(val)
-                            else:
-                                level[self.delimit] = [val]
+                        if self.delimit in level:
+                            level[self.delimit].append(val)
+                        else:
+                            level[self.delimit] = [val]
                     else:
                         # 如果全部层级都处理完毕,则最后要标记关键词结束,或者是用新值替代旧值
-                        if self.delimit not in level:
+                        if self.delimit not in level or level[self.delimit] != val:
                             level[self.delimit] = val
             else:
                 # 当前字符对应当前层级新分支
