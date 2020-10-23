@@ -4,7 +4,7 @@
 
 # DFA前向最大匹配算法
 class dfa_match_t():
-    def __init__(self,value_is_list=False):
+    def __init__(self, value_is_list=False):
         self.keyword_chains = {}
         self.delimit = '\x00'  # 结束
         self.value_is_list = value_is_list  # 是否使用list记录匹配的多值列表
@@ -13,7 +13,7 @@ class dfa_match_t():
     def dict_add(self, keyword, val='\x00'):
         keyword = keyword.strip()  # 关键词丢弃首尾空白
         if self.keyword_lower:
-            keyword = keyword.lower() # 关键词变小写
+            keyword = keyword.lower()  # 关键词变小写
 
         if not keyword or val is None:
             return False
@@ -76,6 +76,9 @@ class dfa_match_t():
         """对给定的消息进行关键词匹配过滤,替换为字典中的对应值,或指定的字符"""
         msg_len = len(message)
         rs = self.do_match(message, msg_len, max_match=max_match, isall=False)
+        if len(rs) == 0:
+            return message
+
         ms = self.do_complete(rs, message, msg_len)
         rst = []
         for m in ms:
@@ -93,7 +96,8 @@ class dfa_match_t():
         """max_match:告知是否进行最长匹配
            isall:告知是否记录全部匹配结果(最长匹配时,也包含匹配的短串)
         """
-        message = message.lower()  # 待处理消息串进行小写转换,消除干扰
+        if self.keyword_lower:
+            message = message.lower()  # 待处理消息串进行小写转换,消除干扰
         if msg_len is None:
             msg_len = len(message)
         offset = 0
@@ -113,8 +117,7 @@ class dfa_match_t():
         return rst
 
     # 根据do_match匹配结果,补全未匹配的部分
-    @staticmethod
-    def do_complete(matchs, message, msg_len=None):
+    def do_complete(self, matchs, message, msg_len=None):
         def _find_max_seg(begin, matchs, matchs_len):
             """在matchs的begin开始处,查找其最长的匹配段索引"""
             if begin >= matchs_len:
@@ -128,7 +131,8 @@ class dfa_match_t():
                 ri = i
             return ri
 
-        message = message.lower()  # 待处理消息串进行小写转换,消除干扰
+        if self.keyword_lower:
+            message = message.lower()  # 待处理消息串进行小写转换,消除干扰
         if msg_len is None:
             msg_len = len(message)
         rst = []

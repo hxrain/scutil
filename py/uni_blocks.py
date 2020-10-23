@@ -282,32 +282,34 @@ _SBC_CASE_SIGN_HIGH = ord(u'～')
 _SBC_CASE_LOWER_DIFF = _SBC_CASE_SIGN_LOW - ord('!')
 
 
-# 全角字符转换为ascii字符
-def sbccase_to_ascii(ch):
+# 全角字符转换为ascii字符,可选是否保留回车换行
+def sbccase_to_ascii(ch,retain_CRFL=False):
     code = ord(ch)
     if _SBC_CASE_SIGN_LOW <= code <= _SBC_CASE_SIGN_HIGH:
         return chr(code - _SBC_CASE_LOWER_DIFF)
     if code in _WHITESPACE:
+        if retain_CRFL and code in {0xA,0xD}:
+            return ch
         return ' '
     return ch
 
 
 # 进行字符串的全角转ascii处理
-def sbccase_to_ascii_str(u):
-    return ''.join([sbccase_to_ascii(ch) for ch in u])
+def sbccase_to_ascii_str(u,retain_CRFL=False):
+    return ''.join([sbccase_to_ascii(ch,retain_CRFL) for ch in u])
 
 
 # 强制进行中文符号到英文符号的映射
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']'}
 
 
-def sbccase_to_ascii_str2(u, force=True):
+def sbccase_to_ascii_str2(u, force=True,retain_CRFL=False):
     """进行额外的常见中文符号转为英文符号"""
     lst = []
     for ch in u:
         if force and ch in _SBC_CHR_CONV_TBL:
             ch = _SBC_CHR_CONV_TBL[ch]
-        ch = sbccase_to_ascii(ch)
+        ch = sbccase_to_ascii(ch,retain_CRFL)
         lst.append(ch)
     return ''.join(lst)
 
