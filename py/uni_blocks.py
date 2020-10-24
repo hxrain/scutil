@@ -300,7 +300,8 @@ def sbccase_to_ascii_str(u,retain_CRFL=False):
 
 
 # 强制进行中文符号到英文符号的映射
-_SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']'}
+_SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')',
+                     '〔': '[', '〕': ']', '—':'-'}
 
 
 def sbccase_to_ascii_str2(u, force=True,retain_CRFL=False):
