@@ -465,3 +465,84 @@ def eat_rep_substr(txt, sublen_zh=3, sublen_en=8):
             continue
         rst.append(txt[i])
     return ''.join(rst)
+
+
+def chinese_to_arabic(value):
+    """
+    中文金额转阿拉伯金额，最大支持到千亿位
+    :param value:
+    :return: 转换后的数字
+    """
+    CHINESE_DIGITS = {'零': 0, '壹': 1, '贰': 2, '叁': 3, '肆': 4, '伍': 5, '陆': 6, '柒': 7, '捌': 8, '玖': 9,
+                      '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
+    CHINESE_UNITS = {'分': 0.01, '角': 0.1, '毛': 0.1, '拾': 10, '佰': 100, '仟': 1000, '万': 10000, '亿': 100_000_000}
+
+    # 删除整、正
+    value = value.replace('整', '').replace('正', '')
+
+    if value.find('毛') != -1 or value.find('角') != -1:
+        if value[-1] in CHINESE_DIGITS:
+            value += '分'  # 校正'三块四毛五'这样的情况
+    elif value.find('块') != -1 or value.find('元') != -1:
+        if value[-1] in CHINESE_DIGITS:
+            value += '角'  # 校正'三块四'这样的情况
+
+    separator = None
+    # 拆分整数和小数部分
+    if '元' in value:
+        separator = '元'
+    elif '圆' in value:
+        separator = '圆'
+    elif '块' in value:
+        separator = '块'
+
+    if separator:
+        values = value.split(separator)
+        integer = values[0]
+        decimal = values[1]
+    else:
+        integer = ''
+        decimal = value
+    unit = 1
+
+    # 小数部分
+    decimal_part = 0
+    for char in reversed(decimal):
+        if char in CHINESE_DIGITS:
+            decimal_part += CHINESE_DIGITS[char] * unit
+            unit = 1
+        elif char in CHINESE_UNITS:
+            unit = CHINESE_UNITS[char]
+
+    # 整数部分
+    integer_part = 0
+    if len(integer) > 0:
+        ratio = 1
+        for char in reversed(integer):
+            if char in CHINESE_DIGITS:
+                integer_part += CHINESE_DIGITS[char] * unit * ratio
+
+                unit = 1
+            elif char in CHINESE_UNITS:
+                unit = CHINESE_UNITS[char]
+
+                if unit == 10000:
+                    ratio = 10000
+                    unit = 1
+                elif unit == 100_000_000:
+                    ratio = 100_000_000
+                    unit = 1
+
+        # 处理最前端为'拾',且之前再无数词的情况
+        if integer[0] in CHINESE_UNITS and CHINESE_UNITS[integer[0]] == 10:
+            integer_part += 10 * ratio
+
+    return round(integer_part + decimal_part, 2)
+
+
+assert (chinese_to_arabic('叁块四') == 3.4)
+assert (chinese_to_arabic('叁块四毛') == 3.4)
+assert (chinese_to_arabic('叁块四毛五') == 3.45)
+assert (chinese_to_arabic('壹佰贰拾叁元四角五分') == 123.45)
+assert (chinese_to_arabic('拾贰亿叁仟肆佰伍拾陆万柒仟捌佰玖拾元') == 1234567890)
+assert (chinese_to_arabic('拾贰亿叁仟肆佰伍拾陆万柒仟捌佰玖拾圆四角五分') == 1234567890.45)
