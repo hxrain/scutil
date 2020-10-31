@@ -534,7 +534,7 @@ def dict2xml(dic, indent=True, utf8=False):
 
 
 # -----------------------------------------------------------------------------
-# 将json串转换为xml格式串
+# 将json串转换为xml格式串,可控制是否直接返回utf-8串
 # 返回值:('结果串','错误说明'),如果错误说明为''则代表没有错误
 def json2xml(jstr, indent=True, utf8=False):
     try:
@@ -611,6 +611,7 @@ def fix_xml_node(xstr, dst='-'):
     ret = xstr.strip()  # 字符串两端净空
     ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, ret)  # 修正自闭合节点
     ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
+    ret = re.sub(r'[\u001f\u000b\u001e]', '', ret)  # 替换无效字符干扰
     return ret
 
 
@@ -776,28 +777,31 @@ class xpath:
     def __init__(self, cntstr, is_xml=False):
         cnt_str = fix_xml_node(cntstr)
         self.cnt_str = None
+        self.last_err = []
         try:
             if cnt_str.startswith('<?xml') or is_xml:
                 self.rootNode = etree.XML(cnt_str)
             else:
                 self.rootNode = etree.HTML(cnt_str)
             self.cnt_str = cnt_str
-        except:
-            pass
+        except Exception as e:
+            self.last_err.append(str(e))
 
         if self.cnt_str is None:
             try:
-                self.cnt_str = html.html_to_xhtml(cnt_str)
-                self.rootNode = etree.HTML(self.cnt_str)
-            except:
-                self.cnt_str = None
-                pass
+                self.cnt_str = format_xhtml(cnt_str)
+                if self.cnt_str:
+                    self.rootNode = etree.HTML(self.cnt_str)
+            except Exception as e:
+                self.last_err.append(str(e))
 
         if self.cnt_str is None:
-            self.cnt_str = format_xhtml(cnt_str)
             try:
-                self.rootNode = etree.HTML(self.cnt_str)
-            except:
+                self.cnt_str = html_to_xhtml(cnt_str)
+                if self.cnt_str:
+                    self.rootNode = etree.HTML(self.cnt_str)
+            except Exception as e:
+                self.last_err.append(str(e))
                 self.cnt_str = None
                 pass
 
@@ -883,7 +887,10 @@ def pair_extract(xml, xpaths, removeTags=None):
                 return [], 'xpath查询结果数量不等 <%s> (%d > %d)' % (p, siz, rows)
 
         if rows == 0:
-            return [], ''  # 没有匹配的结果
+            msg = ''
+            if len(xp.last_err):
+                msg = '; '.join(xp.last_err)
+            return [], msg  # 没有匹配的结果
 
         rst = []
         for i in range(rows):
@@ -1146,7 +1153,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
 
     # 记录最终的结果
     if chs != '':
-        rst['BODY'] = rsp_cnt.decode(chs, errors='replace')
+        rst['BODY'] = rsp_cnt.decode(chs, errors='ignore')
     else:
         rst['BODY'] = rsp_cnt
 

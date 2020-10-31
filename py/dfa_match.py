@@ -72,10 +72,10 @@ class dfa_match_t():
                 else:
                     self.dict_add(dat[0], dat[1])
 
-    def do_filter(self, message, repl="*", max_match=True):
+    def do_filter(self, message, repl="*", max_match=True, isall=False):
         """对给定的消息进行关键词匹配过滤,替换为字典中的对应值,或指定的字符"""
         msg_len = len(message)
-        rs = self.do_match(message, msg_len, max_match=max_match, isall=False)
+        rs = self.do_match(message, msg_len, max_match=max_match, isall=isall)
         if len(rs) == 0:
             return message
 
