@@ -288,6 +288,9 @@ def decodeURIComponent(url):
     url = uniseq2str(url)
     return url
 
+#基于url_base补全url_path,得到新路径
+def full_url(url_path,url_base):
+    return up.urljoin(url_base, url_path)
 
 # -----------------------------------------------------------------------------
 def url_ext_match(url, exts):
