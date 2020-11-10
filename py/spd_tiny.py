@@ -176,7 +176,7 @@ class source_base:
         self.url = None  # 采集源对应的站点url
         self.info_upd_mode = False  # 是否开启该信息源的更新模式
         self.proxy_addr = None  # 代理服务器地址,格式为 http://192.168.20.108:808
-        self.http_timeout = 20  # http请求超时时间,秒
+        self.http_timeout = 60  # http请求超时时间,秒
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
         self.list_inc_cnt = 2  # 达到默认翻页数量上限的时候,如果仍有信息被采回,则进行自动增量翻页的数量
@@ -309,8 +309,9 @@ class source_base:
 
 
 def spd_sleep(sec):
-    logger.debug('time.sleep(%d)' % (sec))
-    time.sleep(sec)
+    if sec:
+        logger.debug('time.sleep(%d)' % (sec))
+        time.sleep(sec)
 
 
 class spider_base:
@@ -339,8 +340,7 @@ class spider_base:
         info_stat = True
         for i in range(self.source.page_take_retry):
             take_stat = self.call_src_method('on_page_take', info, page_url, req_param)
-            if self.source.page_url_sleep:
-                spd_sleep(self.source.page_url_sleep)  # 细览页面需要间隔休眠
+            spd_sleep(self.source.page_url_sleep)  # 细览页面需要间隔休眠
 
             if not take_stat:
                 logger.warning('page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
@@ -465,8 +465,7 @@ class spider_base:
 
             if not self.call_src_method('on_list_take', list_url, req_param):
                 logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
-                if self.source.list_url_sleep > 0:  # 根据需要进行概览采集休眠
-                    spd_sleep(self.source.list_url_sleep)
+                spd_sleep(self.source.list_url_sleep)# 根据需要进行概览采集休眠
                 continue
 
             rsp_body = self.http.get_BODY()
@@ -477,6 +476,7 @@ class spider_base:
             else:
                 logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if self.http.get_status_code() >= 400:
+                    spd_sleep(self.source.list_url_sleep)# 根据需要进行概览采集休眠
                     break
 
             # 格式化概览页内容为xpath格式
@@ -484,8 +484,7 @@ class spider_base:
             if xstr is None:  # 如果返回值为None则意味着要求停止翻页
                 return xstr, rst, msg
 
-            if self.source.list_url_sleep > 0:  # 根据需要进行概览采集休眠
-                spd_sleep(self.source.list_url_sleep)
+            spd_sleep(self.source.list_url_sleep)# 根据需要进行概览采集休眠
 
             # 提取概览页信息列表
             rst, msg = pair_extract(xstr, self.source.on_list_rules)
@@ -519,11 +518,11 @@ class spider_base:
         if entry_url is not None:
             self.reqs += 1
             if self.http.take(entry_url, req_param):
-                logger.debug('entry_url take <%s>:: %d' % (entry_url, self.http.get_status_code()))
+                logger.debug('on_ready entry_url take <%s>:: %d' % (entry_url, self.http.get_status_code()))
                 self.rsps += 1
                 self.succ += 1
                 if not self.call_src_method('on_ready_info', self.http.get_BODY()):
-                    logger.warning('entry_url http info extract fail. <%s>' % (entry_url))
+                    logger.warning('on_ready_info entry_url info extract fail. <%s>' % (entry_url))
                     return False
             else:
                 logger.warning('entry_url http take error <%s> :: %s' % (entry_url, self.http.get_error()))
