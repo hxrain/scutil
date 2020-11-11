@@ -283,34 +283,34 @@ _SBC_CASE_LOWER_DIFF = _SBC_CASE_SIGN_LOW - ord('!')
 
 
 # 全角字符转换为ascii字符,可选是否保留回车换行
-def sbccase_to_ascii(ch,retain_CRFL=False):
+def sbccase_to_ascii(ch, retain_CRFL=False):
     code = ord(ch)
     if _SBC_CASE_SIGN_LOW <= code <= _SBC_CASE_SIGN_HIGH:
         return chr(code - _SBC_CASE_LOWER_DIFF)
     if code in _WHITESPACE:
-        if retain_CRFL and code in {0xA,0xD}:
+        if retain_CRFL and code in {0xA, 0xD}:
             return ch
         return ' '
     return ch
 
 
 # 进行字符串的全角转ascii处理
-def sbccase_to_ascii_str(u,retain_CRFL=False):
-    return ''.join([sbccase_to_ascii(ch,retain_CRFL) for ch in u])
+def sbccase_to_ascii_str(u, retain_CRFL=False):
+    return ''.join([sbccase_to_ascii(ch, retain_CRFL) for ch in u])
 
 
 # 强制进行中文符号到英文符号的映射
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')',
-                     '〔': '[', '〕': ']', '—':'-'}
+                     '〔': '[', '〕': ']', '—': '-'}
 
 
-def sbccase_to_ascii_str2(u, force=True,retain_CRFL=False):
+def sbccase_to_ascii_str2(u, force=True, retain_CRFL=False):
     """进行额外的常见中文符号转为英文符号"""
     lst = []
     for ch in u:
         if force and ch in _SBC_CHR_CONV_TBL:
             ch = _SBC_CHR_CONV_TBL[ch]
-        ch = sbccase_to_ascii(ch,retain_CRFL)
+        ch = sbccase_to_ascii(ch, retain_CRFL)
         lst.append(ch)
     return ''.join(lst)
 
@@ -475,7 +475,7 @@ def chinese_to_arabic(value):
     """
     CHINESE_DIGITS = {'零': 0, '壹': 1, '贰': 2, '叁': 3, '肆': 4, '伍': 5, '陆': 6, '柒': 7, '捌': 8, '玖': 9,
                       '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
-    CHINESE_UNITS = {'分': 0.01, '角': 0.1, '毛': 0.1, '拾': 10, '佰': 100, '仟': 1000, '万': 10000, '亿': 100_000_000}
+    CHINESE_UNITS = {'分': 0.01, '角': 0.1, '毛': 0.1, '拾': 10, '十': 10, '佰': 100, '仟': 1000, '万': 10000, '亿': 100_000_000}
 
     # 删除整、正
     value = value.replace('整', '').replace('正', '')
@@ -540,9 +540,23 @@ def chinese_to_arabic(value):
     return round(integer_part + decimal_part, 2)
 
 
+assert (chinese_to_arabic('十元') == 10)
+assert (chinese_to_arabic('十二元') == 12)
+assert (chinese_to_arabic('二十元') == 20)
+assert (chinese_to_arabic('二十二元') == 22)
 assert (chinese_to_arabic('叁块四') == 3.4)
 assert (chinese_to_arabic('叁块四毛') == 3.4)
 assert (chinese_to_arabic('叁块四毛五') == 3.45)
 assert (chinese_to_arabic('壹佰贰拾叁元四角五分') == 123.45)
 assert (chinese_to_arabic('拾贰亿叁仟肆佰伍拾陆万柒仟捌佰玖拾元') == 1234567890)
 assert (chinese_to_arabic('拾贰亿叁仟肆佰伍拾陆万柒仟捌佰玖拾圆四角五分') == 1234567890.45)
+
+
+def find(txt, dst, pre, begin=0):
+    """查找txt中的目标字符dst,但不能有前缀pre;返回值:符合条件的dst的位置,-1未找到"""
+    pos = txt.find(dst, begin)
+    while pos != -1:
+        if pos != 0 and txt[pos - 1] != pre:
+            return pos
+        pos = txt.find(dst, pos + 1)
+    return -1

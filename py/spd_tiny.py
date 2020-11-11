@@ -339,8 +339,9 @@ class spider_base:
         take_stat = False
         info_stat = True
         for i in range(self.source.page_take_retry):
+            if len(self.http.rst):
+                spd_sleep(self.source.page_url_sleep)  # 细览页面需要间隔休眠
             take_stat = self.call_src_method('on_page_take', info, page_url, req_param)
-            spd_sleep(self.source.page_url_sleep)  # 细览页面需要间隔休眠
 
             if not take_stat:
                 logger.warning('page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
@@ -463,9 +464,11 @@ class spider_base:
             rst = []
             msg = ''
 
+            if len(self.http.rst):
+                spd_sleep(self.source.list_url_sleep)  # 根据需要进行概览采集休眠
+
             if not self.call_src_method('on_list_take', list_url, req_param):
                 logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
-                spd_sleep(self.source.list_url_sleep)# 根据需要进行概览采集休眠
                 continue
 
             rsp_body = self.http.get_BODY()
@@ -476,15 +479,12 @@ class spider_base:
             else:
                 logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if self.http.get_status_code() >= 400:
-                    spd_sleep(self.source.list_url_sleep)# 根据需要进行概览采集休眠
                     break
 
             # 格式化概览页内容为xpath格式
             xstr = self.call_src_method('on_list_format', rsp_body)
             if xstr is None:  # 如果返回值为None则意味着要求停止翻页
                 return xstr, rst, msg
-
-            spd_sleep(self.source.list_url_sleep)# 根据需要进行概览采集休眠
 
             # 提取概览页信息列表
             rst, msg = pair_extract(xstr, self.source.on_list_rules)

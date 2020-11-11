@@ -186,12 +186,13 @@ class dfa_match_t():
                 else:
                     if max_match and start + step_ins < msg_len:  # 要进行最大化匹配的尝试
                         nchar = message[start + step_ins]
-                        if nchar in level[char]:
+                        if nchar in level[char] or start + step_ins + 1 == msg_len:
                             if isall:  # 记录匹配的全部中间结果
                                 cb(start, start + step_ins, level[char][self.delimit])
                                 rc += 1
                             level = level[char]
                             continue
+
                     # 如果当前词链标记结束了,说明从start开始到现在的消息内容,是一个完整匹配
                     cb(start, start + step_ins, level[char][self.delimit])
                     rc += 1
