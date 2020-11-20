@@ -288,9 +288,11 @@ def decodeURIComponent(url):
     url = uniseq2str(url)
     return url
 
-#基于url_base补全url_path,得到新路径
-def full_url(url_path,url_base):
+
+# 基于url_base补全url_path,得到新路径
+def full_url(url_path, url_base):
     return up.urljoin(url_base, url_path)
+
 
 # -----------------------------------------------------------------------------
 def url_ext_match(url, exts):
@@ -331,6 +333,11 @@ def url_equ(a, b):
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG):
+    # 调整日志输出的级别名称.
+    logging._levelToName[logging.ERROR] = 'ERR '
+    logging._levelToName[logging.WARNING] = 'WRN '
+    logging._levelToName[logging.DEBUG] = 'DBG '
+
     # 生成日志记录器
     ps_logger = logging.getLogger()
     ps_logger.setLevel(logging.DEBUG)
