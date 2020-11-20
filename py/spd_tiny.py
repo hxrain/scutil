@@ -113,7 +113,7 @@ sql_tbl = ['''
            );
            ''']
 
-logger = None  # 全局日志输出对象
+_logger = None  # 全局日志输出对象
 proxy = None  # 全局代理地址信息
 lists_rate = 1  # 全局概览翻页倍率
 info_upd_mode = False  # 是否开启采集源全局更新模式(根据排重条件查询得到主键id,之后更新此信息)
@@ -194,8 +194,17 @@ class source_base:
         self.on_check_repeats = []  # 概览排重检查所需的info字段列表
         self.on_pages_repeats = []  # 细览排重检查所需的info字段列表
 
-    def warn(self, msg):
-        logger.warn('source <%s : %s> %s' % (self.name, self.url, msg))
+    def log_warn(self, msg):
+        _logger.warn('source <%s> :: %s' % (self.name, msg))
+
+    def log_info(self, msg):
+        _logger.info('source <%s> :: %s' % (self.name, msg))
+
+    def log_error(self, msg):
+        _logger.error('source <%s> :: %s' % (self.name, msg))
+
+    def log_debug(self, msg):
+        _logger.debug('source <%s> :: %s' % (self.name, msg))
 
     def can_listing(self):
         """判断是否可以翻页"""
@@ -310,7 +319,6 @@ class source_base:
 
 def spd_sleep(sec):
     if sec:
-        logger.debug('time.sleep(%d)' % (sec))
         time.sleep(sec)
 
 
@@ -331,7 +339,7 @@ class spider_base:
             call = getattr(self.source, method)  # 获取指定的方法
             return call(*args)  # 调用指定的方法
         except Exception as e:
-            logger.error('<%s> running call <%s> error <%s>', self.source.name, method, str(e))  # 统一记录错误
+            self.source.log_error('call <%s> error <%s>'%( method, str(e)))  # 统一记录错误
             return None
 
     def _do_page_take(self, info, list_url, page_url, req_param):
@@ -339,12 +347,13 @@ class spider_base:
         take_stat = False
         info_stat = True
         for i in range(self.source.page_take_retry):
-            if len(self.http.rst):
+            if len(self.http.rst) and self.source.page_url_sleep:
+                self.source.log_info('page sleeping %d second ...' % self.source.page_url_sleep)
                 spd_sleep(self.source.page_url_sleep)  # 细览页面需要间隔休眠
             take_stat = self.call_src_method('on_page_take', info, page_url, req_param)
 
             if not take_stat:
-                logger.warning('page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
+                self.source.log_warn('page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
                 continue
 
             # 对细览页进行后续处理
@@ -373,7 +382,7 @@ class spider_base:
         take_page_url = self.call_src_method('on_page_url', info, list_url, req_param)
 
         if info.source_id is None:  # 在on_page_url调用之后,给出信息废弃的机会,是另一种on_info_filter过滤处理
-            logger.debug("page_url <%s> is list DISCARD", info.url)
+            self.source.log_debug("page_url <%s> is list DISCARD" % info.url)
             return None
 
         # 进行概览排重检查
@@ -384,7 +393,7 @@ class spider_base:
         else:
             # 不要求信息更新,如果信息已存在,则结束处理
             if rid is not None:
-                logger.debug("page_url <%s> is list REPEATED <%d>", info.url, rid)
+                self.source.log_debug("page_url <%s> is list REPEATED <%d>" % (info.url, rid))
                 return None
 
         page_info_ok = True
@@ -395,13 +404,13 @@ class spider_base:
             if not take_stat:
                 return None
             self.rsps += 1
-            logger.debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
+            self.source.log_debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
             if page_info_ok:
                 self.succ += 1
 
         # 进行信息过滤判断
         if not page_info_ok or not self.call_src_method('on_info_filter', info):
-            logger.debug("page_url <%s> is page DISCARD", info.url)
+            self.source.log_debug("page_url <%s> is page DISCARD" % info.url)
             return None
 
         # 进行细览排重检查
@@ -415,7 +424,7 @@ class spider_base:
             if rid is None:
                 return info  # 细览排重通过,可以存盘
             else:
-                logger.debug("page_url <%s> is page REPEATED <%d>", info.url, rid)
+                self.source.log_debug("page_url <%s> is page REPEATED <%d>" % (info.url, rid))
 
         return None
 
@@ -464,20 +473,21 @@ class spider_base:
             rst = []
             msg = ''
 
-            if len(self.http.rst):
+            if len(self.http.rst) and self.source.list_url_sleep:
+                self.source.log_info('list sleeping %d second ...' % self.source.list_url_sleep)
                 spd_sleep(self.source.list_url_sleep)  # 根据需要进行概览采集休眠
 
             if not self.call_src_method('on_list_take', list_url, req_param):
-                logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                self.source.log_warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 continue
 
             rsp_body = self.http.get_BODY()
             if self.http.get_status_code() == 200:
-                logger.debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                self.source.log_debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if not rsp_body:
-                    logger.warn('list_url http take empty <%s> :: %d' % (list_url, self.http.get_status_code()))
+                    self.source.log_warn('list_url http take empty <%s> :: %d' % (list_url, self.http.get_status_code()))
             else:
-                logger.warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                self.source.log_warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if self.http.get_status_code() >= 400:
                     break
 
@@ -518,14 +528,14 @@ class spider_base:
         if entry_url is not None:
             self.reqs += 1
             if self.http.take(entry_url, req_param):
-                logger.debug('on_ready entry_url take <%s>:: %d' % (entry_url, self.http.get_status_code()))
+                self.source.log_debug('on_ready entry_url take <%s>:: %d' % (entry_url, self.http.get_status_code()))
                 self.rsps += 1
                 self.succ += 1
                 if not self.call_src_method('on_ready_info', self.http.get_BODY()):
-                    logger.warning('on_ready_info entry_url info extract fail. <%s>' % (entry_url))
+                    self.source.log_warn('on_ready_info entry_url info extract fail. <%s>' % (entry_url))
                     return False
             else:
-                logger.warning('entry_url http take error <%s> :: %s' % (entry_url, self.http.get_error()))
+                self.source.log_warn('entry_url http take error <%s> :: %s' % (entry_url, self.http.get_error()))
                 return False
 
         # 进行概览抓取循环
@@ -541,23 +551,24 @@ class spider_base:
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if xstr != '__EMPTY__':
-                            logger.warning('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
+                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
-                                logger.warning('list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
+                                self.source.log_warn(
+                                    'list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
                                 break
                         else:
                             list_emptys = 0
                             self.succ += 1
-                            logger.info('source <%s> none <  -> list <%s>' % (self.source.name, list_url))
+                            self.source.log_info('none <  -> list <%s>' % (list_url))
                     else:
                         reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                         list_emptys = 0
                         self.succ += 1
                         infos = self._do_page_loop(rst, list_url, dbs)  # 进行概览循环
-                        logger.info('source <%s> news <%3d> list <%s>%s' % (self.source.name, infos, list_url, reqbody))
+                        self.source.log_info('news <%3d> list <%s>%s' % (infos, list_url, reqbody))
                 else:
-                    logger.warning('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
+                    self.source.log_warn('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
 
             if xstr is None:
                 dbs.update_act(self, False)  # 进行中间状态更新
@@ -588,7 +599,7 @@ class db_base:
         rows, msg = self.dbq.query("select id,reg_time,site_url from tbl_sources where name=?", (name,))
         # 先查询指定的采集源是否存在
         if msg != '':
-            logger.error('source <%s : %s> register QUERY fail. DB error <%s>', name, site_url, msg)
+            _logger.error('source <%s : %s> register QUERY fail. DB error <%s>', name, site_url, msg)
             return -1
 
         if len(rows) == 0:
@@ -596,7 +607,7 @@ class db_base:
             ret, msg = self.dbq.exec("insert into tbl_sources(name,site_url,reg_time) values(?,?,?)",
                                      (name, site_url, self.stime))
             if not ret:
-                logger.error('source <%s : %s> register INSERT fail. DB error <%s>', name, site_url, msg)
+                _logger.error('source <%s : %s> register INSERT fail. DB error <%s>', name, site_url, msg)
                 return -1
 
             rows = [(self.dbq.cur.lastrowid, self.stime, site_url)]  # 记录最后的插入id,作为采集源id
@@ -605,14 +616,14 @@ class db_base:
                 # 采集源已经存在,但需要更新注册时间
                 ret, msg = self.dbq.exec("update tbl_sources set reg_time=? where name=?", (self.stime, name))
                 if not ret:
-                    logger.error('source <%s : %s> register UPDATE fail. DB error <%s>', name, site_url, msg)
+                    _logger.error('source <%s : %s> register UPDATE fail. DB error <%s>', name, site_url, msg)
                     return -1
             else:
                 # 同名采集源重复注册了
-                logger.error('source <%s : %s> register REPEATED!. EXIST URL<%s>', name, site_url, rows[0][2])
+                _logger.error('source <%s : %s> register REPEATED!. EXIST URL<%s>', name, site_url, rows[0][2])
                 return -1
 
-        logger.info('source register OK! <%3d : %s : %s>', rows[0][0], name, site_url)
+        _logger.info('source register OK! <%3d : %s : %s>', rows[0][0], name, site_url)
         return rows[0][0]
 
     @guard(locker)
@@ -623,7 +634,7 @@ class db_base:
         ret, msg = self.dbq.exec(
             "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?", dat)
         if not ret:
-            logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
+            _logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
             return False
 
         return True
@@ -638,7 +649,7 @@ class db_base:
             try:
                 return json.dumps(d, indent=4, ensure_ascii=False)
             except Exception as e:
-                logger.error('info ext dict2json error <%s>', str(e))
+                _logger.error('info ext dict2json error <%s>', str(e))
                 return None
 
         dat = (info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr, info.keyword, d2j(info.ext), info.memo)
@@ -652,7 +663,7 @@ class db_base:
 
         ret, msg = self.dbq.exec(sql, dat)
         if not ret:
-            logger.error("info <%s> save fail. DB error <%s>", str(dat), msg)
+            _logger.error("info <%s> save fail. DB error <%s>", str(dat), msg)
             return False
 
         return True
@@ -702,7 +713,7 @@ class db_base:
         rows, msg = self.dbq.query("select id from tbl_infos where %s limit 1" % cnd, val)
 
         if msg != '':
-            logger.error('info <%s> repeat QUERY fail. DB error <%s>', info.__dict__.__str__(), msg)
+            _logger.error('info <%s> repeat QUERY fail. DB error <%s>', info.__dict__.__str__(), msg)
             return None
 
         if len(rows) == 0:
@@ -723,7 +734,7 @@ class collect_manager:
         else:
             self.threads = 0
 
-        logger.info('tiny spider collect manager is starting ...')
+        _logger.info('tiny spider collect manager is starting ...')
         pass
 
     def register(self, source_t, spider_t=spider_base):
@@ -738,12 +749,12 @@ class collect_manager:
 
         # 检查字段有效性
         if len(src.on_list_rulenames) == 0:
-            logger.warn('<%s> not setup info field.' % src.name)
+            _logger.warn('<%s> not setup info field.' % src.name)
             return False
 
         for field in src.on_list_rulenames:
             if field[0] != '_' and field not in {'url', 'title', 'content', 'pub_time', 'addr', 'keyword', 'memo'}:
-                logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
+                _logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
                 return False
 
         src.id = self.dbs.register(src.name, src.url)
@@ -762,18 +773,18 @@ class collect_manager:
         self.infos += inc
 
     def _run_one(self, spd):
-        logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt, spd.source.list_inc_cnt,
-                    spd.source.list_max_cnt, spd.source.url)
+        _logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt, spd.source.list_inc_cnt,
+                     spd.source.list_max_cnt, spd.source.url)
         spd.run(self.dbs)
         self._inc_infos_(spd.infos)
         self.dbs.update_act(spd)
-        logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
+        _logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
 
     def run(self):
         """对全部爬虫逐一进行调用"""
         self.infos = 0
         total_spiders = len(self.spiders)
-        logger.info("total sources <%3d>", total_spiders)
+        _logger.info("total sources <%3d>", total_spiders)
         if self.threads:  # 使用多线程并发运行全部的爬虫
             task_ids = [i - 1 for i in range(len(self.spiders), 0, -1)]  # 待处理任务索引列表,倒序,便于后面pop使用
             threads = []  # 运行中线程对象列表
@@ -791,11 +802,11 @@ class collect_manager:
         else:
             idx = 1
             for spd in self.spiders:  # 在主线程中顺序执行全部的爬虫
-                logger.info("progress <%3d/%d>", idx, total_spiders)
+                _logger.info("progress <%3d/%d>", idx, total_spiders)
                 self._run_one(spd)
                 idx += 1
 
-        logger.info("total sources <%d>. new infos <%d>.", total_spiders, self.infos)
+        _logger.info("total sources <%d>. new infos <%d>.", total_spiders, self.infos)
 
     def loop(self):
         """进行持续循环运行"""
@@ -807,27 +818,27 @@ class collect_manager:
         self.spiders.clear()
         self.spiders = None
         self.dbs = None
-        logger.info('tiny spider collect manager is stop.')
+        _logger.info('tiny spider collect manager is stop.')
 
 
 def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', threads=0, log_con_lvl=logging.INFO, log_file_lvl=logging.INFO):
     """创建采集系统管理器对象,告知日志路径和数据库路径.
         返回值:None失败.其他为采集系统管理器对象
     """
-    global logger
-    logger = make_logger(log_path, log_file_lvl)
-    bind_logger_console(logger, log_con_lvl)
+    global _logger
+    _logger = make_logger(log_path, log_file_lvl)
+    bind_logger_console(_logger, log_con_lvl)
 
     dbs = db_base(db_path)  # 打开数据库
     if not dbs.opened():
-        logger.error('DB open fail. <%s>', db_path)
+        _logger.error('DB open fail. <%s>', db_path)
         return None
 
     if not dbs.dbq.has('tbl_sources'):
         for s in sql_tbl:
             ret, msg = dbs.db.exec(s)  # 尝试在新库中自动建表
             if not ret:
-                logger.error("DB init create fail! < %s >" % msg)
+                _logger.error("DB init create fail! < %s >" % msg)
 
     cm = collect_manager(dbs, threads)
     return cm
