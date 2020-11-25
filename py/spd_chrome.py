@@ -485,6 +485,40 @@ var _$_ = function(el, parent) {
 }
 '''
 
+# 用来进行ajax调用的功能函数
+http_ajax = """
+function http_ajax(url,method="GET",data=null,contentType="application/x-www-form-urlencoded")
+{
+    document.documentElement.innerHTML="";
+	var xmlhttp=new XMLHttpRequest();
+	xmlhttp.onreadystatechange=function()
+	{
+		if (xmlhttp.readyState==4)
+		    document.documentElement.innerHTML=xmlhttp.responseText;
+	}
+	xmlhttp.open(method,url);
+	xmlhttp.setRequestHeader("Content-Type",contentType)
+	if (data)
+	    xmlhttp.send(data);
+	else
+	    xmlhttp.send();
+	return "";
+}
+"""
+
+#简单的演示spd_chrome的常规功能goto/post/wait/dhtml的使用
+demo="""
+import spd_chrome as sc
+c=sc.spd_chrome()
+tid=0
+c.goto(tid,'http://credit.chuzhou.gov.cn/publicity/doublePublicity/getXZCFPageInfo.do')
+c.wait_re(tid,'msg')
+
+print(c.post(tid,'http://credit.chuzhou.gov.cn/publicity/doublePublicity/getXZCFPageInfo.do?currentPageNo=3&pageSize=10',"dfbm=&bmbh=&keyword="))
+c.wait_re(tid,'msg')
+
+print(c.dhtml(tid,True)[0])
+"""
 
 # 定义常见爬虫功能类
 class spd_chrome:
@@ -580,9 +614,12 @@ class spd_chrome:
 
         return ok, r, m
 
-    def dhtml(self, tab):
+    def dhtml(self, tab, body_only=False):
         """获取指定tab页当前的动态渲染后的html内容.返回值(内容串,错误消息)"""
-        return self.exec(tab, 'document.documentElement.outerHTML')
+        rst,msg=self.exec(tab, 'document.documentElement.outerHTML')
+        if not body_only or msg:
+            return rst,msg
+        return rst[25:-14],msg
 
     def exec(self, tab, js):
         """在指定的tab页中运行js代码.返回值(内容串,错误消息)"""
@@ -604,6 +641,13 @@ class spd_chrome:
     def run(self, tab, js):
         '''基于dom100运行js代码'''
         jss = '{%s%s}' % (dom100, js)
+        return self.exec(tab, jss)
+
+    def post(self, tab, url, data="", contentType="application/x-www-form-urlencoded"):
+        """在指定的tab页上,利用js的ajax技术,发起post请求.返回值:正常为('','')
+           由于浏览器对于跨域请求的限制,所以在执行ajax/post之前,需要先使用goto让页面处于正确的域状态下.
+        """
+        jss = http_ajax + 'http_ajax("%s","POST","%s","%s");' % (url, data, contentType)
         return self.exec(tab, jss)
 
     def sendkey(self, tab, keyCode=0x0D, eventType='keyDown'):

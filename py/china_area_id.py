@@ -3220,7 +3220,7 @@ for k in map_id_areas:
         map_area_ids[a] = {k}
     else:
         map_area_ids[a].add(k)
-        print(map_area_ids[a])
+        #print(map_area_ids[a])
 
 
 def query_area_by_id(id):

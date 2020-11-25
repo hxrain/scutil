@@ -274,6 +274,14 @@ def uniseq2str(s):
     return s
 
 
+# 对指定的内容进行URLData编码转换
+def URLData(content, type='text/html'):
+    if isinstance(content, str):
+        content = content.encode('utf-8')
+    encoded_body = base64.b64encode(content)
+    return "data:%s;base64,%s" % (type, encoded_body.decode())
+
+
 # -----------------------------------------------------------------------------
 # URL编码
 def encodeURIComponent(url, encode='utf-8'):
@@ -334,9 +342,9 @@ def url_equ(a, b):
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG):
     # 调整日志输出的级别名称.
-    logging._levelToName[logging.ERROR] = 'ERR '
-    logging._levelToName[logging.WARNING] = 'WRN '
-    logging._levelToName[logging.DEBUG] = 'DBG '
+    logging._levelToName[logging.ERROR] = 'ERR!'
+    logging._levelToName[logging.WARNING] = 'WRN!'
+    logging._levelToName[logging.DEBUG] = 'DBG.'
 
     # 生成日志记录器
     ps_logger = logging.getLogger()
