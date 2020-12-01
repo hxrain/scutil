@@ -75,7 +75,7 @@ class append_line_t:
         try:
             self.fp = open(fname, 'a', encoding=encoding)
         except Exception as e:
-            print('ERROR: %s' % (str(e)))
+            print('ERROR: %s' % (es(e)))
 
     def append(self, line=''):
         if isinstance(line, list):
@@ -100,7 +100,7 @@ class read_lines_t:
             self.fp = open(fname, 'r', encoding=encoding)
         except Exception as e:
             self.fp = None
-            print('ERROR: %s' % (str(e)))
+            print('ERROR: %s' % (es(e)))
 
     def skip(self, lines=100):
         if not self.fp:
@@ -548,7 +548,7 @@ def dict2xml(dic, indent=True, utf8=False):
     try:
         return dx.tostring(dic, indent, utf8), ''
     except Exception as e:
-        return '', 'XML CONV : ' + str(e)
+        return '', 'XML CONV : ' + es(e)
 
 
 # -----------------------------------------------------------------------------
@@ -561,7 +561,7 @@ def json2xml(jstr, indent=True, utf8=False):
             dic = json.loads(dic)
         return dict2xml(dic, indent, utf8)
     except Exception as e:
-        return '', 'JSON ERR : ' + str(e)
+        return '', 'JSON ERR : ' + es(e)
 
 
 def json2dict(jstr, indent=True, utf8=False):
@@ -569,7 +569,7 @@ def json2dict(jstr, indent=True, utf8=False):
         dic = json.loads(jstr)
         return dic, ''
     except Exception as e:
-        return [], 'JSON ERR : ' + str(e)
+        return [], 'JSON ERR : ' + es(e)
 
 
 # -----------------------------------------------------------------------------
@@ -652,7 +652,7 @@ def replace_re(cnt_str, cc_re, cc_dst):
         rst = re.sub(cc_re, cc_dst, cnt_str, flags=re.DOTALL)
         return rst, ''
     except Exception as e:
-        return cnt_str, str(e)
+        return cnt_str, es(e)
 
 
 def zip_file(srcdir, outfile):
@@ -665,7 +665,7 @@ def zip_file(srcdir, outfile):
         zf.close()
         return ''
     except Exception as e:
-        return str(e)
+        return es(e)
 
 
 # -----------------------------------------------------------------------------
@@ -727,6 +727,10 @@ class tick_meter:
         return False
 
 
+def es(e: Exception):
+    return '%s:%s' % (e.__class__.__name__, e)
+
+
 # -----------------------------------------------------------------------------
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath
 # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
@@ -742,9 +746,9 @@ def query_xpath(cnt_str, cc_xpath):
         return r, ''
 
     except etree.XPathEvalError as e:
-        return [], str(e)
+        return [], es(e)
     except Exception as e:
-        return [], str(e)
+        return [], es(e)
 
 
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath;可以删除removeTags元组列表指出的标签(保留元素内容)
@@ -803,7 +807,7 @@ class xpath:
                 self.rootNode = etree.HTML(cnt_str)
             self.cnt_str = cnt_str
         except Exception as e:
-            self.last_err.append(str(e))
+            self.last_err.append(es(e))
 
         if self.cnt_str is None:
             try:
@@ -811,7 +815,7 @@ class xpath:
                 if self.cnt_str:
                     self.rootNode = etree.HTML(self.cnt_str)
             except Exception as e:
-                self.last_err.append(str(e))
+                self.last_err.append(es(e))
 
         if self.cnt_str is None:
             try:
@@ -819,7 +823,7 @@ class xpath:
                 if self.cnt_str:
                     self.rootNode = etree.HTML(self.cnt_str)
             except Exception as e:
-                self.last_err.append(str(e))
+                self.last_err.append(es(e))
                 self.cnt_str = None
                 pass
 
@@ -834,9 +838,9 @@ class xpath:
             r = self.rootNode.xpath(cc_xpath)
             return r, ''
         except etree.XPathEvalError as e:
-            return [], str(e)
+            return [], es(e)
         except Exception as e:
-            return [], str(e)
+            return [], es(e)
 
 
 # -----------------------------------------------------------------------------
@@ -880,7 +884,7 @@ def xml_extract(str, rules, rootName='条目', removeTags=None):
 
         return rows, document.toprettyxml(indent='\t')  # 输出最终结果
     except Exception as e:
-        return None, str(e)
+        return None, es(e)
 
 
 def pair_extract(xml, xpaths, removeTags=None):
@@ -925,7 +929,7 @@ def pair_extract(xml, xpaths, removeTags=None):
         return rst, ''
 
     except Exception as e:
-        return [], str(e)
+        return [], es(e)
 
 
 # 将xpath规则结果对列表转换为字典
@@ -987,9 +991,9 @@ def query_re(cnt_str, cc_re, idx=None):
             return [m[idx]], ''
         return m, ''
     except re.error as e:
-        return [], str(e)
+        return [], es(e)
     except Exception as e:
-        return [], str(e)
+        return [], es(e)
 
 
 # 查询指定捕获组的内容并转为数字.不成功时返回默认值
@@ -1127,7 +1131,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         rsp = session.request(method, url, proxies=proxy, headers=HEAD, data=BODY, cookies=CKM,
                               timeout=timeout, allow_redirects=allow_redirects, verify=SSL_VERIFY)
     except Exception as e:
-        rst['error'] = e
+        rst['error'] = es(e)
         rst['status_code'] = 999
         return False
     finally:
@@ -1176,6 +1180,12 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         rst['BODY'] = rsp_cnt
 
     return True
+
+#快速抓取目标url的get请求函数
+def http_get(url, req=None, timeout=15, allow_redirects=True, session=None, cookieMgr=None):
+    rst = {}
+    http_req(url, rst, req, timeout, allow_redirects, session, cookieMgr)
+    return rst['BODY'], rst['status_code'], rst['error']
 
 
 def make_head(req_dict, head_str):
