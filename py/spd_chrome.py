@@ -150,7 +150,7 @@ class Tab(object):
                 try:
                     self.event_handlers[method](**message['params'])
                 except Exception as e:
-                    logger.error("callback %s exception" % method, exc_info=True)
+                    logger.error("callback %s exception %s" % (method, spd_base.es(e)), exc_info=True)
             return (0, 1)
         elif "id" in message:
             # 接收到结果了,记录下来
@@ -506,8 +506,8 @@ function http_ajax(url,method="GET",data=null,contentType="application/x-www-for
 }
 """
 
-#简单的演示spd_chrome的常规功能goto/post/wait/dhtml的使用
-demo="""
+# 简单的演示spd_chrome的常规功能goto/post/wait/dhtml的使用
+demo = """
 import spd_chrome as sc
 c=sc.spd_chrome()
 tid=0
@@ -519,6 +519,7 @@ c.wait_re(tid,'msg')
 
 print(c.dhtml(tid,True)[0])
 """
+
 
 # 定义常见爬虫功能类
 class spd_chrome:
@@ -532,15 +533,15 @@ class spd_chrome:
             tab = self.browser.new_tab(url, self.proto_timeout)
             return tab.id, ''
         except Exception as e:
-            return '', str(e)
+            return '', spd_base.es(e)
 
-    def new(self):
+    def new(self, url=''):
         """打开一个新的tab页.返回值:(tab页对象,错误消息)"""
         try:
-            tab = self.browser.new_tab('', self.proto_timeout)
+            tab = self.browser.new_tab(url, self.proto_timeout)
             return tab, ''
         except Exception as e:
-            return None, str(e)
+            return None, spd_base.es(e)
 
     def list(self):
         """列出现有打开的tab页,返回值:([{tab信息}列表],错误消息)
@@ -550,7 +551,7 @@ class spd_chrome:
             rst = self.browser.list_tab(self.proto_timeout)
             return rst, ''
         except Exception as e:
-            return '', str(e)
+            return '', spd_base.es(e)
 
     def _tab(self, tab):
         """根据tab标识或序号获取tab对象.返回值:tab对象"""
@@ -564,12 +565,12 @@ class spd_chrome:
             id = tab
         return self.browser._tabs[id]
 
-    def get(self, tab):
+    def tab(self, tab):
         """根据tab标识或序号获取tab对象.返回值(tab对象,错误消息)"""
         try:
             return self._tab(tab), ''
         except Exception as e:
-            return None, str(e)
+            return None, spd_base.es(e)
 
     def close(self, tab):
         """关闭指定的tab页.tab可以是id也可以是序号.返回值:(tab页id,错误消息)"""
@@ -578,7 +579,7 @@ class spd_chrome:
             self.browser.close_tab(t.id, self.proto_timeout)
             return t.id, ''
         except Exception as e:
-            return '', str(e)
+            return '', spd_base.es(e)
 
     def active(self, tab):
         """激活指定的tab页,返回值:(tab页id,错误消息)"""
@@ -587,7 +588,7 @@ class spd_chrome:
             self.browser.activate_tab(t.id, self.proto_timeout)
             return t.id, ''
         except Exception as e:
-            return '', str(e)
+            return '', spd_base.es(e)
 
     def _goto(self, tab, url):
         """控制指定的tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
@@ -598,7 +599,7 @@ class spd_chrome:
             rst = t.call_method('Page.navigate', url=url, _timeout=self.proto_timeout)
             return rst, ''
         except Exception as e:
-            return None, str(e)
+            return None, spd_base.es(e)
 
     def goto(self, tab, url, retry=3):
         """控制指定的tab页浏览指定的url.返回值(是否完成,{'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
@@ -616,10 +617,12 @@ class spd_chrome:
 
     def dhtml(self, tab, body_only=False):
         """获取指定tab页当前的动态渲染后的html内容.返回值(内容串,错误消息)"""
-        rst,msg=self.exec(tab, 'document.documentElement.outerHTML')
+        rst, msg = self.exec(tab, 'document.documentElement.outerHTML')
         if not body_only or msg:
-            return rst,msg
-        return rst[25:-14],msg
+            return rst, msg
+        bpos = rst.find('><head></head><body>')
+        bpos = bpos + 20 if bpos != -1 else 0
+        return rst[bpos:-14], msg
 
     def exec(self, tab, js):
         """在指定的tab页中运行js代码.返回值(内容串,错误消息)"""
@@ -636,7 +639,7 @@ class spd_chrome:
             else:
                 return '', ret
         except Exception as e:
-            return '', str(e)
+            return '', spd_base.es(e)
 
     def run(self, tab, js):
         '''基于dom100运行js代码'''
@@ -647,7 +650,16 @@ class spd_chrome:
         """在指定的tab页上,利用js的ajax技术,发起post请求.返回值:正常为('','')
            由于浏览器对于跨域请求的限制,所以在执行ajax/post之前,需要先使用goto让页面处于正确的域状态下.
         """
+        if isinstance(data, str):
+            data = data.replace('\n', '\\n')
         jss = http_ajax + 'http_ajax("%s","POST","%s","%s");' % (url, data, contentType)
+        return self.exec(tab, jss)
+
+    def get(self, tab, url):
+        """在指定的tab页上,利用js的ajax技术,发起get请求.返回值:正常为('','')
+           由于浏览器对于跨域请求的限制,所以在执行ajax/get之前,需要先使用goto让页面处于正确的域状态下.
+        """
+        jss = http_ajax + 'http_ajax("%s","GET","","");' % (url)
         return self.exec(tab, jss)
 
     def sendkey(self, tab, keyCode=0x0D, eventType='keyDown'):
@@ -660,27 +672,27 @@ class spd_chrome:
             t.call_method('Input.dispatchKeyEvent', type=eventType, windowsVirtualKeyCode=keyCode, nativeVirtualKeyCode=keyCode, _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
-            return False, str(e)
+            return False, spd_base.es(e)
 
-    def wait_xp(self, tab, xpath, max_sec=60):
+    def wait_xp(self, tab, xpath, max_sec=60, body_only=False):
         """在指定的tab页上,等待xpath表达式的结果出现,最大等待max_sec秒.返回值:(被xhtml格式化的内容串,错误消息)"""
         loops = max_sec * 2  # 间隔0.5秒进行循环判定
         xhtml = ''
 
         # 获取tab标识
-        t, msg = self.get(tab)
+        t, msg = self.tab(tab)
         if msg != '':
             return None, msg
         tab_id = t.id
 
         # 进行循环等待
         for i in range(loops):
-            html, msg = self.dhtml(tab_id)
+            html, msg = self.dhtml(tab_id, body_only)
             if msg != '':
                 time.sleep(0.5)
                 continue
 
-            xhtml = spd_base.format_html(html)  # 执行xpath之前先进行xhtml格式化
+            xhtml = spd_base.format_xhtml(html)  # 执行xpath之前先进行xhtml格式化
             r, msg = spd_base.query_xpath_x(xhtml, xpath)
             if msg != '':
                 return None, msg
@@ -690,19 +702,19 @@ class spd_chrome:
                 break
         return xhtml, ''
 
-    def wait_re(self, tab, regexp, max_sec=60):
+    def wait_re(self, tab, regexp, max_sec=60, body_only=False):
         """在指定的tab页上,等待regexp表达式的结果出现,最大等待max_sec秒.返回值:(页面的html内容串,错误消息)"""
         loops = max_sec * 2  # 间隔0.5秒进行循环判定
         html = ''
         # 获取tab标识
-        t, msg = self.get(tab)
+        t, msg = self.tab(tab)
         if msg != '':
             return None, msg
         tab_id = t.id
 
         # 进行循环等待
         for i in range(loops):
-            html, msg = self.dhtml(tab_id)
+            html, msg = self.dhtml(tab_id, body_only)
             if msg != '':
                 time.sleep(0.5)
                 continue
@@ -715,3 +727,59 @@ class spd_chrome:
             else:
                 break
         return html, ''
+
+
+class tiny_chrome:
+    """简单使用的chrome客户端"""
+
+    def __init__(self, cond='html', tab=None, proto_url="http://127.0.0.1:9222"):
+        self.sc = spd_chrome(proto_url)
+        self.tab = tab if tab else self.sc.new()[0]
+        self.chrome_timeout = 600
+        self.cond(cond)
+        self.resp_body_only = False  # 渲染结果是否仅保留body内容(json回应时有意义)
+
+    def cond(self, cond, cond_is_re=True):
+        """设置完成条件"""
+        self.cond = cond
+        self.cond_is_re = cond_is_re
+
+    def wait(self, max_sec=None):
+        """阻塞等待页面渲染,完成条件是cond正则表达式/xpath表达式匹配到了结果;返回值:是否成功,页面内容,状态码,错误信息"""
+        if max_sec is None:
+            max_sec = self.chrome_timeout
+
+        if self.cond_is_re:
+            rsp, msg = self.sc.wait_re(self.tab, self.cond, max_sec, self.resp_body_only)  # 等待页面装载完成
+        else:
+            rsp, msg = self.sc.wait_xp(self.tab, self.cond, max_sec, self.resp_body_only)  # 等待页面装载完成
+
+        if msg != '':
+            return False, '', 999, msg
+        else:
+            return True, rsp, 200, ''
+
+    def exec(self, js):
+        """运行js代码.返回值(运行结果,错误消息)"""
+        return self.sc.run(self.tab, js)
+
+    def take(self, url, max_sec=None):
+        """导航并抓取指定的url页面,完成条件是cond_re;返回值:是否成功,页面内容,状态码,错误信息"""
+        r = self.sc.goto(self.tab, url)  # 控制浏览器访问入口url
+        if not r[0]:
+            return False, '', 998, 'chrome open fail.'
+        return self.wait(max_sec)
+
+    def post(self, url, data, max_sec=None):
+        """使用chrome控制器,发起ajax/post请求url页面,完成条件是cond_re"""
+        r = self.sc.post(self.tab, url, data)  # 控制浏览器访问入口url
+        if r[1]:
+            return False, '', 997, r[1]
+        return self.wait(max_sec)
+
+    def get(self, url, max_sec=None):
+        """使用chrome控制器,发起ajax/get请求url页面,完成条件是cond_re"""
+        r = self.sc.get(self.tab, url)  # 控制浏览器访问入口url
+        if r[1]:
+            return False, '', 996, r[1]
+        return self.wait(max_sec)
