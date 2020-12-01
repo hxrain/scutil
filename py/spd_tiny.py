@@ -177,6 +177,7 @@ class source_base:
         self.info_upd_mode = False  # 是否开启该信息源的更新模式
         self.proxy_addr = None  # 代理服务器地址,格式为 http://192.168.20.108:808
         self.http_timeout = 60  # http请求超时时间,秒
+        self.chrome_timeout = 600  # chrome等待超时,秒
         self.list_url_idx = 0  # 当前概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
         self.list_inc_cnt = 2  # 达到默认翻页数量上限的时候,如果仍有信息被采回,则进行自动增量翻页的数量
@@ -272,15 +273,9 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
-    def chrome_take(self, url, chrome, tab, cond_re, max_sec=600):
-        """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
-        r = chrome.goto(tab, url)  # 控制浏览器访问入口url
-        if not r[0]:
-            self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 999
-            self.spider.http.rst['error'] = 'chrome open fail.'
-            return False
-
+    def chrome_wait(self, chrome, tab, cond_re, max_sec=None):
+        if max_sec is None:
+            max_sec = self.chrome_timeout
         rsp, msg = chrome.wait_re(tab, cond_re, max_sec)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
@@ -292,6 +287,36 @@ class source_base:
             self.spider.http.rst['status_code'] = 200
             self.spider.http.rst['error'] = ''
             return True
+
+    def chrome_take(self, url, chrome, tab, cond_re, max_sec=None):
+        """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
+        r = chrome.goto(tab, url)  # 控制浏览器访问入口url
+        if not r[0]:
+            self.spider.http.rst['BODY'] = ''
+            self.spider.http.rst['status_code'] = 999
+            self.spider.http.rst['error'] = 'chrome open fail.'
+            return False
+        return self.chrome_wait(chrome, tab, cond_re, max_sec)
+
+    def chrome_post(self, url, chrome, data, tab, cond_re, max_sec=None):
+        """使用chrome控制器,在指定的tab上发起ajax/post请求url页面,完成条件是cond_re"""
+        r = chrome.post(tab, url, data)  # 控制浏览器访问入口url
+        if r[1]:
+            self.spider.http.rst['BODY'] = ''
+            self.spider.http.rst['status_code'] = 999
+            self.spider.http.rst['error'] = r[1]
+            return False
+        return self.chrome_wait(chrome, tab, cond_re, max_sec)
+
+    def chrome_get(self, url, chrome, tab, cond_re, max_sec=None):
+        """使用chrome控制器,在指定的tab上发起ajax/get请求url页面,完成条件是cond_re"""
+        r = chrome.get(tab, url)  # 控制浏览器访问入口url
+        if r[1]:
+            self.spider.http.rst['BODY'] = ''
+            self.spider.http.rst['status_code'] = 999
+            self.spider.http.rst['error'] = r[1]
+            return False
+        return self.chrome_wait(chrome, tab, cond_re, max_sec)
 
     def on_list_take(self, list_url, req):
         """发起对list_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
@@ -339,7 +364,7 @@ class spider_base:
             call = getattr(self.source, method)  # 获取指定的方法
             return call(*args)  # 调用指定的方法
         except Exception as e:
-            self.source.log_error('call <%s> error <%s>'%( method, str(e)))  # 统一记录错误
+            self.source.log_error('call <%s> error <%s>' % (method, es(e)))  # 统一记录错误
             return None
 
     def _do_page_take(self, info, list_url, page_url, req_param):
@@ -649,7 +674,7 @@ class db_base:
             try:
                 return json.dumps(d, indent=4, ensure_ascii=False)
             except Exception as e:
-                _logger.error('info ext dict2json error <%s>', str(e))
+                _logger.error('info ext dict2json error <%s>', es(e))
                 return None
 
         dat = (info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr, info.keyword, d2j(info.ext), info.memo)
