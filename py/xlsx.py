@@ -18,42 +18,12 @@ xw.close()
 '''
 
 
-class xlsx_writer:
-    def __init__(self, fname, keyIdx=0):
-        # 打开文件
-        self.book = xlsxwriter.Workbook(fname)
-        # 定义单元格样式
-        self.cell_style = []
-        self.make_format({
-            'text_wrap': False,
-            'valign': 'vcenter',
-            'align': 'left',
-        })
-
+class xlsx_sheet:
+    def __init__(self, keyIdx=0):
         self.sheet = None
         self.rows = 0
         self.keys = None
         self.keyIdx = keyIdx
-
-    def make_format(self, styles):
-        fmt = self.book.add_format(styles)
-        self.cell_style.append(fmt)
-        return len(self.cell_style) - 1
-
-    def create(self, sheet_name, cols=None, chk_keys=True):
-        """创建数据表,告知表名与列头"""
-        self.sheet = self.book.add_worksheet(sheet_name)
-
-        if chk_keys:
-            self.keys = set()
-
-        # 添加列头
-        if cols:
-            self.rows = 0
-            for i in range(len(cols)):
-                self.sheet.write(self.rows, i, cols[i])
-        else:
-            self.rows = -1
 
     def append(self, t, fmts=None):
         """追加一个元组"""
@@ -80,11 +50,70 @@ class xlsx_writer:
         for t in lst:
             self.append(t)
 
+
+class xlsx_maker:
+    def __init__(self, fname):
+        # 打开文件
+        self.book = xlsxwriter.Workbook(fname)
+        # 定义单元格样式
+        self.cell_style = []
+        self.add_style({
+            'text_wrap': False,
+            'valign': 'vcenter',
+            'align': 'left',
+        })
+
+    def add_style(self, styles_dict):
+        fmt = self.book.add_format(styles_dict)
+        self.cell_style.append(fmt)
+        return len(self.cell_style) - 1
+
+    def create(self, sheet_name, cols=None, chk_keys=True):
+        """创建数据表,告知表名与列头"""
+        s = xlsx_sheet()
+        s.sheet = self.book.add_worksheet(sheet_name)
+        s.cell_style = self.cell_style
+
+        if chk_keys:
+            s.keys = set()
+
+        # 添加列头
+        if cols:
+            s.rows = 0
+            for i in range(len(cols)):
+                s.sheet.write(s.rows, i, cols[i])
+        else:
+            s.rows = -1
+        return s
+
+    def close(self):
+        """关闭文档保存内容"""
+        self.book.close()
+
+
+class xlsx_writer:
+    def __init__(self, fname, keyIdx=0):
+        self.maker = xlsx_maker(fname)
+        self.sheet = None
+
+    def add_style(self, styles_dict):
+        self.maker.add_style(styles_dict)
+
+    def create(self, sheet_name, cols=None, chk_keys=True):
+        """创建数据表,告知表名与列头"""
+        self.sheet = self.maker.create(sheet_name, cols, chk_keys)
+
+    def append(self, t, fmts=None):
+        """追加一个元组"""
+        return self.sheet.append(t, fmts)
+
+    def appendx(self, lst):
+        """追加元组列表"""
+        return self.sheet.appendx(t)
+
     def close(self):
         """关闭文档保存内容"""
         if not self.sheet:
             return
-        self.book.close()
-        self.keys = None
-        self.book = None
+        self.maker.close()
         self.sheet = None
