@@ -126,7 +126,10 @@ class bm25_calc():
     """演示bm25相似度计算的集成用法"""
     def __init__(self, isquery=False, idf_dict_file='title_ss_rc'):
         self.tf_dct = TDF_IDF_Core()
-        tdf_idf_load(self.tf_dct, idf_dict_file)  # 先装载预先统计好的词频词典
+        if tdf_idf_load(self.tf_dct, idf_dict_file)[0] is None:  # 先装载预先统计好的词频词典
+            print('IDF DICT load fail: '+idf_dict_file)
+            exit(-2)
+
         self.tf_dct.adjust_digital(1)
 
         if isquery:

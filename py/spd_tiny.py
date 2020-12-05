@@ -251,6 +251,10 @@ class source_base:
         """生成概览列表url,self.list_url_idx从1开始;返回值:概览所需抓取的url,None则停止循环"""
         return None
 
+    def on_list_plan(self):
+        """对一个概览页完成遍历处理之后的事件.可告知当前采集计划的进度总量信息(对于组合遍历时可大致告知总体进度)"""
+        return None, None
+
     def check_list_end(self, req):
         """判断概览翻页循环是否应该结束.返回值:None则停止循环"""
         return None
@@ -273,10 +277,8 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
-    def chrome_wait(self, chrome, tab, cond_re, max_sec=None):
-        if max_sec is None:
-            max_sec = self.chrome_timeout
-        rsp, msg = chrome.wait_re(tab, cond_re, max_sec)  # 等待页面装载完成
+    def chrome_wait(self, chrome, tab, cond_re, body_only=False):
+        rsp, msg = chrome.wait_re(tab, cond_re, self.chrome_timeout, body_only)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 998
@@ -288,7 +290,7 @@ class source_base:
             self.spider.http.rst['error'] = ''
             return True
 
-    def chrome_take(self, url, chrome, tab, cond_re, max_sec=None):
+    def chrome_take(self, url, chrome, tab, cond_re, body_only=False):
         """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
@@ -296,9 +298,9 @@ class source_base:
             self.spider.http.rst['status_code'] = 999
             self.spider.http.rst['error'] = 'chrome open fail.'
             return False
-        return self.chrome_wait(chrome, tab, cond_re, max_sec)
+        return self.chrome_wait(chrome, tab, cond_re, body_only)
 
-    def chrome_post(self, url, chrome, data, tab, cond_re, max_sec=None):
+    def chrome_post(self, url, chrome, data, tab, cond_re, body_only=False):
         """使用chrome控制器,在指定的tab上发起ajax/post请求url页面,完成条件是cond_re"""
         r = chrome.post(tab, url, data)  # 控制浏览器访问入口url
         if r[1]:
@@ -306,9 +308,9 @@ class source_base:
             self.spider.http.rst['status_code'] = 999
             self.spider.http.rst['error'] = r[1]
             return False
-        return self.chrome_wait(chrome, tab, cond_re, max_sec)
+        return self.chrome_wait(chrome, tab, cond_re, body_only)
 
-    def chrome_get(self, url, chrome, tab, cond_re, max_sec=None):
+    def chrome_get(self, url, chrome, tab, cond_re, body_only=False):
         """使用chrome控制器,在指定的tab上发起ajax/get请求url页面,完成条件是cond_re"""
         r = chrome.get(tab, url)  # 控制浏览器访问入口url
         if r[1]:
@@ -316,7 +318,7 @@ class source_base:
             self.spider.http.rst['status_code'] = 999
             self.spider.http.rst['error'] = r[1]
             return False
-        return self.chrome_wait(chrome, tab, cond_re, max_sec)
+        return self.chrome_wait(chrome, tab, cond_re, body_only)
 
     def on_list_take(self, list_url, req):
         """发起对list_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
@@ -591,7 +593,10 @@ class spider_base:
                         list_emptys = 0
                         self.succ += 1
                         infos = self._do_page_loop(rst, list_url, dbs)  # 进行概览循环
-                        self.source.log_info('news <%3d> list <%s>%s' % (infos, list_url, reqbody))
+                        ci, cn = self.source.on_list_plan()
+                        plan = '' if ci is None else 'plan<%d/%d>' % (ci, cn)
+                        self.source.log_info(
+                            'news <%3d> list %s[%d/%d] <%s>%s' % (infos, plan, self.source.list_url_idx, self.source.list_url_cnt, list_url, reqbody))
                 else:
                     self.source.log_warn('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
 

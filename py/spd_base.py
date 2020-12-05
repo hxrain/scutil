@@ -948,6 +948,14 @@ def get_dict_value(dct, key, defval=None):
         return defval
 
 
+def get_slice(lst, seg, segs):
+    """获取列表lst的指定分段的切片,seg为第几段(从1开始),segs为总段数"""
+    tol = len(lst)  # 元素总量
+    slen = (tol + segs // 2) // segs  # 每段元素数量
+    e = seg * slen if seg != segs else tol  # 最后一段涵盖尾部
+    return lst[(seg - 1) * slen: e]
+
+
 # -----------------------------------------------------------------------------
 # 对html/table信息列进行提取的功能封装
 class table_xpath:
@@ -1181,7 +1189,8 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
 
     return True
 
-#快速抓取目标url的get请求函数
+
+# 快速抓取目标url的get请求函数
 def http_get(url, req=None, timeout=15, allow_redirects=True, session=None, cookieMgr=None):
     rst = {}
     http_req(url, rst, req, timeout, allow_redirects, session, cookieMgr)
@@ -1542,6 +1551,12 @@ class items_comb():
         for l in range(len(self.lists)):
             ret *= len(self.lists[l])
         return ret
+
+    def plan(self, lvl=0):
+        """查询指定层级的当前进度,返回值:(位置1~n,总量n)"""
+        if len(self.lists) == 0:
+            return None, None
+        return self.lists_pos[lvl] + 1, len(self.lists[lvl])
 
     def next(self):
         """调整当前组合序列索引,便于调用item时得到下一种组合结果.返回值:是否已经归零"""
