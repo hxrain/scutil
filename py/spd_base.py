@@ -630,6 +630,7 @@ def fix_xml_node(xstr, dst='-'):
     ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, ret)  # 修正自闭合节点
     ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
     ret = re.sub(r'[\u001f\u000b\u001e]', '', ret)  # 替换无效字符干扰
+    ret = ret.replace('&#13;', '\n')  # 修正结果串
     return ret
 
 

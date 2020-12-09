@@ -575,6 +575,11 @@ class spider_base:
                 self.rsps += 1
                 # 格式化概览页内容为xpath格式
                 if msg == '':
+                    ci, cn = self.source.on_list_plan()
+                    plan = '' if ci is None else 'plan<%d/%d>' % (ci, cn)
+                    plan+='[%d/%d/%d]'%(self.source.list_url_idx, self.source.list_url_cnt,self.source.list_max_cnt) #阶段与进度
+                    reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
+
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if xstr != '__EMPTY__':
@@ -587,16 +592,13 @@ class spider_base:
                         else:
                             list_emptys = 0
                             self.succ += 1
-                            self.source.log_info('none <  -> list <%s>' % (list_url))
+                            self.source.log_info('none <  -> list %s <%s> %s' % (plan, list_url, reqbody))
                     else:
-                        reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                         list_emptys = 0
                         self.succ += 1
                         infos = self._do_page_loop(rst, list_url, dbs)  # 进行概览循环
-                        ci, cn = self.source.on_list_plan()
-                        plan = '' if ci is None else 'plan<%d/%d>' % (ci, cn)
                         self.source.log_info(
-                            'news <%3d> list %s[%d/%d] <%s>%s' % (infos, plan, self.source.list_url_idx, self.source.list_url_cnt, list_url, reqbody))
+                            'news <%3d> list %s <%s> %s' % (infos, plan, list_url, reqbody))
                 else:
                     self.source.log_warn('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
 
