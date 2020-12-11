@@ -712,6 +712,13 @@ def utc_to_date(sec):
     return date.strftime('%Y-%m-%d')
 
 
+def printf(fmt, *arg):
+    """带有当前时间格式的打印输出"""
+    fmt = '[%s] ' + fmt
+    dt = get_datetime()
+    print(fmt % (dt, *arg))
+
+
 class tick_meter:
     '毫秒间隔计时器'
 

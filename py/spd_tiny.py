@@ -321,7 +321,11 @@ class source_base:
         return self.chrome_wait(chrome, tab, cond_re, body_only)
 
     def on_list_take(self, list_url, req):
-        """发起对list_url的http抓取动作,在self.spider.http.rst['BODY']中保存了抓取结果;.rst['status_code']记录http状态码;.rst['error']记录错误原因.返回值:是否抓取成功."""
+        """发起对list_url的http抓取动作
+            self.spider.http.rst['BODY']中保存了抓取结果;
+            self.rst['status_code']记录http状态码;
+            self.rst['error']记录错误原因.
+        返回值:是否抓取成功."""
         return self.spider.http.take(list_url, req)
 
     def on_info_filter(self, info):
@@ -333,9 +337,10 @@ class source_base:
         return None
 
     def on_page_take(self, info, page_url, req):
-        """发起对page_url的http抓取动作,self.spider.http.rst['BODY'] 中保存了抓取结果;
-                                      self.spider.http.rst['status_code'] 记录http状态码;
-                                      self.spider.http.rst['error'] 记录错误原因.
+        """发起对page_url的http抓取动作,
+            self.spider.http.rst['BODY'] 中保存了抓取结果;
+            self.spider.http.rst['status_code'] 记录http状态码;
+            self.spider.http.rst['error'] 记录错误原因.
         返回值:是否抓取成功."""
         return self.spider.http.take(page_url, req)
 
@@ -577,7 +582,7 @@ class spider_base:
                 if msg == '':
                     ci, cn = self.source.on_list_plan()
                     plan = '' if ci is None else 'plan<%d/%d>' % (ci, cn)
-                    plan+='[%d/%d/%d]'%(self.source.list_url_idx, self.source.list_url_cnt,self.source.list_max_cnt) #阶段与进度
+                    plan += '[%d/%d/%d]' % (self.source.list_url_idx, self.source.list_url_cnt, self.source.list_max_cnt)  # 阶段与进度
                     reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
 
                     if self.source.last_list_items == 0:
