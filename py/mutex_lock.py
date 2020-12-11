@@ -1,5 +1,6 @@
 from functools import wraps
 from threading import Lock
+from threading import RLock
 from threading import Thread
 
 """
@@ -15,15 +16,18 @@ tst()
 
 # 定义互斥锁功能封装
 class lock_t:
-    def __init__(self, use=False):
+    def __init__(self, use=False, is_rlock=True):
         self.locker = None
         if use:
-            self.init()
+            self.init(is_rlock)
 
-    def init(self):
+    def init(self, is_rlock=True):
         if self.inited():
             return
-        self.locker = Lock()
+        if is_rlock:
+            self.locker = RLock()
+        else:
+            self.locker = Lock()
 
     def lock(self):
         if not self.inited():
