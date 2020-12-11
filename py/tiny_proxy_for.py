@@ -199,6 +199,7 @@ def get_sock_addr(sock, islocal=False):
         sa = sock.getpeername()
     return sa
 
+
 def get_sock_info(sock):
     """获取sock对应的本端和对端地址信息"""
     p = sock.getpeername()
@@ -232,14 +233,35 @@ RSP_CONNOK = (
 )
 
 
+class tick_meter:
+    '毫秒间隔计时器'
+
+    def __init__(self, interval_ms, first_hit=True):
+        self.last_time = 0 if first_hit else int(time.time() * 1000)
+        self.interval = interval_ms
+
+    def hit(self):
+        '判断当前时间是否超过了最后触发时间一定的间隔'
+        cur_time = int(time.time() * 1000)
+        if cur_time - self.last_time > self.interval:
+            self.last_time = cur_time
+            return True
+        return False
+
+
 # 代理服务器回调处理器句柄
 class tiny_proxy_handler:
     def __init__(self):
+        self.meter_idle = tick_meter(5 * 1000, False)
         pass
 
     def on_idle(self):
-        '返回值告知proxy循环是否停止'
+        '通知内部目前处于空闲状态,返回值告知proxy循环是否停止'
         return False
+
+    def on_error(self, type, data):
+        '通知内部发生的错误'
+        pass
 
     def on_get_dst(self, session):
         """根据session中的信息,查找对应的目标代理地址"""
@@ -290,7 +312,8 @@ def tiny_proxy_svr(port, handler, maxconn=200):
         # 连接目标代理地址
         dst_sck = make_tcp_conn(session.proxy_info[0], session.proxy_info[1])
         if dst_sck is None:
-            session.warn('conn dst proxy timeout.')
+            session.warn('conn DST<%s:%d> proxy timeout.' % (session.proxy_info[0], session.proxy_info[1]))
+            handler.on_error('cto', (session.proxy_info[0], session.proxy_info[1]))  # 通知外部,连接超时
             return False
 
         # 初始化目标连接会话
@@ -360,6 +383,8 @@ def tiny_proxy_svr(port, handler, maxconn=200):
         return True
 
     # -----------------------------------------------------
+    # 先进行一次空闲事件处理,更新初始的目标代理列表
+    handler.on_idle()
     # 生成server对象
     svr = tiny_tcp_svr_sock()
     # 初始化并绑定端口
@@ -371,7 +396,7 @@ def tiny_proxy_svr(port, handler, maxconn=200):
     while loop:
         # 获取新连接
         clt_sock = svr.take()
-        if clt_sock is None:
+        if clt_sock is None or handler.meter_idle.hit():
             loop = 0 if handler.on_idle() else 1  # 如果外部事件要求停止,则循环结束
             continue
 
