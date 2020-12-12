@@ -10,7 +10,7 @@ class dfa_match_t():
         self.value_is_list = value_is_list  # 是否使用list记录匹配的多值列表
         self.keyword_lower = False
 
-    def dict_add(self, keyword, val='\x00',strip=True):
+    def dict_add(self, keyword, val='\x00', strip=True):
         if strip:
             keyword = keyword.strip()  # 关键词丢弃首尾空白
         if self.keyword_lower:
@@ -101,21 +101,14 @@ class dfa_match_t():
             message = message.lower()  # 待处理消息串进行小写转换,消除干扰
         if msg_len is None:
             msg_len = len(message)
-        offset = 0
-        rst = []
-        while offset < msg_len:
-            rs = self.do_check(message, msg_len, offset, max_match, isall)
-            if len(rs) == 0:  # 没有找到匹配结果
-                break
 
-            if isall:
-                rst.extend(rs)  # 记录当前段全部匹配的结果
-                offset = rs[-1][1]  # 从当前匹配的结束位置继续后面的尝试
-            else:
-                rc = rs[0]
-                rst.append(rc)  # 记录当前段匹配的结果
-                offset = rc[1]  # 从当前匹配的结束位置继续后面的尝试
-        return rst
+        rs = self.do_check(message, msg_len, 0, max_match, isall)
+        if len(rs) == 0:
+            return []
+        if isall:
+            return rs  # 记录全部匹配的结果
+        else:
+            return [rs[0]]  # 记录首个匹配的结果
 
     # 根据do_match匹配结果,补全未匹配的部分
     def do_complete(self, matchs, message, msg_len=None):
@@ -197,6 +190,7 @@ class dfa_match_t():
                     # 如果当前词链标记结束了,说明从start开始到现在的消息内容,是一个完整匹配
                     cb(start, start + step_ins, level[char][self.delimit])
                     rc += 1
+                    break
             # 跳过当前消息字符,开始下一轮匹配
             start += 1
         return rc
