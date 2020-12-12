@@ -105,10 +105,7 @@ class dfa_match_t():
         rs = self.do_check(message, msg_len, 0, max_match, isall)
         if len(rs) == 0:
             return []
-        if isall:
-            return rs  # 记录全部匹配的结果
-        else:
-            return [rs[0]]  # 记录首个匹配的结果
+        return self.do_complete(rs,message,msg_len)
 
     # 根据do_match匹配结果,补全未匹配的部分
     def do_complete(self, matchs, message, msg_len=None):
