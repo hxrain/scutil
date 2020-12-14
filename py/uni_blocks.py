@@ -112,8 +112,8 @@ _UNICODE_BLOCKS = [
     (0x2D80, 'ETHIOPIC_EXTENDED_A'),
     (0x2DE0, 'CYRILLIC_EXTENDED_A'),
     (0x2E00, 'SUPPLEMENTAL_PUNCTUATION'),
-    (0x2E80, 'CJK_RADICALS_SUPPLEMENT'),
-    (0x2F00, 'KANGXI_RADICALS'),
+    (0x2E80, 'CJK_RADICALS_SUPPLEMENT'),  # 部首扩展
+    (0x2F00, 'KANGXI_RADICALS'),  # 康熙部首
     (0x2FE0, None),
     (0x2FF0, 'IDEOGRAPHIC_DESCRIPTION_CHARACTERS'),
     (0x3000, 'CJK_SYMBOLS_AND_PUNCTUATION_A'),
@@ -125,14 +125,14 @@ _UNICODE_BLOCKS = [
     (0x3100, 'BOPOMOFO'),
     (0x3130, 'HANGUL_COMPATIBILITY_JAMO'),
     (0x3190, 'KANBUN'),
-    (0x31A0, 'BOPOMOFO_EXTENDED'),
-    (0x31C0, 'CJK_STROKES'),
+    (0x31A0, 'BOPOMOFO_EXTENDED'),  # 注音扩展
+    (0x31C0, 'CJK_STROKES'),  # 汉字笔画
     (0x31F0, 'KATAKANA_PHONETIC_EXTENSIONS'),
     (0x3200, 'ENCLOSED_CJK_LETTERS_AND_MONTHS'),
     (0x3300, 'CJK_COMPATIBILITY'),
-    (0x3400, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A'),
+    (0x3400, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A'),  # 汉字扩展A
     (0x4DC0, 'YIJING_HEXAGRAM_SYMBOLS'),
-    (0x4E00, 'CJK_UNIFIED_IDEOGRAPHS'),
+    (0x4E00, 'CJK_UNIFIED_IDEOGRAPHS'),  # 基本汉字与补充
     (0xA000, 'YI_SYLLABLES'),
     (0xA490, 'YI_RADICALS'),
     (0xA4D0, 'LISU'),
@@ -164,7 +164,7 @@ _UNICODE_BLOCKS = [
     (0xDB80, 'HIGH_PRIVATE_USE_SURROGATES'),
     (0xDC00, 'LOW_SURROGATES'),
     (0xE000, 'PRIVATE_USE_AREA'),
-    (0xF900, 'CJK_COMPATIBILITY_IDEOGRAPHS'),
+    (0xF900, 'CJK_COMPATIBILITY_IDEOGRAPHS'),  # 兼容汉字
     (0xFB00, 'ALPHABETIC_PRESENTATION_FORMS'),
     (0xFB50, 'ARABIC_PRESENTATION_FORMS_A'),
     (0xFE00, 'VARIATION_SELECTORS'),
@@ -250,12 +250,12 @@ _UNICODE_BLOCKS = [
     (0x1F680, 'TRANSPORT_AND_MAP_SYMBOLS'),
     (0x1F700, 'ALCHEMICAL_SYMBOLS'),
     (0x1F780, None),
-    (0x20000, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B'),
+    (0x20000, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B'),  # 汉字扩展B
     (0x2A6E0, None),
-    (0x2A700, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C'),
-    (0x2B740, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D'),
+    (0x2A700, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C'),  # 汉字扩展C
+    (0x2B740, 'CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D'),  # 汉字扩展D
     (0x2B820, None),
-    (0x2F800, 'CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT'),
+    (0x2F800, 'CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT'),  # 兼容扩展
     (0x2FA20, None),
     (0xE0000, 'TAGS'),
     (0xE0080, None),
@@ -281,6 +281,10 @@ _SBC_CASE_SIGN_LOW = ord(u'！')
 _SBC_CASE_SIGN_HIGH = ord(u'～')
 _SBC_CASE_LOWER_DIFF = _SBC_CASE_SIGN_LOW - ord('!')
 
+# 完整的汉字符号范围,[(左闭,右开)]
+_FULL_CHINISE_CHARS = [(0x2E80, 0x2FE0), (0x31A0, 0x31F0), (0x3400, 0x4DC0), (0x4E00, 0xA000), (0xF900, 0xFB00),
+                       (0x20000, 0x2A6E0), (0x2A700, 0x2B820), (0x2F800, 0x2FA20)]
+
 
 # 全角字符转换为ascii字符,可选是否保留回车换行
 def sbccase_to_ascii(ch, retain_CRFL=False):
@@ -301,7 +305,7 @@ def sbccase_to_ascii_str(u, retain_CRFL=False):
 
 # 强制进行中文符号到英文符号的映射
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')',
-                     '〔': '[', '〕': ']', '—': '-'}
+                     '〔': '[', '〕': ']', '—': '-', '∶': ':', '〇': '0'}
 
 
 def sbccase_to_ascii_str2(u, force=True, retain_CRFL=False):
@@ -343,6 +347,14 @@ def make_charset_list(enc='gbk', limit=0x10000, show=False):
             except:
                 pass
     return rst
+
+
+def is_chinese_char(char):
+    """判断是否为中文字符或汉字"""
+    for range in _FULL_CHINISE_CHARS:
+        if char >= range[0] and char < range[1]:
+            return True
+    return False
 
 
 def is_number_char(char):
