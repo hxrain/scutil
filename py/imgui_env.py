@@ -13,7 +13,8 @@ class imgui_mod:
             进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.
             此方法应该被子类重载,完成具体的功能逻辑
         '''
-        # 判断是否有指定的ctrl+Q按下,是否需要结束app
+        running = True
+        # 判断是否有ctrl+Q按下,结束app
         if im.is_ctrl_key('Q'):
             return False
 
@@ -25,23 +26,29 @@ class imgui_mod:
                 clicked_quit, selected_quit = imgui.menu_item("Quit", 'CTRL+Q')
                 # 如果Quit菜单项被点击,结束App
                 if clicked_quit:
-                    return False
+                    running = False
                 # 结束File菜单的处理
                 imgui.end_menu()
             # 结束主菜单条的处理
             imgui.end_main_menu_bar()
+
         # 显示内置demo窗口与调试窗口
         imgui.show_demo_window()
         imgui.show_metrics_window()
 
         # 显示测试窗口
         imgui.begin("测试Window")
+
+        imgui.begin_child("region", 150, 50, border=True)
+        imgui.text("inside region")
+        imgui.end_child()
+
         imgui.text("中hello英world文rain字test符sky串")
         imgui.text_colored("Eggs", 0.2, 1., 0.)
         imgui.text('pyimgui ver:' + imgui.__version__)
         imgui.text('imgui ver:' + imgui.get_version())
         imgui.end()
-        return True
+        return running
 
 
 class imgui_app:
@@ -53,8 +60,6 @@ class imgui_app:
 
     def on_init(self, im):
         'app初始化:im为imgui环境对象'
-        # 设置APP窗口居中
-        im.gl_env.set_pos()
 
         # 清理默认字体
         imgui.get_io().fonts.clear_fonts()
@@ -92,7 +97,7 @@ class imgui_app:
 class imgui_env:
     'imgui应用环境对象'
 
-    class glfw_env:
+    class glfw_win:
         'glfw环境管理器'
 
         def __init__(self):
@@ -128,6 +133,12 @@ class imgui_env:
             glfw.make_context_current(self.window)
             return self.window
 
+        def get_size(self):
+            """获取窗口尺寸"""
+            if self.window is None:
+                return None
+            return glfw.get_window_size(self.window)
+
         def set_pos(self, x=None, y=None):
             '设置窗口位置'
             if self.window is None:
@@ -148,7 +159,7 @@ class imgui_env:
                 self.window = None
             glfw.terminate()
 
-    def __init__(self, app, title='test', width=1024, height=768, fullscreen=False):
+    def __init__(self, app, title='test测试imgui', width=1024, height=768, fullscreen=False):
         '初始化imgui应用环境'
         from imgui.integrations.glfw import GlfwRenderer
         self.fonts = {}
@@ -158,14 +169,17 @@ class imgui_env:
         imgui.create_context()
         self.app = app
         # 生成glfw环境的对象
-        self.gl_env = self.glfw_env()
+        self.main_win = self.glfw_win()
         # 创建glfw绘图窗口
-        self.gl_env.open(title, width, height, fullscreen)
-        # 创建imgui绘图后端
-        self.imgui_bk = imgui.integrations.glfw.GlfwRenderer(self.gl_env.window)
+        self.main_win.open(title, width, height, fullscreen)
         # 定义绘图窗口背景色
         self.bg_color = (.2, .2, .2, 1)
+        # 清空背景
         self.clean()
+        # 调整窗口位置
+        self.main_win.set_pos()
+        # 创建imgui绘图后端
+        self.imgui_bk = imgui.integrations.glfw.GlfwRenderer(self.main_win.window)
         # 调用app对象的初始化事件
         self.app.on_init(self)
 
@@ -196,7 +210,7 @@ class imgui_env:
         gl.glClearColor(*self.bg_color)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
         # 切换gl窗口的显示缓存,将最新渲染结果真实呈现在gl窗口中
-        glfw.swap_buffers(self.gl_env.window)
+        glfw.swap_buffers(self.main_win.window)
 
     def step(self):
         '进行imgui一帧窗口内容的绘制'
@@ -218,15 +232,15 @@ class imgui_env:
         # 使用imgui后端进行实际窗口帧的渲染
         self.imgui_bk.render(imgui.get_draw_data())
         # 切换gl窗口的显示缓存,将最新渲染结果真实呈现在gl窗口中
-        glfw.swap_buffers(self.gl_env.window)
+        glfw.swap_buffers(self.main_win.window)
 
     def need_stop(self):
         '判断gl窗口是否需要关闭'
-        return glfw.window_should_close(self.gl_env.window)
+        return glfw.window_should_close(self.main_win.window)
 
     def set_stop(self):
         '设置,停止应用循环'
-        glfw.set_window_should_close(self.gl_env.window, 1)
+        glfw.set_window_should_close(self.main_win.window, 1)
 
     def is_ctrl_key(self, char):
         '检查是否有ctrl+字母键组合被按下'
@@ -243,18 +257,23 @@ class imgui_env:
     def shutdown(self):
         '关闭imgui环境,一切都结束了'
         self.imgui_bk.shutdown()
-        self.gl_env.close()
+        self.main_win.close()
 
 
-if __name__ == "__main__":
-    # 进行测试程序的运行
+# 简单运行模块的app与env功能封装函数
+def im_env_loop(mod_class, title='测试imgui', width=1024, height=768, fullscreen=False):
     # 定义app对象
     app = imgui_app()
     # 给app对象增加mod模块
-    app.append_mod(imgui_mod)
+    app.append_mod(mod_class)
     # 定义env对象并绑定app
-    im_env = imgui_env(app)
+    im_env = imgui_env(app, title, width, height, fullscreen)
     # 进行env的事件循环
     im_env.loop()
     # 程序结束进行收尾
     im_env.shutdown()
+
+
+if __name__ == "__main__":
+    # 进行测试程序的运行
+    im_env_loop(imgui_mod)
