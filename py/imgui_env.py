@@ -1,24 +1,45 @@
 import imgui
 import glfw
+import time
 import OpenGL.GL as gl
 
 import os
 
 
+def split(total, segs):
+    """根据segs分段权重,对总长度total进行分段划分,得到每段长度列表和定位点列表"""
+    t = sum(segs)
+    rst = []
+    pos = []
+    p = 0
+    for s in segs:
+        v = int(total * s / t)
+        rst.append(v)
+        pos.append(p)
+        p += v
+    return rst, pos
+
+
+def mouse_in(x, y, w, h):
+    """判断鼠标是否在指定的位置"""
+    px, py = imgui.get_mouse_pos()
+    if px < x or px > x + w:
+        return False
+    if py < y or py > y + h:
+        return False
+    return True
+
+
 class imgui_mod:
     'imgui应用app的功能逻辑模块'
 
-    def on_mod(self, im):
-        '''
-            进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.
-            此方法应该被子类重载,完成具体的功能逻辑
-        '''
-        running = True
-        # 判断是否有ctrl+Q按下,结束app
-        if im.is_ctrl_key('Q'):
-            return False
+    def on_load(self):
+        """当前模块被装载的事件"""
+        pass
 
-        # 绘制主菜单条
+    def _on_menu(self):
+        # 绘制并处理主菜单条
+        running = True
         if imgui.begin_main_menu_bar():
             # 在主菜单条上增加File菜单
             if imgui.begin_menu("File", True):
@@ -31,24 +52,70 @@ class imgui_mod:
                 imgui.end_menu()
             # 结束主菜单条的处理
             imgui.end_main_menu_bar()
-
-        # 显示内置demo窗口与调试窗口
-        imgui.show_demo_window()
-        imgui.show_metrics_window()
-
-        # 显示测试窗口
-        imgui.begin("测试Window")
-
-        imgui.begin_child("region", 150, 50, border=True)
-        imgui.text("inside region")
-        imgui.end_child()
-
-        imgui.text("中hello英world文rain字test符sky串")
-        imgui.text_colored("Eggs", 0.2, 1., 0.)
-        imgui.text('pyimgui ver:' + imgui.__version__)
-        imgui.text('imgui ver:' + imgui.get_version())
-        imgui.end()
         return running
+
+    def on_mod(self, im):
+        '''
+            进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.
+            此方法应该被子类重载,完成具体的功能逻辑
+        '''
+        # 判断是否有ctrl+Q按下,结束app
+        if im.is_ctrl_key('Q'):
+            return False
+        if not self._on_menu():
+            return False
+
+        style = imgui.get_style()
+        imgui.begin("Color window")
+        imgui.columns(4)
+        for color in range(0, imgui.COLOR_COUNT):
+            imgui.text("Color: {} {}".format(color, imgui.get_style_color_name(color)))
+            imgui.color_button("color#{}".format(color), *style.colors[color])
+            imgui.next_column()
+        imgui.end()
+
+        # 获取当前主窗口尺寸
+        win_width, win_height = im.main_win.get_size()
+        # 定义菜单条高度
+        bar_height = 24
+        # 计算横向比例分隔
+        widths, hpos = split(win_width, (5, 15, 30))
+        # 计算左侧竖向比例分隔
+        heights, vpos = split(win_height - bar_height, (10, 30))
+        # 左侧列表
+        self.do_show_text('样本列表', hpos[0], bar_height, widths[0], win_height - bar_height, 'list')
+        # 左上窗口
+        self.do_show_text('差异处', hpos[1], bar_height + vpos[0], widths[1], heights[0], 'tmp_text')
+        # 左下窗口
+        self.do_show_text('新结果', hpos[1], bar_height + vpos[1], widths[1], heights[1], '测试123456')
+        # 重新计算右侧竖向比例分隔
+        heights, vpos = split(win_height - bar_height, (30, 30))
+        # 右上窗口
+        self.do_show_text('原文本', hpos[2], bar_height + vpos[0], widths[2], heights[0], '测试1234')
+        # 右下窗口
+        self.do_show_text('预处理', hpos[2], bar_height + vpos[1], widths[2], heights[1], '测试1234')
+
+        return True
+
+    def do_show_text(self, title, x, y, w, h, text, use_hsbar=False):
+        """在指定的位置显示窗口并输出指定的文本"""
+        # 子窗口标记:不可移动不可改变
+        flags = imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_SAVED_SETTINGS
+        # 设置子窗口位置
+        imgui.set_next_window_position(x, y)
+        imgui.set_next_window_size(w, h)
+        # 显示子窗口
+        if imgui.begin(title, False, flags)[0]:
+            flags = 0
+            if use_hsbar:
+                flags |= imgui.WINDOW_HORIZONTAL_SCROLLING_BAR
+            if imgui.begin_child("region", imgui.get_window_width() - 16, h - 40, True, flags):
+                # 开启子区域,设定文本自动换行范围
+                if not use_hsbar:
+                    imgui.push_text_wrap_pos(imgui.get_window_width() - 4)
+                imgui.text(text)
+            imgui.end_child()
+        imgui.end()
 
 
 class imgui_app:
@@ -56,10 +123,14 @@ class imgui_app:
 
     def __init__(self):
         self.mods = []
+        self.im = None
         pass
 
     def on_init(self, im):
         'app初始化:im为imgui环境对象'
+        self.im = im
+        for m in self.mods:
+            m.__dict__['im'] = im  # 给每个模块绑定imgui环境
 
         # 清理默认字体
         imgui.get_io().fonts.clear_fonts()
@@ -74,23 +145,24 @@ class imgui_app:
         # imgui.get_io().fonts.add_font_default() #内置英文字体
         im.imgui_bk.refresh_font_texture()
 
-    def on_step(self, im):
+    def on_step(self):
         '应用绘制的主逻辑:im为imgui环境对象;返回值告知程序是否继续.'
-        return self.on_app(im)
+        return self.on_app()
 
-    def on_app(self, im):
+    def on_app(self):
         '进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.'
         for m in self.mods:
-            if not m.on_mod(im):
+            if not m.on_mod(self.im):
                 return False
         return True
 
     def append_mod(self, mod_class):
         '创建mod_class对象并放入内部模块链表'
-        self.mods.append(mod_class())
+        self.append_modobj(mod_class())
 
     def append_modobj(self, mod):
         '将mod对象放入内部模块链表'
+        mod.on_load()
         self.mods.append(mod)
 
 
@@ -132,6 +204,12 @@ class imgui_env:
             # 绑定窗口对象为当前绘图环境
             glfw.make_context_current(self.window)
             return self.window
+
+        def set_title(self, title):
+            if self.window is None:
+                return False
+            glfw.set_window_title(self.window, title)
+            return True
 
         def get_size(self):
             """获取窗口尺寸"""
@@ -223,7 +301,7 @@ class imgui_env:
         # 准备绘制imgui窗口虚拟帧
         imgui.new_frame()
         # 调用实际app逻辑,进行ui绘制
-        if not self.app.on_step(self):
+        if not self.app.on_step():
             self.set_stop()
         # 对imgui绘制的虚拟帧进行逻辑渲染
         imgui.render()
@@ -249,10 +327,12 @@ class imgui_env:
         char = char.upper()
         return imgui.get_io().keys_down[ord(char)]
 
-    def loop(self):
+    def loop(self, delay=0.03):
         '进行imgui的主体循环,让gui真正的跑起来'
         while not self.need_stop():
             self.step()
+            if delay:
+                time.sleep(delay)
 
     def shutdown(self):
         '关闭imgui环境,一切都结束了'
