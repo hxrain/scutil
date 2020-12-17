@@ -60,7 +60,7 @@ class imgui_mod:
             此方法应该被子类重载,完成具体的功能逻辑
         '''
         # 判断是否有ctrl+Q按下,结束app
-        if im.is_ctrl_key('Q'):
+        if im.is_key_down('ctrl+Q'):
             return False
         if not self._on_menu():
             return False
@@ -105,11 +105,12 @@ class imgui_mod:
         imgui.set_next_window_position(x, y)
         imgui.set_next_window_size(w, h)
         # 显示子窗口
-        if imgui.begin(title, False, flags)[0]:
+        if imgui.begin(title, False, flags)[1]:
             flags = 0
             if use_hsbar:
                 flags |= imgui.WINDOW_HORIZONTAL_SCROLLING_BAR
-            if imgui.begin_child("region", imgui.get_window_width() - 16, h - 40, True, flags):
+            if text:
+                imgui.begin_child("region", imgui.get_window_width() - 16, h - 40, True, flags)
                 # 开启子区域,设定文本自动换行范围
                 if not use_hsbar:
                     imgui.push_text_wrap_pos(imgui.get_window_width() - 4)
@@ -240,6 +241,7 @@ class imgui_env:
     def __init__(self, app, title='test测试imgui', width=1024, height=768, fullscreen=False):
         '初始化imgui应用环境'
         from imgui.integrations.glfw import GlfwRenderer
+        self.keys_stat = {}
         self.fonts = {}
         self.font_tag_zh = '中文b'
         self.font_tag_en = '英文s'
@@ -299,16 +301,19 @@ class imgui_env:
         glfw.poll_events()
         self.imgui_bk.process_inputs()
         # 准备绘制imgui窗口虚拟帧
-        imgui.new_frame()
-        # 调用实际app逻辑,进行ui绘制
-        if not self.app.on_step():
-            self.set_stop()
-        # 对imgui绘制的虚拟帧进行逻辑渲染
-        imgui.render()
-        # imgui窗口虚拟帧绘制结束
-        imgui.end_frame()
-        # 使用imgui后端进行实际窗口帧的渲染
-        self.imgui_bk.render(imgui.get_draw_data())
+        try:
+            imgui.new_frame()
+            # 调用实际app逻辑,进行ui绘制
+            if not self.app.on_step():
+                self.set_stop()
+            # imgui窗口虚拟帧绘制结束
+            imgui.end_frame()
+            # 对imgui绘制的虚拟帧进行逻辑渲染
+            imgui.render()
+            # 使用imgui后端进行实际窗口帧的渲染
+            self.imgui_bk.render(imgui.get_draw_data())
+        except Exception as e:
+            print(e)
         # 切换gl窗口的显示缓存,将最新渲染结果真实呈现在gl窗口中
         glfw.swap_buffers(self.main_win.window)
 
@@ -320,12 +325,39 @@ class imgui_env:
         '设置,停止应用循环'
         glfw.set_window_should_close(self.main_win.window, 1)
 
-    def is_ctrl_key(self, char):
-        '检查是否有ctrl+字母键组合被按下'
-        if not imgui.get_io().key_ctrl:
+    def is_key_down(self, keys):
+        '检查是否有ctrl+字母等组合键被按下'
+        if not keys: return False
+        chars = keys.replace(' ', '').split('+')
+        for key in chars:
+            if key.lower() == 'ctrl':
+                if not imgui.get_io().key_ctrl:
+                    return False
+                continue
+            if key.lower() == 'alt':
+                if not imgui.get_io().key_alt:
+                    return False
+                continue
+            if key.lower() == 'shift':
+                if not imgui.get_io().key_shift:
+                    return False
+                continue
+            if len(key) > 1:
+                continue
+            char = key.upper()
+            if not imgui.get_io().keys_down[ord(char)]:
+                return False
+        return True
+
+    def is_key_press(self, keys):
+        """检查指定的按键组合,是否被按下后又抬起"""
+        if self.is_key_down(keys):
+            self.keys_stat[keys] = 1
             return False
-        char = char.upper()
-        return imgui.get_io().keys_down[ord(char)]
+        else:
+            if keys in self.keys_stat:
+                del self.keys_stat[keys]
+                return True
 
     def loop(self, delay=0.03):
         '进行imgui的主体循环,让gui真正的跑起来'
