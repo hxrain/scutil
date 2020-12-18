@@ -163,6 +163,10 @@ class info_t:
         self.memo = None  # 对此信息的备注说明
 
 
+# 概览页为空的标识串
+__EMPTY_PAGE__ = '__EMPTY__'
+
+
 class source_base:
     """概细览采集源基类,提供概细览采集所需功能的核心接口与数据结构定义"""
 
@@ -182,6 +186,7 @@ class source_base:
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
         self.list_inc_cnt = 2  # 达到默认翻页数量上限的时候,如果仍有信息被采回,则进行自动增量翻页的数量
         self.list_max_cnt = 99999  # 概览翻页最大数量
+        self.list_empty_re = None  # 用于判断当前概览页面是否为空的re表达式
         self.list_is_json = False  # 告知概览页面是否为json串,进而决定默认格式化方式
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
         self.list_url_sleep = 0  # 概览翻页的延迟休眠时间
@@ -222,7 +227,10 @@ class source_base:
         return True
 
     def on_list_format(self, rsp):
-        """返回列表页面的格式化内容,默认对html进行新xhtml格式化;返回值:None告知停止循环;其他为xml格式内容"""
+        """返回列表页面的格式化内容,默认对html进行新xhtml格式化;返回值:None告知停止循环;__EMPTY_PAGE__为跳过当前概览页;其他为xml格式内容"""
+        if self.list_empty_re and len(query_re(rsp, self.list_empty_re)[0]):
+            return __EMPTY_PAGE__
+
         if self.list_is_json:
             return json2xml(rsp)[0]
         else:
@@ -531,7 +539,7 @@ class spider_base:
             # 提取概览页信息列表
             rst, msg = pair_extract(xstr, self.source.on_list_rules)
             self.source.last_list_items = len(rst)  # 记录最后一次概览提取元素数量
-            if xstr == '__EMPTY__':
+            if xstr == __EMPTY_PAGE__:
                 break
 
             if msg != '' or self.source.last_list_items == 0:
@@ -587,7 +595,7 @@ class spider_base:
 
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
-                        if xstr != '__EMPTY__':
+                        if xstr != __EMPTY_PAGE__:
                             self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
