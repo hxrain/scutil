@@ -358,9 +358,15 @@ def is_chinese_char(char):
 
 
 def is_number_char(char):
-    """判断是否为数字字符"""
+    """判断字符是否为十进制数字字符"""
     return char >= '0' and char <= '9'
 
+def is_number_str(chars):
+    """判断字符串是否为十进制数字字符"""
+    for char in chars:
+        if not is_number_char(char):
+            return False
+    return True
 
 def is_english_lc(char):
     """判断是否为英文小写字符"""

@@ -1,4 +1,5 @@
 import hashlib
+from numba import jit
 
 # skeeto三绕哈希函数配置参数(36个)
 _skeeto_3f = [
@@ -93,6 +94,7 @@ def rx_hash_gold_f(x, n):
 
 
 # 通过配置参数产生一系列哈希函数族
+@jit
 def rx_hash_skeeto3(x, f=_skeeto_3f[0]):
     x ^= x >> f[0]
     x *= f[1]
@@ -171,6 +173,7 @@ class simhash():
         return (base - dst) / base
 
 
+@jit
 def simhash_equ(hash1, hash2, limit=3):
     """判断两个simhash的结果是否相同"""
     x = (hash1 ^ hash2)
@@ -183,6 +186,7 @@ def simhash_equ(hash1, hash2, limit=3):
     return tot <= limit
 
 
+@jit
 def simhash_distance(hash1, hash2):
     """计算hamming距离,两个simhash值的差异度"""
     x = (hash1 ^ hash2)
@@ -193,6 +197,7 @@ def simhash_distance(hash1, hash2):
     return tot
 
 
+@jit
 def uint16_split(hash, bits=64):
     """将给定的整数进行16比特拆分,得到多个分量的短整数列表"""
     lc = bits // 16
