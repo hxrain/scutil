@@ -420,6 +420,8 @@ class spider_base:
         # 给出对info.url的处理机会,并用来判断是否需要抓取细览页
         req_param = _make_req_param(self.source)
         take_page_url = self.call_src_method('on_page_url', info, list_url, req_param)
+        if take_page_url == __EMPTY_PAGE__:
+            return None  # 要求放弃当前页面信息
 
         if info.source_id is None:  # 在on_page_url调用之后,给出信息废弃的机会,是另一种on_info_filter过滤处理
             self.source.log_debug("page_url <%s> is list DISCARD" % info.url)
