@@ -963,14 +963,28 @@ def get_slice(lst, seg, segs):
     e = seg * slen if seg != segs else tol  # 最后一段涵盖尾部
     return lst[(seg - 1) * slen: e]
 
+def union_dict(dst,src):
+    """合并src词典的内容到dst,跳过src的空值"""
+    for k in src:
+        v = src[k]
+        if k not in dst:
+            dst[k]=v
+        else:
+            if v=='' or v is None:
+                continue
+            dst[k] = v
 
 # -----------------------------------------------------------------------------
 # 对html/table信息列进行提取的功能封装
 class table_xpath:
     def __init__(self, page, rule_key, rule_val, logger=None):
         '''构造函数传入含有table的page内容串,以及table中的key列与val列的xpath表达式'''
-        self.dct = None
         self.logger = logger
+        self.parse(page, rule_key, rule_val)
+
+    def parse(self, page, rule_key, rule_val):
+        """使用规则提取page中的对应内容"""
+        self.dct = None
         self.page = page
 
         rst, msg = pair_extract(page, [rule_key, rule_val])
@@ -993,6 +1007,19 @@ class table_xpath:
                 self.logger.warn('page table xpath dict error <%s>:\n%s', item, self.page)
             return None
         return extract_xml_text(v)
+
+    def cloneTo(self, dct, filter=None):
+        """将当前字典克隆合并到目标字典中,同时可进行键值过滤处理"""
+        if self.dct is None:
+            return
+
+        for k in self.dct:
+            if filter:
+                k1, v1 = filter(k, self.dct[k])
+            else:
+                k1 = k
+                v1 = self.dct[k]
+            dct[k1] = v1
 
 
 # -----------------------------------------------------------------------------
