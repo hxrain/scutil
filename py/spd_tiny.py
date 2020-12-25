@@ -308,9 +308,9 @@ class source_base:
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only)
 
-    def chrome_post(self, url, chrome, data, tab, cond_re, body_only=False):
+    def chrome_post(self, url, chrome, data, tab, cond_re, body_only=False, contentType="application/x-www-form-urlencoded"):
         """使用chrome控制器,在指定的tab上发起ajax/post请求url页面,完成条件是cond_re"""
-        r = chrome.post(tab, url, data)  # 控制浏览器访问入口url
+        r = chrome.post(tab, url, data, contentType)  # 控制浏览器访问入口url
         if r[1]:
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 999

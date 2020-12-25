@@ -18,10 +18,6 @@ class PyChromeException(Exception):
     pass
 
 
-class TabConnectionException(PyChromeException):
-    pass
-
-
 class CallMethodException(PyChromeException):
     pass
 
@@ -35,13 +31,13 @@ logger = logging.getLogger(__name__)
 
 # 协议方法伪装
 class GenericAttr(object):
-    def __init__(self, name, tab):
-        """记录方法所属的功能域名字与关联的tab对象"""
-        self.__dict__['name'] = name
+    def __init__(self, domain, tab):
+        """记录方法所属的功能域名称与关联的tab对象"""
+        self.__dict__['domain'] = domain
         self.__dict__['tab'] = tab
 
     def __getattr__(self, item):
-        method_name = "%s.%s" % (self.name, item)
+        method_name = "%s.%s" % (self.domain, item)
         event_listener = self.tab.get_listener(method_name)
 
         if event_listener:
@@ -49,8 +45,8 @@ class GenericAttr(object):
 
         return functools.partial(self.tab.call_method, method_name)
 
-    def __setattr__(self, key, value):
-        self.tab.set_listener("%s.%s" % (self.name, key), value)
+    def __setattr__(self, item, value):
+        self.tab.set_listener("%s.%s" % (self.domain, item), value)
 
 
 class cycle_t:
@@ -58,13 +54,13 @@ class cycle_t:
 
     def __init__(self, interval_ms):
         self.last_time = 0
-        self.interval_ms = interval_ms
+        self.interval = interval_ms / 1000
         self.hit()
 
     def hit(self):
         '检查周期事件是否发生'
-        now = int(time.time() * 1000)
-        if now - self.last_time > self.interval_ms:
+        now = time.time()
+        if now - self.last_time > self.interval:
             self.last_time = now
             return True
         return False
@@ -72,32 +68,32 @@ class cycle_t:
 
 # chrome浏览器Tab页操控功能
 class Tab(object):
-    status_initial = 'initial'
-    status_started = 'started'
-    status_stopped = 'stopped'
-
     def __init__(self, **kwargs):
         """根据chrome的tab对象信息创建tab操纵类,需要browser对象配合获取"""
         self.id = kwargs.get("id")  # tab的唯一id
         self.type = kwargs.get("type")
-        self.debug = os.getenv("DEBUG", False)
-
+        self.last_act = None
         self._websocket_url = kwargs.get("webSocketDebuggerUrl")  # 操纵tab的websocket地址
-        self._kwargs = kwargs
-        self.cycle = cycle_t(1000 * 60 * 5)
-
         self._cur_id = 1000  # 交互消息的初始流水序号
 
-        self._ws = None  # websocket功能对象
+        # 根据环境变量的设定进行功能开关的处理
+        self.debug = os.getenv("SPD_CHROME_DEBUG", False)  # 是否显示收发内容
+        if os.getenv("SPD_CHROME_REOPEN", False):
+            self.cycle = cycle_t(1000 * 60 * 5)  # 是否自动重连websocket
+        else:
+            self.cycle = None
 
-        self._started = False  # 记录tab操纵对象是否启动了
-        self.status = self.status_initial
-
+        self._websocket = None  # websocket功能对象
         self.event_handlers = {}  # 记录tab事件处理器
         self.method_results = {}  # 记录请求对应的回应结果
 
         self._data_requestWillBeSent = {}  # 记录请求内容,以url为key,value为[请求内容对象]列表
         self.recv_req_event_rule = None  # 过滤请求信息使用的url匹配re规则
+        self._last_act(False)
+
+    def _last_act(self, using):
+        """记录该tab是否处于使用中,便于外部跟踪状态"""
+        self.last_act = (using, time.time())
 
     def _call(self, message, timeout=5):
         """发送tab操纵请求对象.
@@ -114,8 +110,7 @@ class Tab(object):
             print("SEND > %s" % msg_json)
 
         try:
-            # just raise the exception to user
-            self._ws.send(msg_json)  # 发送请求
+            self._websocket.send(msg_json)  # 发送请求
             rst = self._recv_loop(True, timeout)  # 循环接收,要求必须尝试等待结果
             if rst[0]:
                 return self.method_results[msg_id]
@@ -128,16 +123,17 @@ class Tab(object):
     def _recv(self, timeout=0.01):
         """尝试进行一次接收处理.
            返回值:(None,None)通信错误;(0,0)超时;其他为(结果数,事件数)"""
+        if not self._websocket:
+            return (None, None)
+
         try:
-            self._ws.settimeout(timeout)
-            message_json = self._ws.recv()
+            self._websocket.settimeout(timeout)
+            message_json = self._websocket.recv()
             message = json.loads(message_json)  # 接收到json消息后就转换为对象
         except websocket.WebSocketTimeoutException:
             return (0, 0)  # 超时了,什么都没有收到
         except (websocket.WebSocketException, OSError):
-            if self._started:
-                logger.error("websocket exception", exc_info=True)
-                self._started = False
+            # logger.error("websocket exception", exc_info=True)
             return (None, None)  # websocket错误了
 
         if self.debug:  # pragma: no cover
@@ -168,9 +164,9 @@ class Tab(object):
         one_timeout = 0.01
         loop = int(timeout // one_timeout)
         for i in range(loop):
-            if not self._started:
-                break  # 如果要求停止,则结束循环
             rst = self._recv(one_timeout)  # 尝试进行一次接收处理
+            if rst[0] is None:
+                break
             if wait_result:
                 if rst[0]:  # 如果要求必须等待回应结果,则强制判断结果数
                     return rst
@@ -190,12 +186,13 @@ class Tab(object):
     def call_method(self, _method, *args, **kwargs):
         """调用协议方法,核心功能.具体请求交互细节可参考协议描述. https://chromedevtools.github.io/devtools-protocol/
            返回值:None超时;其他为回应结果"""
-        if not self._started:
-            raise RuntimeException("Cannot call method before it is started")
+        if not self._websocket:
+            return None
 
-        if args:  # 不允许使用普通参数传递,必须为key/value型参数
-            raise CallMethodException("the params should be key=value format")
+        if self.cycle and self.cycle.hit():
+            self.reopen()  # 尝试周期性进行ws连接的重连
 
+        # 不允许使用普通参数传递,必须为key/value型参数
         timeout = kwargs.pop("_timeout", None)  # 额外摘取超时控制参数
 
         result = self._call({"method": _method, "params": kwargs}, timeout=timeout)  # 发起调用请求
@@ -258,15 +255,10 @@ class Tab(object):
 
     def init(self, recv_req_event=None):
         """启动tab交互象,建立websocket连接"""
-        if self._started:
-            return False
+        if self._websocket:
+            return True
 
-        if not self._websocket_url:
-            raise RuntimeException("Already has another client connect to this tab")
-
-        self._started = True
-        self.status = self.status_started
-        self._ws = websocket.create_connection(self._websocket_url, enable_multithread=True)
+        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True)
         if recv_req_event:
             self.recv_req_event_rule = recv_req_event
             self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
@@ -274,10 +266,12 @@ class Tab(object):
         return True
 
     def reopen(self):
-        if self._ws:
-            self._ws.close()
-            self._ws = None
-        self._ws = websocket.create_connection(self._websocket_url, enable_multithread=True)
+        """与tab的websocket连接进行重连处理"""
+        if self._websocket:
+            self._websocket.close()
+            self._websocket = None
+
+        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True)
 
         if self.recv_req_event_rule:
             self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
@@ -285,14 +279,9 @@ class Tab(object):
 
     def close(self):
         """停止tab交互,关闭websocket连接"""
-        if not self._started:
-            return False
-
-        self.status = self.status_stopped
-        self._started = False
-        if self._ws:
-            self._ws.close()
-            self._ws = None
+        if self._websocket:
+            self._websocket.close()
+            self._websocket = None
         self._data_requestWillBeSent.clear()
         return True
 
@@ -315,8 +304,8 @@ class Browser(object):
             tab.init(self.tab_recv_req_event_rule)
         return tab
 
-    def list_tab(self, timeout=None, start=True):
-        """列出浏览器所有打开的tab页"""
+    def list_tab(self, timeout=None, backinit=True):
+        """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控"""
         rp = requests.get("%s/json" % self.dev_url, json=True, timeout=timeout)
         tabs_map = {}
         _tabs_list = []
@@ -327,12 +316,11 @@ class Browser(object):
 
             id = tab_json['id']
             _tabs_list.append({'id': id, 'title': tab_json['title'], 'url': tab_json['url']})
-            if id in self._tabs and self._tabs[id].status != Tab.status_stopped:
+            if id in self._tabs:
                 tabs_map[id] = self._tabs[id]
-            else:
+            elif backinit:
                 tabs_map[id] = Tab(**tab_json)
-                if start:
-                    tabs_map[id].init(self.tab_recv_req_event_rule)
+                tabs_map[id].init(self.tab_recv_req_event_rule)
 
         self._tabs = tabs_map
         return _tabs_list
@@ -353,8 +341,7 @@ class Browser(object):
         rp = requests.get("%s/json/close/%s" % (self.dev_url, tab_id), timeout=timeout)
 
         tab = self._tabs.pop(tab_id, None)
-        if tab and tab.status == Tab.status_started:  # pragma: no cover
-            tab.close()
+        tab.close()
 
         return rp.text
 
@@ -543,12 +530,12 @@ class spd_chrome:
         except Exception as e:
             return None, spd_base.es(e)
 
-    def list(self):
-        """列出现有打开的tab页,返回值:([{tab信息}列表],错误消息)
+    def list(self, backinit=True):
+        """列出现有打开的tab页,backinit可告知是否反向补全外部打开的tab进行操控;返回值:([{tab}],错误消息)
             按最后的活动顺序排列,元素0总是当前激活的tab页
         """
         try:
-            rst = self.browser.list_tab(self.proto_timeout)
+            rst = self.browser.list_tab(self.proto_timeout, backinit)
             return rst, ''
         except Exception as e:
             return '', spd_base.es(e)
@@ -594,8 +581,6 @@ class spd_chrome:
         """控制指定的tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
         try:
             t = self._tab(tab)
-            if t.cycle.hit():
-                t.reopen()  # 尝试周期性进行ws连接的重连
             rst = t.call_method('Page.navigate', url=url, _timeout=self.proto_timeout)
             return rst, ''
         except Exception as e:
@@ -683,11 +668,10 @@ class spd_chrome:
         t, msg = self.tab(tab)
         if msg != '':
             return None, msg
-        tab_id = t.id
 
         # 进行循环等待
         for i in range(loops):
-            html, msg = self.dhtml(tab_id, body_only)
+            html, msg = self.dhtml(t, body_only)
             if msg != '':
                 time.sleep(0.5)
                 continue
@@ -698,9 +682,10 @@ class spd_chrome:
                 return None, msg
             if len(r) == 0:
                 time.sleep(0.5)
+                msg = 'waiting'
             else:
                 break
-        return xhtml, ''
+        return xhtml, msg
 
     def wait_re(self, tab, regexp, max_sec=60, body_only=False):
         """在指定的tab页上,等待regexp表达式的结果出现,最大等待max_sec秒.返回值:(页面的html内容串,错误消息)"""
@@ -710,11 +695,10 @@ class spd_chrome:
         t, msg = self.tab(tab)
         if msg != '':
             return None, msg
-        tab_id = t.id
 
         # 进行循环等待
         for i in range(loops):
-            html, msg = self.dhtml(tab_id, body_only)
+            html, msg = self.dhtml(t, body_only)
             if msg != '':
                 time.sleep(0.5)
                 continue
@@ -724,9 +708,10 @@ class spd_chrome:
                 return None, msg
             if len(r) == 0:
                 time.sleep(0.5)
+                msg = 'waiting'
             else:
                 break
-        return html, ''
+        return html, msg
 
 
 class tiny_chrome:
