@@ -615,7 +615,7 @@ class spd_chrome:
             t = self._tab(tab)
             rst = t.call_method('Runtime.evaluate', expression=js, returnByValue=True, _timeout=self.proto_timeout)
             if rst is None:
-                return '', 'Runtime.evaluate result is empty.'
+                return '', ''
             ret = rst['result']
             if 'value' in ret:
                 return ret['value'], ''
@@ -689,7 +689,7 @@ class spd_chrome:
 
     def wait_re(self, tab, regexp, max_sec=60, body_only=False):
         """在指定的tab页上,等待regexp表达式的结果出现,最大等待max_sec秒.返回值:(页面的html内容串,错误消息)"""
-        loops = max_sec * 2  # 间隔0.5秒进行循环判定
+        loops = max_sec * 2  if max_sec>0 else 1 # 间隔0.5秒进行循环判定
         html = ''
         # 获取tab标识
         t, msg = self.tab(tab)

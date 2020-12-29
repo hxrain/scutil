@@ -2,6 +2,7 @@ import datetime
 import html as hp
 import http.cookiejar as cookiejar
 import json
+import hashlib
 import logging
 import logging.handlers
 import os
@@ -16,11 +17,41 @@ from lxml import etree
 from lxml import html
 from lxml.html.clean import Cleaner
 
-from hash_util import *
-
 # 调整requests模块的默认日志级别,避免无用调试信息的输出
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+
+# -----------------------------------------------------------------------------
+# 计算字符串的MD5值
+def md5(str):
+    return hashlib.md5(str.encode('utf-8')).hexdigest()
+
+
+def calc_key(dat, keyIdx=None, sep=','):
+    """对数据dat按指定的顺序keyIdx计算md5值.
+        dat为str类型,尝试进行sep分隔处理.
+        keyIdx为int类型,使用dat中的指定元素进行计算.
+        keyIdx为(a,b)2元组,使用dat[a,b+1]分片进行计算.
+        keyIdx为多元组或列表,使用元组或列表指定元素进行计算
+    """
+    if keyIdx is None:
+        if type(dat).__name__ == 'str':
+            return md5(dat)  # 将整行内容的md5作为唯一key
+        else:
+            return md5(''.join(dat))  # 将全部内容的md5作为唯一key
+    elif isinstance(keyIdx, int):
+        if type(dat).__name__ == 'str':
+            dat = dat.split(sep)  # 用逗号分隔后的指定字段的md5作为唯一key
+        return md5(dat[keyIdx])  # 用指定字段的md5作为唯一key
+    elif isinstance(keyIdx, tuple) and len(keyIdx) == 2:
+        if type(dat).__name__ == 'str':
+            dat = dat.split(sep)
+        return md5(''.join(dat[keyIdx[0]:keyIdx[1] + 1]))  # 用keyIdx元组的作为切片范围
+    elif (isinstance(keyIdx, tuple) and len(keyIdx) > 2) or isinstance(keyIdx, list):
+        if type(dat).__name__ == 'str':
+            dat = dat.split(sep)
+        return md5(''.join([dat[i] for i in keyIdx]))  # 用keyIdx元素的指定值
 
 
 # -----------------------------------------------------------------------------
@@ -963,16 +994,18 @@ def get_slice(lst, seg, segs):
     e = seg * slen if seg != segs else tol  # 最后一段涵盖尾部
     return lst[(seg - 1) * slen: e]
 
-def union_dict(dst,src):
+
+def union_dict(dst, src):
     """合并src词典的内容到dst,跳过src的空值"""
     for k in src:
         v = src[k]
         if k not in dst:
-            dst[k]=v
+            dst[k] = v
         else:
-            if v=='' or v is None:
+            if v == '' or v is None:
                 continue
             dst[k] = v
+
 
 # -----------------------------------------------------------------------------
 # 对html/table信息列进行提取的功能封装
@@ -1532,7 +1565,8 @@ class ppcef_client_t:
     # -----------------------------------------------------
     # 生成对目标选择器的赋值与回车请求
     def make_input_enter(self, req, value, selector, is_after=False):
-        js = 'var o=_$_("%s");o.val("%s");o.hit("keydown",0,13)' % (selector.replace('"', '\''), value.replace('"', '\''))  # 生成js的点击动作代码
+        js = 'var o=_$_("%s");o.val("%s");o.hit("keydown",0,13)' % (
+        selector.replace('"', '\''), value.replace('"', '\''))  # 生成js的点击动作代码
         return self.make_exec(req, js, is_after=is_after)
 
     # 对目标选择器对应的对象赋值并发起回车事件

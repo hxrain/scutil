@@ -105,13 +105,23 @@ def rx_hash_skeeto3(x, f=_skeeto_3f[0]):
     x ^= x >> f[6]
     return x
 
+@jit
+def rx_hash_skeeto30(x):
+    x ^= x >> 17
+    x *= 0xed5ad4bb
+    x ^= x >> 11
+    x *= 0xac4c1b51
+    x ^= x >> 15
+    x *= 0x31848bab
+    x ^= x >> 14
+    return x
 
 # 对x计算n个skeeto3哈希函数的结果
 def rx_hash_skeeto3_f(x, n):
     return [rx_hash_skeeto3(x, _skeeto_3f[i]) for i in range(n)]
 
 
-def string_hash(v, hashfunc=rx_hash_skeeto3, bitsmask=(1 << 64) - 1):
+def string_hash(v, hashfunc=rx_hash_skeeto30, bitsmask=(1 << 64) - 1):
     """基于数字hash函数的字符串hash函数"""
     if not v:
         return 0
@@ -124,7 +134,7 @@ def string_hash(v, hashfunc=rx_hash_skeeto3, bitsmask=(1 << 64) - 1):
 class simhash():
     """simhash相关功能封装"""
 
-    def __init__(self, hashbits=64, hashfunc=rx_hash_skeeto3, whtfunc=None):
+    def __init__(self, hashbits=64, hashfunc=rx_hash_skeeto30, whtfunc=None):
         self.hashbits = hashbits  # 最终结果bit位数
         self.bitsmask = (1 << self.hashbits) - 1  # 最终结果bit位数对应的二进制掩码
         self.hashfunc = hashfunc  # 整数哈希函数
@@ -245,7 +255,7 @@ class super_shingle:
         shingles = []
         loop = max(1, len(s) - self.k + 1)  # n-gram循环数量做最小限定
         for i in range(0, loop, self.s):
-            shingles.append(string_hash(s[i:i + self.k], self.hashfunc, self.bitsmask))  # 循环得到全部子片的哈希值
+            shingles.append(string_hash(s[i:i + self.k], rx_hash_skeeto30, self.bitsmask))  # 循环得到全部子片的哈希值
 
         rst = set()
         for j in range(self.m):  # 对m个二级哈希函数进行遍历
