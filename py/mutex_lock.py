@@ -46,7 +46,7 @@ class lock_t:
 # 给指定函数绑定锁保护的装饰器函数
 def guard(locker):  # 顶层装饰函数,用来接收用户参数,返回外层装饰函数
     def outside(fun):  # 外层装饰函数,用来接收真实的目标函数
-        @wraps(fun)
+        @wraps(fun) # 使用内置包装器保留fun的原属性(下面的fun已经是闭包中的一个变量了)
         def wrap(*args, **kwargs):  # 包装函数对真实函数进行锁保护的调用
             locker.lock()
             ret = fun(*args, **kwargs)
