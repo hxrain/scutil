@@ -480,11 +480,13 @@ function http_ajax(url,method="GET",data=null,contentType="application/x-www-for
 	var xmlhttp=new XMLHttpRequest();
 	xmlhttp.onreadystatechange=function()
 	{
-		if (xmlhttp.readyState==4)
+		if (xmlhttp.readyState==4){
 		    document.documentElement.innerHTML=xmlhttp.responseText;
+		}
 	}
 	xmlhttp.open(method,url);
 	xmlhttp.setRequestHeader("Content-Type",contentType)
+	
 	if (data)
 	    xmlhttp.send(data);
 	else
@@ -621,6 +623,8 @@ class spd_chrome:
                 return ret['value'], ''
             elif 'description' in ret:
                 return '', ret['description']
+            elif 'type' in ret and ret['type'] == 'undefined':
+                return '', ''
             else:
                 return '', ret
         except Exception as e:
@@ -654,7 +658,8 @@ class spd_chrome:
         """
         try:
             t = self._tab(tab)
-            t.call_method('Input.dispatchKeyEvent', type=eventType, windowsVirtualKeyCode=keyCode, nativeVirtualKeyCode=keyCode, _timeout=self.proto_timeout)
+            t.call_method('Input.dispatchKeyEvent', type=eventType, windowsVirtualKeyCode=keyCode, nativeVirtualKeyCode=keyCode,
+                          _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
             return False, spd_base.es(e)
@@ -689,7 +694,7 @@ class spd_chrome:
 
     def wait_re(self, tab, regexp, max_sec=60, body_only=False):
         """在指定的tab页上,等待regexp表达式的结果出现,最大等待max_sec秒.返回值:(页面的html内容串,错误消息)"""
-        loops = max_sec * 2  if max_sec>0 else 1 # 间隔0.5秒进行循环判定
+        loops = max_sec * 2 if max_sec > 0 else 1  # 间隔0.5秒进行循环判定
         html = ''
         # 获取tab标识
         t, msg = self.tab(tab)
