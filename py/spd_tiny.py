@@ -183,6 +183,7 @@ class source_base:
         self.http_timeout = 60  # http请求超时时间,秒
         self.chrome_timeout = 600  # chrome等待超时,秒
         self.list_url_idx = 0  # 当前概览页号
+        self.list_begin_idx = 0  # 初始概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
         self.list_inc_cnt = 2  # 达到默认翻页数量上限的时候,如果仍有信息被采回,则进行自动增量翻页的数量
         self.list_max_cnt = 99999  # 概览翻页最大数量
@@ -219,7 +220,7 @@ class source_base:
 
     def on_ready(self, req):
         """准备进行采集动作了,可以返回入口url获取最初得到cookie等内容,也可进行必要的初始化或设置req请求参数"""
-        self.list_url_idx = 0
+        self.list_url_idx = self.list_begin_idx
         return None
 
     def on_ready_info(self, rsp):
@@ -477,6 +478,8 @@ class spider_base:
             return info  # 更新模式,可以存盘
         else:
             if rid is None:
+                if take_page_url:
+                    self.source.log_info('page_url new <%s>' % (take_page_url))
                 return info  # 细览排重通过,可以存盘
             else:
                 self.source.log_debug("page_url <%s> is page REPEATED <%d>" % (info.url, rid))
