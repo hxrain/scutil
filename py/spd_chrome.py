@@ -104,7 +104,7 @@ class Tab(object):
         msg_id = message['id']  # 得到本次请求的消息id
         assert (msg_id not in self.method_results)
         msg_json = json.dumps(message)  # 生成本次请求的消息json串
-        self.method_results[msg_id] = None
+        self.method_results[msg_id] = None #提前登记待接收结果对应的消息id
 
         if self.debug:  # pragma: no cover
             print("SEND > %s" % msg_json)
@@ -153,10 +153,10 @@ class Tab(object):
             msg_id = message["id"]
             if msg_id in self.method_results:
                 self.method_results[msg_id] = message
-            return (1, 0)
-        else:  # pragma: no cover
-            warnings.warn("unknown message: %s" % message)
-            return (0, 0)
+                return (1, 0)
+
+        warnings.warn("unknown message: %s" % message)
+        return (0, 0)
 
     def _recv_loop(self, wait_result=False, timeout=1):
         """在指定的时间范围内进行接收处理.可告知是否必须等到结果或超时才结束;
@@ -510,6 +510,21 @@ print(c.dhtml(tid,True)[0])
 """
 
 
+def parse_cond(xpath):
+    """解析判断表达式,如果是以!!开头,则意味着是反向判断"""
+    if xpath.startswith('!!'):
+        return True, xpath[2:]
+    return False, xpath
+
+
+def check_cond(isnot, rst):
+    """判断条件的结果,根据是否反向逻辑决定结果是否完成.返回值:是否完成"""
+    if isnot:
+        return len(rst) == 0
+    else:
+        return len(rst) > 0
+
+
 # 定义常见爬虫功能类
 class spd_chrome:
     def __init__(self, proto_url="http://127.0.0.1:9222"):
@@ -669,6 +684,8 @@ class spd_chrome:
         loops = max_sec * 2  # 间隔0.5秒进行循环判定
         xhtml = ''
 
+        isnot, xpath = parse_cond(xpath)
+
         # 获取tab标识
         t, msg = self.tab(tab)
         if msg != '':
@@ -685,17 +702,18 @@ class spd_chrome:
             r, msg = spd_base.query_xpath_x(xhtml, xpath)
             if msg != '':
                 return None, msg
-            if len(r) == 0:
-                time.sleep(0.5)
-                msg = 'waiting'
-            else:
-                break
+            if check_cond(isnot, r):
+                break  # 如果条件满足,则停止循环
+            time.sleep(0.5)
+            msg = 'waiting'
         return xhtml, msg
 
     def wait_re(self, tab, regexp, max_sec=60, body_only=False):
         """在指定的tab页上,等待regexp表达式的结果出现,最大等待max_sec秒.返回值:(页面的html内容串,错误消息)"""
         loops = max_sec * 2 if max_sec > 0 else 1  # 间隔0.5秒进行循环判定
         html = ''
+        isnot, regexp = parse_cond(regexp)
+
         # 获取tab标识
         t, msg = self.tab(tab)
         if msg != '':
@@ -711,11 +729,10 @@ class spd_chrome:
             r, msg = spd_base.query_re(html, regexp)
             if msg != '':
                 return None, msg
-            if len(r) == 0:
-                time.sleep(0.5)
-                msg = 'waiting'
-            else:
-                break
+            if check_cond(isnot, r):
+                break  # 如果条件满足,则停止循环
+            time.sleep(0.5)
+            msg = 'waiting'
         return html, msg
 
 
