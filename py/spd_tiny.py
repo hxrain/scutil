@@ -182,6 +182,7 @@ class source_base:
         self.proxy_addr = None  # 代理服务器地址,格式为 http://192.168.20.108:808
         self.http_timeout = 60  # http请求超时时间,秒
         self.chrome_timeout = 600  # chrome等待超时,秒
+        self.item_combs = items_comb()  # 信息列表组合管理器，便于对多分类组合进行遍历抓取
         self.list_url_idx = 0  # 当前概览页号
         self.list_begin_idx = 0  # 初始概览页号
         self.list_url_cnt = 1  # 初始默认的概览翻页数量
@@ -260,26 +261,33 @@ class source_base:
         """生成概览列表url,self.list_url_idx从1开始;返回值:概览所需抓取的url,None则停止循环"""
         return None
 
-    def on_list_plan(self):
-        """对一个概览页完成遍历处理之后的事件.可告知当前采集计划的进度总量信息(对于组合遍历时可大致告知总体进度)"""
-        return None, None
-
     def check_list_end(self, req):
         """判断概览翻页循环是否应该结束.返回值:None则停止循环"""
-        return None
+        if self.item_combs.next():  # 调整到下一个组合数据
+            return None  # 如果组合循环点归零,说明全部排列组合都已循环一轮,可以真正结束了.
+        self.list_url_idx = self.list_begin_idx + self.check_list_adj  # 否则,翻页索引复位,准备继续抓取
+        return True
+
+    def on_list_plan(self):
+        """对一个概览页完成遍历处理之后的事件.可告知当前采集计划的进度总量信息(对于组合遍历时可大致告知总体进度)"""
+        return self.item_combs.plan()
 
     def on_list_url(self, req):
         """告知待抓取的概览URL地址,填充req请求参数.返回None停止采集"""
+        is_check_list_end = False
+        self.check_list_adj = 0  # 告知概览检查处于的位置,并对应的调整计数.
         if not self.can_listing():
             rc = self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
             if rc is None: return None
+            is_check_list_end = True
 
         url = self.make_list_urlz(req)  # 先尝试生成0序列的概览列表地址
         self.list_url_idx += 1  # 概览页索引增加
         if url is not None:
             return url
 
-        if not self.can_listing():
+        self.check_list_adj = 1  # 告知概览检查处于的位置,并对应的调整计数.
+        if not self.can_listing() and not is_check_list_end:
             rc = self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
             if rc is None: return None
 
@@ -407,7 +415,8 @@ class spider_base:
             take_stat = self.call_src_method('on_page_take', info, page_url, req_param)
 
             if not take_stat:
-                self.source.log_warn('page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
+                self.source.log_warn(
+                    'page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
                 continue
 
             # 对细览页进行后续处理
@@ -614,11 +623,13 @@ class spider_base:
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if xstr != __EMPTY_PAGE__:
-                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
+                            self.source.log_warn(
+                                'list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
                                 self.source.log_warn(
-                                    'list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
+                                    'list_url pair_extract empty <%s> :: %d >= %d limit!' % (
+                                    list_url, list_emptys, self.source.on_list_empty_limit))
                                 break
                         else:
                             list_emptys = 0
@@ -631,7 +642,7 @@ class spider_base:
                         self.source.log_info(
                             'news <%3d> list %s <%s> %s' % (infos, plan, list_url, reqbody))
                 else:
-                    self.source.log_warn('list_url pair_extract error <%s> :: %s \n%s' % (list_url, msg, self.http.get_BODY()))
+                    self.source.log_warn('list_url pair_extract error <%s> :: %s %s\n%s' % (list_url, msg, reqbody, self.http.get_BODY()))
 
             if xstr is None:
                 dbs.update_act(self, False)  # 进行中间状态更新
@@ -695,7 +706,8 @@ class db_base:
         end_time = int(time.time())
         dat = (spd.begin_time, end_time, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.source.id)
         ret, msg = self.dbq.exec(
-            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?", dat)
+            "update tbl_sources set last_begin_time=?,last_end_time=?,last_req_count=?,last_rsp_count=?,last_req_succ=?,last_infos_count=? where id=?",
+            dat)
         if not ret:
             _logger.error("update source act <%s> fail. DB error <%s>", str(dat), msg)
             return False
@@ -715,7 +727,8 @@ class db_base:
                 _logger.error('info ext dict2json error <%s>', es(e))
                 return None
 
-        dat = (info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr, info.keyword, d2j(info.ext), info.memo)
+        dat = (info.source_id, int(time.time()), info.title, info.url, info.content, info.pub_time, info.addr, info.keyword, d2j(info.ext),
+               info.memo)
         if updid is None:
             # 常规插入模式
             sql = "insert into tbl_infos(source_id,create_time,title,url,content,pub_time,addr,keyword,ext,memo) values(?,?,?,?,?,?,?,?,?,?)"
@@ -836,7 +849,8 @@ class collect_manager:
         self.infos += inc
 
     def _run_one(self, spd):
-        _logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt, spd.source.list_inc_cnt,
+        _logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt,
+                     spd.source.list_inc_cnt,
                      spd.source.list_max_cnt, spd.source.url)
         spd.run(self.dbs)
         self._inc_infos_(spd.infos)
@@ -884,7 +898,8 @@ class collect_manager:
         _logger.info('tiny spider collect manager is stop.')
 
 
-def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', threads=0, log_con_lvl=logging.INFO, log_file_lvl=logging.INFO):
+def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', threads=0, log_con_lvl=logging.INFO,
+                     log_file_lvl=logging.INFO):
     """创建采集系统管理器对象,告知日志路径和数据库路径.
         返回值:None失败.其他为采集系统管理器对象
     """

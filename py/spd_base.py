@@ -1616,8 +1616,11 @@ class items_comb():
 
     def total(self):
         """计算现有列表项排列组合总数"""
+        lists_size=len(self.lists)
+        if lists_size==0:
+            return 0
         ret = 1
-        for l in range(len(self.lists)):
+        for l in range(lists_size):
             ret *= len(self.lists[l])
         return ret
 
