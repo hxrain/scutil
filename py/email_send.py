@@ -49,13 +49,13 @@ class email_sender_t():
 
     def make_attach(self, fname, data_bytes):
         """添加数据附件"""
-        if isinstance(self.message, MIMEMultipart):
-            att = MIMEText(data_bytes, 'base64', 'utf-8')
-            att["Content-Type"] = 'application/octet-stream'
-            att["Content-Disposition"] = 'attachment; filename="%s"' % (fname)
-            self.message.attach(att)
-        else:
+        if not isinstance(self.message, MIMEMultipart):
             raise Exception('email attach is disabled.')
+
+        att = MIMEText(data_bytes, 'base64', 'utf-8')
+        att["Content-Type"] = 'application/octet-stream'
+        att.add_header('Content-Disposition', 'attachment', filename=('gbk', '', fname))
+        self.message.attach(att)
 
     def make_attach_file(self, fname, fpath='./'):
         """添加文件附件"""
