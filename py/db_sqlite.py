@@ -1,8 +1,7 @@
 import sqlite3 as s
+from hash_calc import *
 
-from hash_util import *
-
-
+#sqlite3数据库功能封装
 class s3db:
     def __init__(self, dbpath=None):
         self.conn = None
@@ -76,7 +75,7 @@ for row in rows:
     print(row[0],row[1])
 '''
 
-
+#sqlite3数据查询功能封装
 class s3query:
     def __init__(self, db):
         self.db = db
@@ -177,7 +176,7 @@ class s3query:
         self.conn = None
         self.db = None
 
-
+#sqlite3简易table功能封装
 class s3tbl(s3query):
     def __init__(self, db):
         super().__init__(db)

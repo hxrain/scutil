@@ -295,6 +295,15 @@ def save_to_file(fname, strdata, encode='utf-8', mode='w'):
         return False
 
 
+# 保存指定内容到文件,同时创建不存在的层级目录
+def save_to_file2(path, fname, strdata, encode='utf-8', mode='w'):
+    try:
+        os.makedirs(path.rstrip("\\").rstrip('/'))
+    except Exception as e:
+        pass
+    return save_to_file(path + fname, strdata, encode, mode)
+
+
 # 挑选出指定串中的unicode转义序列，并转换为标准串
 def uniseq2str(s):
     m = re.findall(r'(\\u[0-9a-fA-F]{4})', s)
@@ -1334,7 +1343,28 @@ class spd_base:
         return self.rst[key] if key in self.rst else defval
 
     # 抓取指定的url,通过req可以传递灵活的控制参数
-    def take(self, url, req=None):
+    def take(self, url, req=None, proxy_files=None):
+
+        def match_proxy(url):  # 匹配域名对应的代理服务器
+            if not proxy_files:
+                return None
+            if isinstance(proxy_files, str):
+                proxy_table = dict_load(proxy_files)
+            else:
+                proxy_table = proxy_files
+
+            for m in proxy_table:
+                if url.find(m) != -1:
+                    return proxy_table[m]
+            return None
+
+        if req is None or 'PROXY' not in req:
+            prx = match_proxy(url)  # 尝试使用配置文件进行代理服务器的修正
+            if prx:
+                if not req:
+                    req = {}
+                req['PROXY'] = prx
+
         self.rst = {}
         return http_req(url, self.rst, req, self.timeout, self.allow_redirects, self.session, self.cookieMgr)
 
@@ -1566,7 +1596,7 @@ class ppcef_client_t:
     # 生成对目标选择器的赋值与回车请求
     def make_input_enter(self, req, value, selector, is_after=False):
         js = 'var o=_$_("%s");o.val("%s");o.hit("keydown",0,13)' % (
-        selector.replace('"', '\''), value.replace('"', '\''))  # 生成js的点击动作代码
+            selector.replace('"', '\''), value.replace('"', '\''))  # 生成js的点击动作代码
         return self.make_exec(req, js, is_after=is_after)
 
     # 对目标选择器对应的对象赋值并发起回车事件
@@ -1616,8 +1646,8 @@ class items_comb():
 
     def total(self):
         """计算现有列表项排列组合总数"""
-        lists_size=len(self.lists)
-        if lists_size==0:
+        lists_size = len(self.lists)
+        if lists_size == 0:
             return 0
         ret = 1
         for l in range(lists_size):
