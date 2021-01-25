@@ -1,6 +1,6 @@
 import xlsxwriter
 
-from hash_util import *
+from hash_calc import *
 
 '''
 excel文件生成器,每次生成都会覆盖原有内容
