@@ -294,8 +294,10 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
-    def chrome_wait(self, chrome, tab, cond_re, body_only=False):
-        rsp, msg = chrome.wait_re(tab, cond_re, self.chrome_timeout, body_only)  # 等待页面装载完成
+    def chrome_wait(self, chrome, tab, cond_re, body_only=False, timeout=None):
+        if timeout is None:
+            timeout = self.chrome_timeout
+        rsp, msg = chrome.wait_re(tab, cond_re, timeout, body_only)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 998
@@ -307,8 +309,10 @@ class source_base:
             self.spider.http.rst['error'] = ''
             return True
 
-    def chrome_wait_xp(self, chrome, tab, cond_xp, body_only=False):
-        rsp, msg = chrome.wait_xp(tab, cond_xp, self.chrome_timeout, body_only)  # 等待页面装载完成
+    def chrome_wait_xp(self, chrome, tab, cond_xp, body_only=False, timeout=None):
+        if timeout is None:
+            timeout = self.chrome_timeout
+        rsp, msg = chrome.wait_xp(tab, cond_xp, timeout, body_only)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 998
@@ -363,7 +367,7 @@ class source_base:
         return True
 
     def on_page_url(self, info, list_url, req):
-        """可以对info内容进行修正,填充细览请求参数req.返回值告知实际抓取细览页的url地址."""
+        """可以对info内容进行修正,填充细览请求参数req.返回值告知实际抓取细览页的url地址.如果返回__EMPTY__则放弃当前信息."""
         return None
 
     def on_page_take(self, info, page_url, req):
@@ -613,12 +617,11 @@ class spider_base:
             xstr, rst, msg = self._do_list_take(list_url, req_param)
             if xstr:  # 抓取成功
                 self.rsps += 1
-                # 格式化概览页内容为xpath格式
+                reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                 if msg == '':
                     ci, cn = self.source.on_list_plan()
                     plan = '' if ci is None else 'plan<%d/%d>' % (ci, cn)
                     plan += '[%d/%d/%d]' % (self.source.list_url_idx, self.source.list_url_cnt, self.source.list_max_cnt)  # 阶段与进度
-                    reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
 
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
@@ -628,8 +631,7 @@ class spider_base:
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
                                 self.source.log_warn(
-                                    'list_url pair_extract empty <%s> :: %d >= %d limit!' % (
-                                    list_url, list_emptys, self.source.on_list_empty_limit))
+                                    'list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
                                 break
                         else:
                             list_emptys = 0

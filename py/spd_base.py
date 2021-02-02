@@ -1312,15 +1312,16 @@ class spd_base:
         return self.rst[key] if key in self.rst else defval
 
     # 抓取指定的url,通过req可以传递灵活的控制参数
-    def take(self, url, req=None, proxy_files=None):
+    def take(self, url, req=None, proxy_files='./proxy_host.json'):
 
         def match_proxy(url):  # 匹配域名对应的代理服务器
-            if not proxy_files:
-                return None
             if isinstance(proxy_files, str):
-                proxy_table = dict_load(proxy_files)
+                proxy_table = dict_load(proxy_files, 'utf-8')
             else:
                 proxy_table = proxy_files
+
+            if proxy_table is None:
+                return None
 
             for m in proxy_table:
                 if url.find(m) != -1:
