@@ -138,16 +138,6 @@ def set_info_updmode(v):
     info_upd_mode = v
 
 
-# 统一生成默认请求参数
-def _make_req_param(source):
-    req = {}
-    if source.proxy_addr:
-        req['PROXY'] = source.proxy_addr  # 先尝试绑定采集源特定代理服务器
-    elif proxy:
-        req['PROXY'] = proxy  # 再尝试绑定全局代理服务器
-    return req
-
-
 class info_t:
     """待入库的信息对象"""
 
@@ -172,6 +162,7 @@ class source_base:
 
     def __init__(self):
         """记录采集源动作信息"""
+        self.stat = {}  # 记录运行的状态码计数
         self.spider = None  # 运行时绑定的爬虫功能对象
         self.order_level = 0  # 运行优先级,高优先级的先执行,比如需要人工交互的
         self.interval = 1000 * 60 * 30  # 采集源任务运行间隔
@@ -213,6 +204,11 @@ class source_base:
 
     def log_debug(self, msg):
         _logger.debug('source <%s> :: %s' % (self.name, msg))
+
+    def rec_stat(self, code):
+        """记录采集源运行的状态码计数统计"""
+        v = self.stat.get(code, 0)
+        self.stat[code] = v + 1
 
     def can_listing(self):
         """判断是否可以翻页"""
@@ -315,7 +311,7 @@ class source_base:
         rsp, msg = chrome.wait_xp(tab, cond_xp, timeout, body_only)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 998
+            self.spider.http.rst['status_code'] = 997
             self.spider.http.rst['error'] = msg
             return False
         else:
@@ -339,7 +335,7 @@ class source_base:
         r = chrome.post(tab, url, data, contentType)  # 控制浏览器访问入口url
         if r[1]:
             self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 999
+            self.spider.http.rst['status_code'] = 996
             self.spider.http.rst['error'] = r[1]
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only)
@@ -349,7 +345,7 @@ class source_base:
         r = chrome.get(tab, url)  # 控制浏览器访问入口url
         if r[1]:
             self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 999
+            self.spider.http.rst['status_code'] = 995
             self.spider.http.rst['error'] = r[1]
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only)
@@ -408,8 +404,17 @@ class spider_base:
             self.source.log_error('call <%s> error <%s>' % (method, es(e)))  # 统一记录错误
             return None
 
+    # 统一生成默认请求参数
+    def _make_req_param(self, source):
+        req = {}
+        if source.proxy_addr:
+            req['PROXY'] = source.proxy_addr  # 先尝试绑定采集源特定代理服务器
+        elif proxy:
+            req['PROXY'] = proxy  # 再尝试绑定全局代理服务器
+        return req
+
     def _do_page_take(self, info, list_url, page_url, req_param):
-        """尝试对细览页进行循环重试抓取"""
+        """尝试对细览页进行循环重试抓取,返回值:(页面抓取状态,信息提取状态)"""
         take_stat = False
         info_stat = True
         for i in range(self.source.page_take_retry):
@@ -419,8 +424,8 @@ class spider_base:
             take_stat = self.call_src_method('on_page_take', info, page_url, req_param)
 
             if not take_stat:
-                self.source.log_warn(
-                    'page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
+                self.source.log_warn('page_url http take error <%s> :: <%d> %s' % (page_url, self.http.get_status_code(), self.http.get_error()))
+                self.source.rec_stat(self.http.get_status_code())
                 continue
 
             # 对细览页进行后续处理
@@ -445,7 +450,7 @@ class spider_base:
             return None
 
         # 给出对info.url的处理机会,并用来判断是否需要抓取细览页
-        req_param = _make_req_param(self.source)
+        req_param = self._make_req_param(self.source)
         take_page_url = self.call_src_method('on_page_url', info, list_url, req_param)
         if take_page_url == __EMPTY_PAGE__:
             return None  # 要求放弃当前页面信息
@@ -474,6 +479,7 @@ class spider_base:
                 return None
             self.rsps += 1
             self.source.log_debug('page_url http take <%s> :: %d' % (take_page_url, self.http.get_status_code()))
+            self.source.rec_stat(self.http.get_status_code())
             if page_info_ok:
                 self.succ += 1
 
@@ -550,15 +556,18 @@ class spider_base:
 
             if not self.call_src_method('on_list_take', list_url, req_param):
                 self.source.log_warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                self.source.rec_stat(self.http.get_status_code())
                 continue
 
             rsp_body = self.http.get_BODY()
             if self.http.get_status_code() == 200:
+                self.source.rec_stat(self.http.get_status_code())
                 self.source.log_debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if not rsp_body:
                     self.source.log_warn('list_url http take empty <%s> :: %d' % (list_url, self.http.get_status_code()))
             else:
                 self.source.log_warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                self.source.rec_stat(self.http.get_status_code())
                 if self.http.get_status_code() >= 400:
                     break
 
@@ -585,6 +594,7 @@ class spider_base:
         if not self.meter.hit():
             return False
 
+        self.source.stat.clear()
         self.reqs = 0
         self.rsps = 0
         self.succ = 0
@@ -594,12 +604,13 @@ class spider_base:
         self.begin_time = int(time.time())
 
         # 进行入口请求的处理
-        req_param = _make_req_param(self.source)
+        req_param = self._make_req_param(self.source)
         entry_url = self.call_src_method('on_ready', req_param)
         if entry_url is not None:
             self.reqs += 1
             if self.http.take(entry_url, req_param):
                 self.source.log_debug('on_ready entry_url take <%s>:: %d' % (entry_url, self.http.get_status_code()))
+                self.source.rec_stat(self.http.get_status_code())
                 self.rsps += 1
                 self.succ += 1
                 if not self.call_src_method('on_ready_info', self.http.get_BODY()):
@@ -626,12 +637,11 @@ class spider_base:
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if xstr != __EMPTY_PAGE__:
-                            self.source.log_warn(
-                                'list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
+                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), xstr))
+                            self.source.rec_stat(994)
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
-                                self.source.log_warn(
-                                    'list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
+                                self.source.log_warn('list_url pair_extract empty <%s> :: %d >= %d limit!' % (list_url, list_emptys, self.source.on_list_empty_limit))
                                 break
                         else:
                             list_emptys = 0
@@ -641,9 +651,9 @@ class spider_base:
                         list_emptys = 0
                         self.succ += 1
                         infos = self._do_page_loop(rst, list_url, dbs)  # 进行概览循环
-                        self.source.log_info(
-                            'news <%3d> list %s <%s> %s' % (infos, plan, list_url, reqbody))
+                        self.source.log_info('news <%3d> list %s <%s> %s' % (infos, plan, list_url, reqbody))
                 else:
+                    self.source.rec_stat(993)
                     self.source.log_warn('list_url pair_extract error <%s> :: %s %s\n%s' % (list_url, msg, reqbody, self.http.get_BODY()))
 
             if xstr is None:
@@ -886,6 +896,10 @@ class collect_manager:
                 idx += 1
 
         _logger.info("total sources <%d>. new infos <%d>.", total_spiders, self.infos)
+        for spd in self.spiders:
+            if len(spd.source.stat) == 1 and 200 in spd.source.stat:
+                continue
+            _logger.info("source <%s{%3d}> stat <%s>", spd.source.name, spd.source.id, spd.source.stat)
 
     def loop(self):
         """进行持续循环运行"""
