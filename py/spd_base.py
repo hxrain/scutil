@@ -950,10 +950,16 @@ def pair_extract(xml, xpaths, removeTags=None):
 
 
 # 将xpath规则结果对列表转换为字典
-def make_pairs_dict(lst):
+def make_pairs_dict(lst, trsxml=False):
     dct = {}
-    for d in lst:
-        dct[d[0]] = d[1]
+    if trsxml:
+        for d in lst:
+            k = extract_xml_text(d[0])
+            v = extract_xml_text(d[1])
+            dct[k] = v
+    else:
+        for d in lst:
+            dct[d[0]] = d[1]
     return dct
 
 
@@ -988,9 +994,10 @@ def union_dict(dst, src):
 # -----------------------------------------------------------------------------
 # 对html/table信息列进行提取的功能封装
 class table_xpath:
-    def __init__(self, page, rule_key, rule_val, logger=None):
+    def __init__(self, page, rule_key, rule_val, logger=None, trsxml=False):
         '''构造函数传入含有table的page内容串,以及table中的key列与val列的xpath表达式'''
         self.logger = logger
+        self.trsxml = trsxml  # 是否转换xml为txt
         self.parse(page, rule_key, rule_val)
 
     def parse(self, page, rule_key, rule_val):
@@ -1004,7 +1011,7 @@ class table_xpath:
                 self.logger.warn('page table xpath parse error <%s>:\n%s', msg, page)
             return
 
-        self.dct = make_pairs_dict(rst)
+        self.dct = make_pairs_dict(rst, self.trsxml)
 
     def __getitem__(self, item):
         '''使用['key']的方式访问对应的值'''
@@ -1264,6 +1271,15 @@ def make_head(req_dict, head_str):
         if line is '': continue
         kv = line.split(':', 1)
         req_dict['HEAD'][kv[0].strip()] = kv[1].strip()
+
+def make_post(req_dict,body=None,content_type='application/x-www-form-urlencoded'):
+    """构造请求参数字典,设定为post请求"""
+    req_dict['METHOD']='post'
+    if body:
+        if 'HEAD' not in req_dict:
+            req_dict['HEAD'] = {}
+        req_dict['HEAD']['Content-Type']=content_type
+        req_dict['BODY']=body
 
 
 # -----------------------------------------------------------------------------

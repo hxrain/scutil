@@ -230,9 +230,14 @@ class source_base:
             return __EMPTY_PAGE__
 
         if self.list_is_json:
-            return json2xml(rsp)[0]
+            ret = json2xml(rsp)[0]
         else:
-            return format_xhtml(rsp)
+            ret = format_xhtml(rsp)
+
+        if self.list_empty_re and len(query_re(ret, self.list_empty_re)[0]):
+            return __EMPTY_PAGE__
+
+        return ret
 
     def on_list_begin(self, infos):
         """对一个概览页开始进行遍历处理之前的事件.infos记录已经抓取的信息数量"""
@@ -325,7 +330,7 @@ class source_base:
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
             self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 999
+            self.spider.http.rst['status_code'] = 900
             self.spider.http.rst['error'] = 'chrome open fail.'
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only)
@@ -565,6 +570,7 @@ class spider_base:
                 self.source.log_debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if not rsp_body:
                     self.source.log_warn('list_url http take empty <%s> :: %d' % (list_url, self.http.get_status_code()))
+                    self.source.rec_stat(201)
             else:
                 self.source.log_warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 self.source.rec_stat(self.http.get_status_code())
@@ -827,13 +833,17 @@ class collect_manager:
 
     def register(self, source_t, spider_t=spider_base):
         """注册采集源与对应的爬虫类,准备后续的遍历调用"""
+        mname = None
         if type(source_t).__name__ == 'module':  # 传递模块对象,引用默认类
+            mname = source_t.__name__
             source_t = source_t.source_t
         elif type(source_t).__name__ == 'str':  # 传递模块名字,动态装载
             m = importlib.import_module(source_t)
+            mname = m.__name__
             source_t = m.source_t
 
         src = source_t()  # 默认传递采集源的类或被动态装载后得到了采集源的类,创建实例
+        src.module_name = mname
 
         # 检查字段有效性
         if len(src.on_list_rulenames) == 0:
@@ -899,7 +909,7 @@ class collect_manager:
         for spd in self.spiders:
             if len(spd.source.stat) == 1 and 200 in spd.source.stat:
                 continue
-            _logger.info("source <%s{%3d}> stat <%s>", spd.source.name, spd.source.id, spd.source.stat)
+            _logger.info("source <%s> <%s{%3d}> stat <%s>", spd.source.module_name, spd.source.name, spd.source.id, spd.source.stat)
 
     def loop(self):
         """进行持续循环运行"""
