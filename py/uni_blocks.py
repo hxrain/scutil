@@ -431,8 +431,8 @@ def rreplace(self, old, new, max=None):
     return new.join(tmp)
 
 
-def eat_rep_substr(txt, sublen_zh=3, sublen_en=8):
-    """从txt中消除重复的子串内容"""
+def eat_rep_substr(txt, sublen_zh=3, sublen_en=8, one_zh=True):
+    """从txt中消除重复的子串内容;one_zh告知对于汉字串,是否使用单字判断模式"""
 
     def find_max_repstr(tlen, txt, bp, sublen=3):
         """从txt的bp处开始向后查找最长的重复子串,返回值:-1未找到;其他为从bp开始的子串结束点"""
@@ -446,12 +446,15 @@ def eat_rep_substr(txt, sublen_zh=3, sublen_en=8):
 
     def chk_sub_zh(tlen, txt, bp):
         """判断从当前位置向后,是否应该使用汉字短串判断"""
-        ep = min(bp + sublen_zh, tlen)
-        while bp < ep:
-            if is_alpha_num(txt[bp]):
-                return False
-            bp += 1
-        return True
+        if one_zh:
+            return not is_alpha_num(txt[bp])
+        else:
+            ep = min(bp + sublen_zh, tlen)
+            while bp < ep:
+                if is_alpha_num(txt[bp]):
+                    return False
+                bp += 1
+            return True
 
     eats = []
     tlen = len(txt)
