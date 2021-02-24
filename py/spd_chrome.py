@@ -617,6 +617,11 @@ class spd_chrome:
 
         return ok, r, m
 
+    def dhtml_clear(self, tab):
+        """清空指定tab页当前的动态渲染后的html内容.返回值:错误消息,空为正常."""
+        rst, msg = self.exec(tab, "document.documentElement.innerHTML='';")
+        return msg
+
     def dhtml(self, tab, body_only=False):
         """获取指定tab页当前的动态渲染后的html内容.返回值(内容串,错误消息)"""
         rst, msg = self.exec(tab, 'document.documentElement.outerHTML')
