@@ -84,6 +84,10 @@ class append_line_t:
         else:
             self.fp.writelines([line, '\n'])
 
+    def flush(self):
+        if self.fp:
+            self.fp.flush()
+
     def close(self):
         if self.fp:
             self.fp.close()
