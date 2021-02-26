@@ -1,5 +1,6 @@
 import xlsxwriter
 from openpyxl import load_workbook
+from openpyxl import Workbook
 
 from hash_calc import *
 
@@ -126,12 +127,21 @@ class xlsx_writer:
         self.sheet = None
 
 
-class xlsx_reader:
-    """excel文件读取器,未做错误处理,使用时需做异常捕获"""
+class xlsx_editor:
+    """excel文件读取编辑器,未做错误处理,使用时需做异常捕获"""
 
-    def __init__(self, fname, data_only=True):
+    def __init__(self, fname=None, data_only=True):
         """构造并装载数据,告知是否取公式的数据结果"""
-        self.file = load_workbook(fname, data_only=data_only)
+        self.open(fname, data_only)
+
+    def open(self, fname=None, data_only=True):
+        """打开文件装载数据/或创建新文档,告知是否取公式的数据结果"""
+        if fname:
+            self.file = load_workbook(fname, data_only=data_only)
+            self.fname = fname
+        else:
+            self.file = Workbook()
+            self.fname = None
 
     def sheets(self):
         """获取当前excel中每个表格页的名称.返回值:[tab页名称列表]"""
@@ -154,8 +164,27 @@ class xlsx_reader:
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
         return sheet.max_row
 
+    def new_sheet(self, title, new_idx=None):
+        """创建新tab页,告知标题,指定新tab页的索引位置(默认为最后)"""
+        self.file.create_chartsheet(title, new_idx)
+
+    def line(self, row, val, sheet_idx=0):
+        """给指定tab页的指定行单元格写数据.row/col行列计数从0开始."""
+        for i, v in enumerate(val):
+            self.cell(row, i, v, sheet_idx)
+
+    def cell(self, row, col, val, sheet_idx=0):
+        """给指定tab页的指定行列单元格写数据.row/col行列计数从0开始."""
+        sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
+        sheet.cell(row=row + 1, column=col + 1).value = val
+
+    def append(self, val, sheet_idx=0):
+        """给指定tab页追加一行数据(只能从第二行开始追加.首行保留)"""
+        sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
+        sheet.append(val)
+
     def query(self, sheet_idx=0, row=None, col=None, looper=None):
-        """获取指定tab页中指定行列范围的数据.返回值:[(),(),...]列表,行列数据;[(None,)]代表tab页为空."""
+        """获取指定tab页中指定行列范围的数据.row/col行列计数从0开始.返回值:[(),(),...]列表,行列数据;[(None,)]代表tab页为空."""
 
         class loop:
             """定义内置的遍历处理器,用于累积输出结果."""
@@ -198,3 +227,23 @@ class xlsx_reader:
             looper(vals)
 
         return looper.result()
+
+    def save(self, fname=None):
+        """保存修改或另存为新文件"""
+        if fname is None:
+            fname = self.fname
+        self.file.save(fname)
+
+    def close(self):
+        """关闭编辑器"""
+        self.file.close()
+        self.file = None
+
+
+xr = xlsx_editor('t.xlsx')
+xr.line(0, ('a', 'b', 'c'))
+xr.append((1, 2, 3))
+xr.cell(1, 1, 'a')
+xr.append((2, 3, 4))
+xr.new_sheet('new')
+xr.save()
