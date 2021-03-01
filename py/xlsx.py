@@ -238,12 +238,3 @@ class xlsx_editor:
         """关闭编辑器"""
         self.file.close()
         self.file = None
-
-
-xr = xlsx_editor('t.xlsx')
-xr.line(0, ('a', 'b', 'c'))
-xr.append((1, 2, 3))
-xr.cell(1, 1, 'a')
-xr.append((2, 3, 4))
-xr.new_sheet('new')
-xr.save()
