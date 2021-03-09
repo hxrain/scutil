@@ -104,7 +104,7 @@ class Tab(object):
         msg_id = message['id']  # 得到本次请求的消息id
         assert (msg_id not in self.method_results)
         msg_json = json.dumps(message)  # 生成本次请求的消息json串
-        self.method_results[msg_id] = None #提前登记待接收结果对应的消息id
+        self.method_results[msg_id] = None  # 提前登记待接收结果对应的消息id
 
         if self.debug:  # pragma: no cover
             print("SEND > %s" % msg_json)
@@ -556,6 +556,31 @@ class spd_chrome:
             return rst, ''
         except Exception as e:
             return '', spd_base.es(e)
+
+    def query_cookies(self, tab, urls=None):
+        """查询指定url对应的cookie.如果urls列表没有指定,则获取当前tab页下的全部cookie信息.
+            urls可以进行域名路径限定,如'http://xysy.sanya.gov.cn/CreditHnExtranetWeb'
+        """
+        try:
+            t = self._tab(tab)
+            if isinstance(urls, str):
+                urls = [urls]
+            if isinstance(urls, list):
+                rst = t.call_method('Network.getCookies', urls=urls, _timeout=self.proto_timeout)
+            else:
+                rst = t.call_method('Network.getCookies', _timeout=self.proto_timeout)
+            # 丢弃结果中的不关注内容
+            ret = rst['cookies']
+            for r in ret:
+                del r['size']
+                del r['httpOnly']
+                del r['session']
+                del r['priority']
+                del r['sameParty']
+                del r['sourceScheme']
+            return ret, ''
+        except Exception as e:
+            return None, spd_base.es(e)
 
     def _tab(self, tab):
         """根据tab标识或序号获取tab对象.返回值:tab对象"""

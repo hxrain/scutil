@@ -178,12 +178,17 @@ class xlsx_editor:
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
         sheet.cell(row=row + 1, column=col + 1).value = val
 
+    def value(self, row, col, sheet_idx=0):
+        """获取指定行列单元格的值,row/col行列计数从0开始."""
+        sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
+        return sheet.cell(row=row + 1, column=col + 1).value
+
     def append(self, val, sheet_idx=0):
         """给指定tab页追加一行数据(只能从第二行开始追加.首行保留)"""
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
         sheet.append(val)
 
-    def query(self, sheet_idx=0, row=None, col=None, looper=None):
+    def query(self, row=None, col=None, sheet_idx=0, looper=None):
         """获取指定tab页中指定行列范围的数据.row/col行列计数从0开始.返回值:[(),(),...]列表,行列数据;[(None,)]代表tab页为空."""
 
         class loop:
