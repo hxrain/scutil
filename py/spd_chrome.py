@@ -561,6 +561,11 @@ class spd_chrome:
         """查询指定url对应的cookie.如果urls列表没有指定,则获取当前tab页下的全部cookie信息.
             urls可以进行域名路径限定,如'http://xysy.sanya.gov.cn/CreditHnExtranetWeb'
         """
+
+        def remove_key(r, key):
+            if key in r:
+                del r[key]
+
         try:
             t = self._tab(tab)
             if isinstance(urls, str):
@@ -572,12 +577,12 @@ class spd_chrome:
             # 丢弃结果中的不关注内容
             ret = rst['cookies']
             for r in ret:
-                del r['size']
-                del r['httpOnly']
-                del r['session']
-                del r['priority']
-                del r['sameParty']
-                del r['sourceScheme']
+                remove_key(r, 'size')
+                remove_key(r, 'httpOnly')
+                remove_key(r, 'session')
+                remove_key(r, 'priority')
+                remove_key(r, 'sameParty')
+                remove_key(r, 'sourceScheme')
             return ret, ''
         except Exception as e:
             return None, spd_base.es(e)
