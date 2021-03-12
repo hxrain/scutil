@@ -1314,7 +1314,7 @@ def save_cookie_storage(CM, filename):
 class spd_base:
     '''进行简单功能封装的cookie持久化长连接HTTP爬虫'''
 
-    def __init__(self, filename='./cookiee_storage.dat'):
+    def __init__(self, filename='./cookie_storage.dat'):
         # 初始记录cookie存盘文件名
         self.ckm_filename = filename
         # 装载可能已经存在的cookie值

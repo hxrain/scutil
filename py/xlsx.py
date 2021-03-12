@@ -147,13 +147,6 @@ class xlsx_editor:
         """获取当前excel中每个表格页的名称.返回值:[tab页名称列表]"""
         return self.file.sheetnames
 
-    def get_sheet(self, sheet_idx):
-        """获取指定tab页对象:"""
-        if isinstance(sheet_idx, int):
-            return self.file.worksheets[sheet_idx]  # 按索引得到指定tab页
-        else:
-            return self.file[sheet_idx]  # 按名称得到指定tab页
-
     def cols(self, sheet_idx=0):
         """获取指定tab页含有的数据列数"""
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
@@ -164,29 +157,44 @@ class xlsx_editor:
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
         return sheet.max_row
 
+    def get_sheet(self, sheet_idx):
+        """获取指定tab页对象:"""
+        if isinstance(sheet_idx, int):
+            return self.file.worksheets[sheet_idx]  # 按索引得到指定tab页
+        else:
+            return self.file[sheet_idx]  # 按名称得到指定tab页
+
     def new_sheet(self, title, new_idx=None):
         """创建新tab页,告知标题,指定新tab页的索引位置(默认为最后)"""
         self.file.create_chartsheet(title, new_idx)
 
-    def line(self, row, val, sheet_idx=0):
+    def set_line(self, row, vals, sheet_idx=0):
         """给指定tab页的指定行单元格写数据.row/col行列计数从0开始."""
-        for i, v in enumerate(val):
-            self.cell(row, i, v, sheet_idx)
+        sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
+        for col, val in enumerate(vals):
+            sheet.cell(row=row + 1, column=col + 1).value = val
 
-    def cell(self, row, col, val, sheet_idx=0):
+    def get_line(self, row, sheet_idx=0, cols=0):
+        """从指定tab页的指定行row获取指定列数量的数据.row行计数从0开始."""
+        if cols == 0:
+            cols = self.cols(sheet_idx)
+        sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
+        return [sheet.cell(row=row + 1, column=col + 1).value for col in range(cols)]
+
+    def set_cell(self, row, col, val, sheet_idx=0):
         """给指定tab页的指定行列单元格写数据.row/col行列计数从0开始."""
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
         sheet.cell(row=row + 1, column=col + 1).value = val
 
-    def value(self, row, col, sheet_idx=0):
+    def get_cell(self, row, col, sheet_idx=0):
         """获取指定行列单元格的值,row/col行列计数从0开始."""
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
         return sheet.cell(row=row + 1, column=col + 1).value
 
-    def append(self, val, sheet_idx=0):
+    def append(self, line, sheet_idx=0):
         """给指定tab页追加一行数据(只能从第二行开始追加.首行保留)"""
         sheet = self.get_sheet(sheet_idx)  # 按索引得到指定tab页
-        sheet.append(val)
+        sheet.append(line)
 
     def query(self, row=None, col=None, sheet_idx=0, looper=None):
         """获取指定tab页中指定行列范围的数据.row/col行列计数从0开始.返回值:[(),(),...]列表,行列数据;[(None,)]代表tab页为空."""
