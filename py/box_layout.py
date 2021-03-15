@@ -69,6 +69,11 @@ def box_split(rect, op, sp):
     return rect_1, rect_2
 
 
+# 计算得到矩形rect的x,y,w,h数据
+def rect_pos(rect):
+    return rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]
+
+
 class box:
     """布局使用的box对象,含有核心信息"""
 
@@ -169,8 +174,11 @@ class box:
             node = node[p]
         return node
 
-    def refresh(self, width, height):
+    def refresh(self, width, height, force=False):
         """对布局树进行刷新计算,所有子节点的box范围进行更新."""
+        if not force and self.rect and self.rect[2] == width and self.rect[3] == height:
+            return  # 不是强制刷新,并且新旧矩形范围相同,则直接返回.
+
         self.rect = [0, 0, width, height]
 
         def recalc(node):

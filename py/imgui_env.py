@@ -95,6 +95,7 @@ class imgui_mod:
         # 右下窗口
         self.do_show_text('预处理', hpos[2], bar_height + vpos[1], widths[2], heights[1], '测试1234')
 
+        #imgui.show_demo_window()
         return True
 
     def do_show_text(self, title, x, y, w, h, text, use_hsbar=False):
