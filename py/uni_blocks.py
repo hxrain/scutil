@@ -307,6 +307,14 @@ def sbccase_to_ascii_str(u, retain_CRFL=False):
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')',
                      '〔': '[', '〕': ']', '—': '-', '∶': ':', '〇': '0'}
 
+def char_replace(src,dct=_SBC_CHR_CONV_TBL):
+    """进行字符串特定符号转换"""
+    lst = []
+    for ch in src:
+        if ch in _SBC_CHR_CONV_TBL:
+            ch = _SBC_CHR_CONV_TBL[ch]
+        lst.append(ch)
+    return ''.join(lst)
 
 def sbccase_to_ascii_str2(u, force=True, retain_CRFL=False):
     """进行额外的常见中文符号转为英文符号"""
