@@ -12,7 +12,7 @@ import spd_base
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
-# chrome.exe --disk-cache-dir=.\tmp --user-data-dir=.\tmp --cache-path=.\tmp --remote-debugging-port=9222
+# chrome.exe --disk-cache-dir=.\tmp --user-data-dir=.\tmp --cache-path=.\tmp --remote-debugging-port=9222 --disable-web-security --disable-features=IsolateOrigins,site-per-process
 
 class PyChromeException(Exception):
     pass
@@ -453,6 +453,13 @@ var _$_ = function(el, parent) {
 			return null;
 		return this.el.contentWindow;
 	}
+	//获取iframe的整体内容.
+	api.frm_html=function(){
+	    cw=api.frm()
+	    if (cw!=null)
+	        return cw.document.documentElement.outerHTML;
+	    return null;
+	}
 
 	//根据输入的选择表达式的类型进行选取操作
 	switch(typeof el) {
@@ -652,14 +659,62 @@ class spd_chrome:
         rst, msg = self.exec(tab, "document.documentElement.innerHTML='';")
         return msg
 
-    def dhtml(self, tab, body_only=False):
-        """获取指定tab页当前的动态渲染后的html内容.返回值(内容串,错误消息)"""
-        rst, msg = self.exec(tab, 'document.documentElement.outerHTML')
+    def dhtml(self, tab, body_only=False, frmSel=None):
+        """获取指定tab页当前的动态渲染后的html内容(给定iframe选择器时,是获取iframe的内容).返回值(内容串,错误消息)"""
+        if frmSel is None:
+            rst, msg = self.exec(tab, 'document.documentElement.outerHTML')
+        else:
+            rst, msg = self.run(tab, """_$_('%s').frm_html()""" % (frmSel))
         if not body_only or msg:
             return rst, msg
         bpos = rst.find('><head></head><body>')
         bpos = bpos + 20 if bpos != -1 else 0
         return rst[bpos:-14], msg
+
+    def dom_document(self, tab):
+        """获取当前tab页的DOM根节点"""
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('DOM.getDocument', _timeout=self.proto_timeout)
+            if rst is None:
+                return '', ''
+            if 'root' in rst:
+                return rst['root'], ''
+            else:
+                return '', ret
+        except Exception as e:
+            return '', spd_base.es(e)
+
+    def dom_node(self, tab, sel, parentNodeId=1):
+        """使用css选择表达式,或xpath表达式,在父节点id之下,查询对应的节点id"""
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('DOM.querySelector', nodeId=parentNodeId, selector=sel, _timeout=self.proto_timeout)
+            if rst is None:
+                return '', ''
+            if 'nodeId' in rst:
+                return rst['nodeId'], ''
+            else:
+                return '', ret
+        except Exception as e:
+            return '', spd_base.es(e)
+
+    def dom_dhtml(self, tab, sel, parentNodeId=1):
+        """获取dom对象的html文本,但对于iframe无效"""
+        nid, err = self.dom_query_node(tab, sel, parentNodeId)
+        if err:
+            return '', err
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('DOM.getOuterHTML', nodeId=nid, _timeout=self.proto_timeout)
+            if rst is None:
+                return '', ''
+            if 'outerHTML' in rst:
+                return rst['outerHTML'], ''
+            else:
+                return '', ret
+        except Exception as e:
+            return '', spd_base.es(e)
 
     def exec(self, tab, js):
         """在指定的tab页中运行js代码.返回值(内容串,错误消息)"""
@@ -714,7 +769,7 @@ class spd_chrome:
         except Exception as e:
             return False, spd_base.es(e)
 
-    def wait_xp(self, tab, xpath, max_sec=60, body_only=False):
+    def wait_xp(self, tab, xpath, max_sec=60, body_only=False, frmSel=None):
         """在指定的tab页上,等待xpath表达式的结果出现,最大等待max_sec秒.返回值:(被xhtml格式化的内容串,错误消息)"""
         loops = max_sec * 2  # 间隔0.5秒进行循环判定
         xhtml = ''
@@ -728,7 +783,7 @@ class spd_chrome:
 
         # 进行循环等待
         for i in range(loops):
-            html, msg = self.dhtml(t, body_only)
+            html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
                 time.sleep(0.5)
                 continue
@@ -743,7 +798,7 @@ class spd_chrome:
             msg = 'waiting'
         return xhtml, msg
 
-    def wait_re(self, tab, regexp, max_sec=60, body_only=False):
+    def wait_re(self, tab, regexp, max_sec=60, body_only=False, frmSel=None):
         """在指定的tab页上,等待regexp表达式的结果出现,最大等待max_sec秒.返回值:(页面的html内容串,错误消息)"""
         loops = max_sec * 2 if max_sec > 0 else 1  # 间隔0.5秒进行循环判定
         html = ''
@@ -756,7 +811,7 @@ class spd_chrome:
 
         # 进行循环等待
         for i in range(loops):
-            html, msg = self.dhtml(t, body_only)
+            html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
                 time.sleep(0.5)
                 continue

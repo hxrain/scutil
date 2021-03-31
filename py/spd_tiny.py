@@ -295,10 +295,10 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
-    def chrome_wait(self, chrome, tab, cond_re, body_only=False, timeout=None):
+    def chrome_wait(self, chrome, tab, cond_re, body_only=False, timeout=None, frmSel=None):
         if timeout is None:
             timeout = self.chrome_timeout
-        rsp, msg = chrome.wait_re(tab, cond_re, timeout, body_only)  # 等待页面装载完成
+        rsp, msg = chrome.wait_re(tab, cond_re, timeout, body_only, frmSel)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 998
@@ -310,10 +310,10 @@ class source_base:
             self.spider.http.rst['error'] = ''
             return True
 
-    def chrome_wait_xp(self, chrome, tab, cond_xp, body_only=False, timeout=None):
+    def chrome_wait_xp(self, chrome, tab, cond_xp, body_only=False, timeout=None, frmSel=None):
         if timeout is None:
             timeout = self.chrome_timeout
-        rsp, msg = chrome.wait_xp(tab, cond_xp, timeout, body_only)  # 等待页面装载完成
+        rsp, msg = chrome.wait_xp(tab, cond_xp, timeout, body_only, frmSel)  # 等待页面装载完成
         if msg != '':
             self.spider.http.rst['BODY'] = ''
             self.spider.http.rst['status_code'] = 997
