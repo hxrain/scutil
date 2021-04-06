@@ -353,7 +353,7 @@ def url_equ(a, b):
 
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
-def make_logger(pspath, lvl=logging.DEBUG):
+def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
     # 调整日志输出的级别名称.
     logging._levelToName[logging.ERROR] = 'ERR!'
     logging._levelToName[logging.WARNING] = 'WRN!'
@@ -364,7 +364,10 @@ def make_logger(pspath, lvl=logging.DEBUG):
     ps_logger.setLevel(logging.DEBUG)
 
     # 生成文件处理器
-    filehandler = logging.handlers.WatchedFileHandler(pspath, encoding='utf-8')
+    if max_baks:
+        filehandler = logging.handlers.RotatingFileHandler(pspath, encoding='utf-8', maxBytes=1024 * 1024 * 4, backupCount=max_baks)
+    else:
+        filehandler = logging.handlers.WatchedFileHandler(pspath, encoding='utf-8')
     filehandler.setLevel(lvl)
     filehandler.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
 
@@ -640,7 +643,7 @@ def format_xml(html_soup, desc, chs='utf-8'):
 def fix_xml_node(xstr, dst='-'):
     if xstr is None: return None
     ret = xstr.strip()  # 字符串两端净空
-    ret = re.sub('<([^>/]*?)/>', '<\\1>%s</\\1>' % dst, ret)  # 修正自闭合节点
+    ret = re.sub('<([^>/\s]+)(\s*[^>/]*)/>', '<\\1\\2>%s</\\1>' % dst, ret)  # 修正自闭合节点
     ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
     ret = re.sub(r'[\u001f\u000b\u001e]', '', ret)  # 替换无效字符干扰
     ret = ret.replace('&#13;', '\n')  # 修正结果串
@@ -753,12 +756,13 @@ def es(e: Exception):
 
 
 # -----------------------------------------------------------------------------
-# 对cnt_str进行xpath查询,查询表达式为cc_xpath
+# 对xstr进行xpath查询,查询表达式为cc_xpath
 # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
 # 元素可以进行etree高级访问
-def query_xpath(cnt_str, cc_xpath):
+def query_xpath(xstr, cc_xpath, fixNode='-'):
     try:
-        xstr = fix_xml_node(cnt_str)
+        if fixNode is not None:
+            xstr = fix_xml_node(xstr, fixNode)
         if xstr.startswith('<?xml'):
             HTMLRoot = etree.XML(xstr)
         else:
@@ -800,7 +804,7 @@ def query_xpath_num(cnt_str, cc_xpath, defval=1):
 def query_xpath_str(cnt_str, cc_xpath, defval=None):
     rs, msg = query_xpath(cnt_str, cc_xpath)
     if len(rs) != 0:
-        return rs[0]
+        return rs[0].strip()
     return defval
 
 
@@ -1276,14 +1280,15 @@ def make_head(req_dict, head_str):
         kv = line.split(':', 1)
         req_dict['HEAD'][kv[0].strip()] = kv[1].strip()
 
-def make_post(req_dict,body=None,content_type='application/x-www-form-urlencoded'):
+
+def make_post(req_dict, body=None, content_type='application/x-www-form-urlencoded'):
     """构造请求参数字典,设定为post请求"""
-    req_dict['METHOD']='post'
+    req_dict['METHOD'] = 'post'
     if body:
         if 'HEAD' not in req_dict:
             req_dict['HEAD'] = {}
-        req_dict['HEAD']['Content-Type']=content_type
-        req_dict['BODY']=body
+        req_dict['HEAD']['Content-Type'] = content_type
+        req_dict['BODY'] = body
 
 
 # -----------------------------------------------------------------------------

@@ -771,7 +771,7 @@ class spd_chrome:
 
     def wait_xp(self, tab, xpath, max_sec=60, body_only=False, frmSel=None):
         """在指定的tab页上,等待xpath表达式的结果出现,最大等待max_sec秒.返回值:(被xhtml格式化的内容串,错误消息)"""
-        loops = max_sec * 2  # 间隔0.5秒进行循环判定
+        loops = max_sec * 2 if max_sec > 0 else 1  # 间隔0.5秒进行循环判定
         xhtml = ''
 
         isnot, xpath = parse_cond(xpath)
@@ -785,7 +785,7 @@ class spd_chrome:
         for i in range(loops):
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
-                time.sleep(0.5)
+                time.sleep(0.45)
                 continue
 
             xhtml = spd_base.format_xhtml(html)  # 执行xpath之前先进行xhtml格式化
@@ -794,7 +794,7 @@ class spd_chrome:
                 return None, msg
             if check_cond(isnot, r):
                 break  # 如果条件满足,则停止循环
-            time.sleep(0.5)
+            time.sleep(0.45)
             msg = 'waiting'
         return xhtml, msg
 
@@ -813,7 +813,7 @@ class spd_chrome:
         for i in range(loops):
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
-                time.sleep(0.5)
+                time.sleep(0.45)
                 continue
 
             r, msg = spd_base.query_re(html, regexp)
@@ -821,7 +821,7 @@ class spd_chrome:
                 return None, msg
             if check_cond(isnot, r):
                 break  # 如果条件满足,则停止循环
-            time.sleep(0.5)
+            time.sleep(0.45)
             msg = 'waiting'
         return html, msg
 
