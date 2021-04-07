@@ -46,7 +46,6 @@ _fibonacci_seqs = [3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2
                    14930352, 24157817, 39088169, 63245986]
 
 
-
 # 因子选斐波那契序数,给定不同的因子可造就一系列的哈希函数族
 def rx_hash_gold(x, factor=_fibonacci_seqs[18]):
     return x * factor
@@ -69,6 +68,7 @@ def rx_hash_skeeto3(x, f=_skeeto_3f[0]):
     x ^= x >> f[6]
     return x
 
+
 @jit
 def rx_hash_skeeto30(x):
     x ^= x >> 17
@@ -80,18 +80,19 @@ def rx_hash_skeeto30(x):
     x ^= x >> 14
     return x
 
+
 # 对x计算n个skeeto3哈希函数的结果
 def rx_hash_skeeto3_f(x, n):
     return [rx_hash_skeeto3(x, _skeeto_3f[i]) for i in range(n)]
 
 
 def string_hash(v, hashfunc=rx_hash_skeeto30, bitsmask=(1 << 64) - 1):
-    """基于数字hash函数的字符串hash函数"""
+    """基于数字hash函数的字符串DEK Hash函数"""
     if not v:
         return 0
-    x = 0
+    x = len(v) * 378551
     for c in v:
-        x = x + x ^ hashfunc(ord(c))
+        x = ((x << 5) ^ (x >> 27)) ^ hashfunc(ord(c))
     return x & bitsmask
 
 
@@ -182,7 +183,6 @@ def uint16_split(hash, bits=64):
         rst.append((hash & mask) >> sh)
         mask = mask >> 16
     return rst
-
 
 
 def jacard_sim(s1, s2, is_union=True):
