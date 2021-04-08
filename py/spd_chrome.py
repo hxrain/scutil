@@ -564,6 +564,15 @@ class spd_chrome:
         except Exception as e:
             return '', spd_base.es(e)
 
+    def clear_cookies(self, tab):
+        """删除浏览器全部的cookie值;返回值:(bool,msg),msg=''为正常,否则为错误信息"""
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('Network.clearBrowserCookies', _timeout=self.proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, spd_base.es(e)
+
     def query_cookies(self, tab, urls=None):
         """查询指定url对应的cookie.如果urls列表没有指定,则获取当前tab页下的全部cookie信息.
             urls可以进行域名路径限定,如'http://xysy.sanya.gov.cn/CreditHnExtranetWeb'
