@@ -573,8 +573,40 @@ class spd_chrome:
         except Exception as e:
             return False, spd_base.es(e)
 
+    def set_cookie(self, tab, name, val, domain, expires=None, path='/', secure=False):
+        """设置cookie,需要给出必要的参数;返回值:(bool,msg),msg=''为正常,否则为错误信息"""
+        try:
+            t = self._tab(tab)
+            if expires is None:
+                expires = int(time.time()) + 3600 * 24 * 365
+            rst = t.call_method('Network.setCookie', name=name, value=val, domain=domain, expires=expires, path=path, secure=secure, _timeout=self.proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, spd_base.es(e)
+
+    def remove_cookies(self, tab, url, names=None):
+        """删除匹配url与names的cookie值;返回值:(bool,msg),msg=''为正常,否则为错误信息"""
+        coks, msg = self.query_cookies(tab, url)  # 先根据url查询匹配的cookies
+        if msg:
+            return False, msg
+
+        if isinstance(names, str):  # 如果指定了具体的cookie名字串,则将其转换为名字集合
+            names = {names}
+        elif names is None:  # 如果没有指定具体的cookie名字,则记录全部cookie名字.
+            names = {c['name'] for c in coks}
+
+        try:
+            t = self._tab(tab)
+            for c in coks:  # 对全部cookie进行遍历
+                name = c['name']
+                if name in names:  # 如果名字匹配则进行删除.
+                    t.call_method('Network.deleteCookies', name=name, domain=c['domain'], path=c['path'], _timeout=self.proto_timeout)  # 删除时除了名字,还需要指定必要的限定信息
+            return True, ''
+        except Exception as e:
+            return False, spd_base.es(e)
+
     def query_cookies(self, tab, urls=None):
-        """查询指定url对应的cookie.如果urls列表没有指定,则获取当前tab页下的全部cookie信息.
+        """查询指定url对应的cookie.如果urls列表没有指定,则获取当前tab页下的全部cookie信息.返回值:([{cookie}],msg)
             urls可以进行域名路径限定,如'http://xysy.sanya.gov.cn/CreditHnExtranetWeb'
         """
 
