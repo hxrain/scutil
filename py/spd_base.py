@@ -767,9 +767,10 @@ def query_xpath(xstr, cc_xpath, fixNode='-'):
             HTMLRoot = etree.XML(xstr)
         else:
             HTMLRoot = etree.HTML(xstr)
+        if HTMLRoot is None:
+            return [], 'xml/html xpath parse fail.'
         r = HTMLRoot.xpath(cc_xpath)
         return r, ''
-
     except etree.XPathEvalError as e:
         return [], es(e)
     except Exception as e:
