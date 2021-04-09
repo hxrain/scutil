@@ -72,6 +72,8 @@ class Tab(object):
         """根据chrome的tab对象信息创建tab操纵类,需要browser对象配合获取"""
         self.id = kwargs.get("id")  # tab的唯一id
         self.type = kwargs.get("type")
+        self.last_url = kwargs.get("url")
+        self.last_title = kwargs.get("title")
         self.last_act = None
         self._websocket_url = kwargs.get("webSocketDebuggerUrl")  # 操纵tab的websocket地址
         self._cur_id = 1000  # 交互消息的初始流水序号
@@ -315,12 +317,17 @@ class Browser(object):
                 continue  # 只保留page页面tab,其他后台进程不记录
 
             id = tab_json['id']
-            _tabs_list.append({'id': id, 'title': tab_json['title'], 'url': tab_json['url']})
+            tinfo = {'id': id, 'title': tab_json['title'], 'url': tab_json['url']}
+            _tabs_list.append(tinfo)
             if id in self._tabs:
                 tabs_map[id] = self._tabs[id]
-            elif backinit:
+            else:
                 tabs_map[id] = Tab(**tab_json)
-                tabs_map[id].init(self.tab_recv_req_event_rule)
+                if backinit:
+                    tabs_map[id].init(self.tab_recv_req_event_rule)
+
+            tabs_map[id].last_url = tinfo['url']
+            tabs_map[id].last_title = tinfo['title']
 
         self._tabs = tabs_map
         return _tabs_list
