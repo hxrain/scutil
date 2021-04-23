@@ -7,7 +7,7 @@ import warnings
 
 import requests
 import websocket
-
+import base64
 import spd_base
 
 
@@ -137,6 +137,9 @@ class Tab(object):
         except (websocket.WebSocketException, OSError):
             # logger.error("websocket exception", exc_info=True)
             return (None, None)  # websocket错误了
+        except Exception as e:
+            logger.error("exception", exc_info=True)
+            return (None, None)  # 其他错误
 
         if self.debug:  # pragma: no cover
             print('< RECV %s' % message_json)
@@ -245,15 +248,42 @@ class Tab(object):
 
     def _on_requestWillBeSent(self, requestId, loaderId, documentURL, request, timestamp, wallTime, initiator, **param):
         """记录发送的请求信息"""
+        if not self.recv_req_event_rule:
+            return
+
         url = request['url']
-        if not self.recv_req_event_rule or not spd_base.query_re_str(url, self.recv_req_event_rule):
+        if not spd_base.query_re_str(url, self.recv_req_event_rule):
             return  # 根据re规则进行匹配,不匹配则直接退出
 
         if url not in self._data_requestWillBeSent:
-            self._data_requestWillBeSent[url] = []
+            self._data_requestWillBeSent[url] = []  # 创建url对应的发送请求信息列表
         if len(self._data_requestWillBeSent[url]) > 100:
-            self._data_requestWillBeSent[url].pop(0)
-        self._data_requestWillBeSent[url].append(request)
+            self._data_requestWillBeSent[url].pop(0)  # 如果信息列表过长则清空最初的旧数据
+        self._data_requestWillBeSent[url].append((request, requestId))  # 记录请求信息
+
+    def recv_loop(self, loops=50):
+        for i in range(loops):
+            rc, mc = self._recv_loop(timeout=0.2)
+            if rc is None:
+                break
+            if rc + mc == 0:
+                break
+
+    def get_requests(self, url=None):
+        """获取已经发送的请求信息;如果给定了明确的url,则返回该url对应的最新请求列表;否则返回全部记录的请求字典."""
+        self.recv_loop()
+        if url:
+            if url in self._data_requestWillBeSent:
+                return self._data_requestWillBeSent[url]
+            else:
+                return None
+        else:
+            return self._data_requestWillBeSent
+
+    def get_request_urls(self, url=None):
+        """获取记录过的请求信息的url列表"""
+        self.recv_loop()
+        return list(self._data_requestWillBeSent.keys())
 
     def init(self, recv_req_event=None):
         """启动tab交互象,建立websocket连接"""
@@ -294,19 +324,18 @@ class Browser(object):
     def __init__(self, url="http://127.0.0.1:9222"):
         self.dev_url = url
         self._tabs = {}  # 记录被管理的tab页
-        self.tab_recv_req_event_rule = None  # 新创建的tab,是否开启请求事件的接收
 
-    def new_tab(self, url=None, timeout=None, start=True):
+    def new_tab(self, url=None, timeout=None, start=True, recv_req_event=None):
         """打开新tab页,并浏览指定的网址"""
         url = url or ''
         rp = requests.get("%s/json/new?%s" % (self.dev_url, url), json=True, timeout=timeout)
         tab = Tab(**rp.json())
         self._tabs[tab.id] = tab
         if start:
-            tab.init(self.tab_recv_req_event_rule)
+            tab.init(recv_req_event)
         return tab
 
-    def list_tab(self, timeout=None, backinit=True):
+    def list_tab(self, timeout=None, backinit=True, recv_req_event=None):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控"""
         rp = requests.get("%s/json" % self.dev_url, json=True, timeout=timeout)
         tabs_map = {}
@@ -324,7 +353,7 @@ class Browser(object):
             else:
                 tabs_map[id] = Tab(**tab_json)
                 if backinit:
-                    tabs_map[id].init(self.tab_recv_req_event_rule)
+                    tabs_map[id].init(recv_req_event)
 
             tabs_map[id].last_url = tinfo['url']
             tabs_map[id].last_title = tinfo['title']
@@ -454,9 +483,9 @@ var _$_ = function(el, parent) {
 			el.dispatchEvent(myEvent);	//触发事件
 		},delayMs);
 	}
-	//查询获取iframe
+	//查询获取iframe节点
 	api.frm=function(){
-		if (this.el.nodeName!='IFRAME')
+		if (this.el==null || this.el.nodeName!='IFRAME')
 			return null;
 		return this.el.contentWindow;
 	}
@@ -465,7 +494,7 @@ var _$_ = function(el, parent) {
 	    cw=api.frm()
 	    if (cw!=null)
 	        return cw.document.documentElement.outerHTML;
-	    return null;
+	    return "";
 	}
 
 	//根据输入的选择表达式的类型进行选取操作
@@ -545,18 +574,18 @@ class spd_chrome:
         self.browser = Browser(proto_url)
         self.proto_timeout = 10
 
-    def open(self, url=''):
-        """打开tab页,并浏览指定的url.返回值:(tab页标识id,错误消息)"""
+    def open(self, url='', recv_req_event=None):
+        """打开tab页,并浏览指定的url;返回值:(tab页标识id,错误消息)"""
         try:
-            tab = self.browser.new_tab(url, self.proto_timeout)
+            tab = self.browser.new_tab(url, self.proto_timeout, recv_req_event=recv_req_event)
             return tab.id, ''
         except Exception as e:
             return '', spd_base.es(e)
 
-    def new(self, url=''):
-        """打开一个新的tab页.返回值:(tab页对象,错误消息)"""
+    def new(self, url='', recv_req_event=None):
+        """打开tab页,并浏览指定的url;返回值:(tab页对象,错误消息)"""
         try:
-            tab = self.browser.new_tab(url, self.proto_timeout)
+            tab = self.browser.new_tab(url, self.proto_timeout, recv_req_event=recv_req_event)
             return tab, ''
         except Exception as e:
             return None, spd_base.es(e)
@@ -571,8 +600,86 @@ class spd_chrome:
         except Exception as e:
             return '', spd_base.es(e)
 
+    def get_request_urls(self, tab):
+        """获取指定tab记录的请求信息对应的url列表;返回值:([urls],msg)"""
+        try:
+            t = self._tab(tab)
+            return t.get_request_urls(), ''
+        except Exception as e:
+            return None, spd_base.es(e)
+
+    def get_request(self, tab, url):
+        """获取指定url的请求内容
+            工作流程:1 打开tab页的时候,就需要告知url的匹配模式;2 等待页面装载完成,内部记录发送的请求信息; 3根据url查找发送的请求内容.
+            返回值: [(request,requestId)],msg
+                    msg为''则正常;request为请求内容;requestId为请求ID,可据此获取更多数据.
+        """
+        try:
+            t = self._tab(tab)
+            return t.get_requests(url), ''
+        except Exception as e:
+            return None, spd_base.es(e)
+
+    def wait_request(self, tab, url, timeout=60):
+        """尝试等待请求信息中出现指定的url"""
+        loop = timeout * 2
+        try:
+            t = self._tab(tab)
+            for i in range(loop):
+                reqs = t.get_requests()
+
+                if isinstance(url, str):
+                    if url in reqs:
+                        return True, ''
+                elif isinstance(url, int):
+                    if len(reqs) >= url:
+                        return True, ''
+                time.sleep(0.45)
+            return False, ''
+        except Exception as e:
+            return False, spd_base.es(e)
+
+    def clear_request(self, tab, url=None):
+        """清空记录的请求内容"""
+        try:
+            req_lst, msg = self.get_request(tab, url)
+            if msg:
+                return msg
+            if len(req_lst) == 0:
+                return ''
+            req_lst.clear()
+            return ''
+        except Exception as e:
+            return spd_base.es(e)
+
+    def get_response_body(self, tab, url):
+        """获取指定url的回应内容
+            工作流程:1 打开tab页的时候,就需要告知url的匹配模式;2 等待页面装载完成,内部记录发送的请求信息; 3根据url查找发送的请求id; 4 使用请求id获取对应的回应内容.
+            返回值: (body,msg)
+                    msg为''则正常;body为回应内容
+        """
+        req_lst, msg = self.get_request(tab, url)
+        if msg:
+            return None, msg
+        if req_lst is None or len(req_lst) == 0:
+            return None, ''
+
+        req, reqid = req_lst[-1]
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('Network.getResponseBody', requestId=reqid, _timeout=self.proto_timeout)
+            body = rst['body']
+            en = rst['base64Encoded']
+            if en:
+                body = base64.decodebytes(body.encode('latin-1'))
+            return body, ''
+        except Exception as e:
+            return None, spd_base.es(e)
+
     def clear_cookies(self, tab):
-        """删除浏览器全部的cookie值;返回值:(bool,msg),msg=''为正常,否则为错误信息"""
+        """删除浏览器全部的cookie值;
+            返回值: (bool,msg)
+                    msg=''为正常,否则为错误信息"""
         try:
             t = self._tab(tab)
             rst = t.call_method('Network.clearBrowserCookies', _timeout=self.proto_timeout)
@@ -581,7 +688,9 @@ class spd_chrome:
             return False, spd_base.es(e)
 
     def set_cookie(self, tab, name, val, domain, expires=None, path='/', secure=False):
-        """设置cookie,需要给出必要的参数;返回值:(bool,msg),msg=''为正常,否则为错误信息"""
+        """设置cookie,需要给出必要的参数;
+            返回值: (bool,msg)
+                    msg=''为正常,否则为错误信息"""
         try:
             t = self._tab(tab)
             if expires is None:
