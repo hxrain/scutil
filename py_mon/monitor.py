@@ -172,19 +172,32 @@ def find_pid_by_cmdline(cmdline):
 G_start_idx = 1
 
 
+def get_cwd(cli):
+    """从复杂命令行中获取主程序的所在目录;默认则为当前进程的cwd"""
+    pos = cli.find(' --')
+    if pos != -1:
+        cli = cli[:pos]
+
+    pos = cli.find(' -')
+    if pos != -1:
+        cli = cli[:pos]
+
+    cwd = os.path.dirname(cli)
+    if cwd == '':
+        cwd = os.getcwd()
+    return cwd
+
+
 # -----------------------------------------------------------
 # 启动指定的命令行,可进行重复性检查;返回值：进程pid,0错误
 def start_cmdline(cli, repeat_check=False, affinity=None):
     try:
         if repeat_check:
-            pid=find_pid_by_cmdline(cli)
-            if pid!=0:
+            pid = find_pid_by_cmdline(cli)
+            if pid != 0:
                 return pid
 
-        cwd = os.path.dirname(cli)
-        if cwd == '':
-            cwd = os.getcwd()
-
+        cwd = get_cwd(cli)
         sp = psutil.Popen(cli, close_fds=True, cwd=cwd)
         if affinity == '1':
             global G_start_idx
@@ -218,7 +231,7 @@ class mon_item_t:
         else:  # 目标存在需检查有效性
             pi = make_realtime_psinfo(self.pid)
             if pi == None or pi['cmdline'] != self.cmdline:  # 目标无效，需要启动命令行与附带的事件
-                self.pid = start_cmdline(self.cmdline,True, affinity='1')
+                self.pid = start_cmdline(self.cmdline, True, affinity='1')
                 if self.pid != 0:
                     log.info("RESTART::(%s)::%s", self.cmdline, make_realtime_psinfo(self.pid))
                     if self.onstart:
@@ -281,17 +294,19 @@ class timer:
             return True
         return False
 
+
 # 定义并处理命令行参数
 def get_params():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port_lock", type=int, default=10101, help="monitor port locker")
     return parser.parse_args()
-    
+
+
 # ***********************************************************
 # 主函数启动
 # ***********************************************************
 
-cli_args=get_params()
+cli_args = get_params()
 
 # 生成日志记录器
 log = make_ps_logger("monitor.log")
