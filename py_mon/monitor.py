@@ -9,6 +9,7 @@ import logging
 import logging.handlers
 import xml.etree.ElementTree as ET
 import argparse
+import signal
 
 '''
     进程监控脚本的设计目标：
@@ -299,6 +300,7 @@ class timer:
 def get_params():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port_lock", type=int, default=10101, help="monitor port locker")
+    parser.add_argument("--oneproc", type=int, default=0, help="one process mode")
     return parser.parse_args()
 
 
@@ -307,6 +309,9 @@ def get_params():
 # ***********************************************************
 
 cli_args = get_params()
+if cli_args.oneproc > 0:
+    # 干掉父进程
+    os.kill(os.getppid(), signal.SIGTERM)
 
 # 生成日志记录器
 log = make_ps_logger("monitor.log")
