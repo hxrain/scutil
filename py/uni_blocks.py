@@ -1,4 +1,5 @@
 import bisect
+import re
 
 # unicode字符分块范围与名称
 _UNICODE_BLOCKS = [
@@ -307,7 +308,8 @@ def sbccase_to_ascii_str(u, retain_CRFL=False):
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')',
                      '〔': '[', '〕': ']', '—': '-', '∶': ':', '〇': '0'}
 
-def char_replace(src,dct=_SBC_CHR_CONV_TBL):
+
+def char_replace(src, dct=_SBC_CHR_CONV_TBL):
     """进行字符串特定符号转换"""
     lst = []
     for ch in src:
@@ -315,6 +317,7 @@ def char_replace(src,dct=_SBC_CHR_CONV_TBL):
             ch = _SBC_CHR_CONV_TBL[ch]
         lst.append(ch)
     return ''.join(lst)
+
 
 def sbccase_to_ascii_str2(u, force=True, retain_CRFL=False):
     """进行额外的常见中文符号转为英文符号"""
@@ -369,12 +372,14 @@ def is_number_char(char):
     """判断字符是否为十进制数字字符"""
     return char >= '0' and char <= '9'
 
+
 def is_number_str(chars):
     """判断字符串是否为十进制数字字符"""
     for char in chars:
         if not is_number_char(char):
             return False
     return True
+
 
 def is_english_lc(char):
     """判断是否为英文小写字符"""
@@ -589,3 +594,109 @@ def find(txt, dst, pre, begin=0):
             return pos
         pos = txt.find(dst, pos + 1)
     return -1
+
+
+_G_NUMMAP_ZH = {'零': '0', '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9'}
+
+
+def zhnum_to_arabic(N):
+    """单个中文数字转换为单个阿拉伯数字字符"""
+    if N in _G_NUMMAP_ZH:
+        return _G_NUMMAP_ZH[N]
+    else:
+        return N
+
+
+def zhnum_to_arabics(NS):
+    """中文数字串转换为阿拉伯数字串"""
+    rst = []
+    if '十' in NS:
+        return '%d' % chinese_to_arabic(NS + '元')  # 借用中文金额转换函数做复杂中文数字的转换
+    else:
+        for N in NS:
+            rst.append(zhnum_to_arabic(N))
+    return ''.join(rst)
+
+
+def norm_date_str(txt):
+    """日期串txt进行归一化"""
+    m = re.search(r'([零一二三四五六七八九\d]{2,4})\s*[年\-\.]?\s*([零一二三四五六七八九十\d]{1,2})?\s*[月\-\.]?\s*([零一二三四五六七八九十\d]{1,2})?\s*[日号]?', txt)
+    if not m:
+        return txt
+
+    rst = []
+    for i in range(3):
+        ns = m.group(i + 1)
+        if ns:
+            ns = zhnum_to_arabics(ns)
+            try:
+                ns = '%02d' % int(ns)
+            except:
+                pass
+            rst.append(ns)
+    return '-'.join(rst)
+
+
+assert (norm_date_str('2015.12.20') == '2015-12-20')
+assert (norm_date_str('2015年') == '2015')
+assert (norm_date_str('二零一五 年 十二 月 二十 日') == '2015-12-20')
+assert (norm_date_str('二零一五年二月二十日') == '2015-02-20')
+assert (norm_date_str('2015年12月20日') == '2015-12-20')
+assert (norm_date_str('2015年02月20日') == '2015-02-20')
+assert (norm_date_str('2015年2月20日') == '2015-02-20')
+assert (norm_date_str('2015年12-20日') == '2015-12-20')
+assert (norm_date_str('2015年02-20日') == '2015-02-20')
+assert (norm_date_str('2015年2月20') == '2015-02-20')
+assert (norm_date_str('2015 年 12 - 20 日') == '2015-12-20')
+assert (norm_date_str('2015年 02-20日') == '2015-02-20')
+assert (norm_date_str('2015 年2月 20') == '2015-02-20')
+assert (norm_date_str('2015-2-20日') == '2015-02-20')
+assert (norm_date_str('2015-2-20日下午12:00:00') == '2015-02-20')
+
+
+def norm_time_str(txt):
+    pat = '(上午|中午|下午)?([\d一二三四五六七八九十]{1,2})[时点\:]([\d一二三四五六七八九十]{1,3})?[分\:]?(\d{1,2})?[秒|时|点|整]?'
+    ms = re.search(pat, txt)
+    if not ms:
+        return txt
+
+    def time_num(s, dev=''):
+        try:
+            n = zhnum_to_arabics(s) if s is not None else dev
+            if n:
+                return '%02d' % int(n)
+            return n
+        except:
+            return dev
+
+    rst = ''
+    mi = ms.groups()
+    ap = mi[0]  # 上午|中午|下午
+    h = time_num(mi[1])  # 小时
+    if ap in {'中午', '下午'} and int(h) < 12:
+        h = str(int(h) + 12)
+    rst += h
+    m = time_num(mi[2], '00')  # 分钟
+    if m:
+        rst += ':' + m
+    s = time_num(mi[3])  # 秒
+    if s:
+        rst += ':' + s
+
+    return rst
+
+
+assert (norm_time_str('09:08:7') == '09:08:07')
+assert (norm_time_str('上午9点00分') == '09:00')
+assert (norm_time_str('上午8:00') == '08:00')
+assert (norm_time_str('12:00') == '12:00')
+assert (norm_time_str('下午12:00') == '12:00')
+assert (norm_time_str('下午1点') == '13:00')
+assert (norm_time_str('下午5点') == '17:00')
+assert (norm_time_str('中午12:00') == '12:00')
+assert (norm_time_str('17:30') == '17:30')
+assert (norm_time_str('上午9:00') == '09:00')
+assert (norm_time_str('下午13:00') == '13:00')
+assert (norm_time_str('17:00') == '17:00')
+assert (norm_time_str('上午九点三十分') == '09:30')
+assert (norm_time_str('上午九点三十五分') == '09:35')

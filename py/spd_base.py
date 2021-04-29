@@ -693,10 +693,11 @@ def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
     return time.strftime(fmt, dt)
 
 
-def get_curr_date():
-    """得到当前日期,ISO串"""
-    now = datetime.datetime.now()
-    return now.strftime('%Y-%m-%d')
+def get_curr_date(fmt='%Y-%m-%d', now=None):
+    """得到当前日期,ISO串;可以取得微秒时间的格式为 '%Y-%m-%d %H:%M:%S.%f'"""
+    if now is None:
+        now = datetime.datetime.now()
+    return now.strftime(fmt)
 
 
 def adj_date_day(datestr, day):
