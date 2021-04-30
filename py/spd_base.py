@@ -69,6 +69,21 @@ def append_lines(fname, dats, encoding=None):
     except Exception as e:
         return False
 
+class waited_t:
+    """简单的超时等待计时器"""
+
+    def __init__(self, timeout):
+        """从构造的时候就开始计时,告知等待超时秒数"""
+        self._timeout = timeout
+        self.reset()
+
+    def reset(self):
+        """复位结束时间点,准备重新计时"""
+        self.end = time.time() + self._timeout
+
+    def timeout(self):
+        """用当前时间判断,是否超时了"""
+        return time.time() >= self.end
 
 # 文件行输出器
 class append_line_t:

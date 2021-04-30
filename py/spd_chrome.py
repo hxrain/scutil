@@ -90,7 +90,7 @@ class Tab(object):
         self.method_results = {}  # 记录请求对应的回应结果
 
         self._data_requestWillBeSent = {}  # 记录请求内容,以url为key,value为[请求内容对象]列表
-        self.recv_req_event_rule = None  # 过滤请求信息使用的url匹配re规则
+        self.req_event_filter_re = None  # 过滤请求信息使用的url匹配re规则
         self._last_act(False)
 
     def _last_act(self, using):
@@ -249,7 +249,7 @@ class Tab(object):
     def _on_requestWillBeSent(self, requestId, loaderId, documentURL, request, timestamp, wallTime, initiator, **param):
         """记录发送的请求信息"""
         url = request['url']
-        if self.recv_req_event_rule and not spd_base.query_re_str(url, self.recv_req_event_rule):
+        if self.req_event_filter_re and not spd_base.query_re_str(url, self.req_event_filter_re):
             return  # 如果明确指定了re规则进行匹配,则不匹配时直接退出
 
         if url not in self._data_requestWillBeSent:
@@ -293,12 +293,12 @@ class Tab(object):
                 rst.append(url)
         return rst
 
-    def init(self, recv_req_event=None):
+    def init(self, req_event_filter=None):
         """启动tab交互象,建立websocket连接"""
         if self._websocket:
             return True
 
-        self.recv_req_event_rule = recv_req_event
+        self.req_event_filter_re = req_event_filter
         self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True)
         self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
         self.call_method('Network.enable', _timeout=1)
@@ -330,17 +330,17 @@ class Browser(object):
         self.dev_url = url
         self._tabs = {}  # 记录被管理的tab页
 
-    def new_tab(self, url=None, timeout=None, start=True, recv_req_event=None):
+    def new_tab(self, url=None, timeout=None, start=True, req_event_filter=None):
         """打开新tab页,并浏览指定的网址"""
         url = url or ''
         rp = requests.get("%s/json/new?%s" % (self.dev_url, url), json=True, timeout=timeout)
         tab = Tab(**rp.json())
         self._tabs[tab.id] = tab
         if start:
-            tab.init(recv_req_event)
+            tab.init(req_event_filter)
         return tab
 
-    def list_tab(self, timeout=None, backinit=True, recv_req_event=None):
+    def list_tab(self, timeout=None, backinit=True, req_event_filter=None):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控"""
         rp = requests.get("%s/json" % self.dev_url, json=True, timeout=timeout)
         tabs_map = {}
@@ -358,7 +358,7 @@ class Browser(object):
             else:
                 tabs_map[id] = Tab(**tab_json)
                 if backinit:
-                    tabs_map[id].init(recv_req_event)
+                    tabs_map[id].init(req_event_filter)
 
             tabs_map[id].last_url = tinfo['url']
             tabs_map[id].last_title = tinfo['title']
@@ -579,18 +579,18 @@ class spd_chrome:
         self.browser = Browser(proto_url)
         self.proto_timeout = 10
 
-    def open(self, url='', recv_req_event=None):
+    def open(self, url='', req_event_filter=None):
         """打开tab页,并浏览指定的url;返回值:(tab页标识id,错误消息)"""
         try:
-            tab = self.browser.new_tab(url, self.proto_timeout, recv_req_event=recv_req_event)
+            tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter)
             return tab.id, ''
         except Exception as e:
             return '', spd_base.es(e)
 
-    def new(self, url='', recv_req_event=None):
+    def new(self, url='', req_event_filter=None):
         """打开tab页,并浏览指定的url;返回值:(tab页对象,错误消息)"""
         try:
-            tab = self.browser.new_tab(url, self.proto_timeout, recv_req_event=recv_req_event)
+            tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter)
             return tab, ''
         except Exception as e:
             return None, spd_base.es(e)
@@ -618,10 +618,13 @@ class spd_chrome:
         loop = timeout * 2
         try:
             t = self._tab(tab)
+            wait = spd_base.waited_t(timeout)
             for i in range(loop):
                 dst = t.get_request_urls(hold_url)
                 if len(dst):
                     return dst, ''
+                if wait.timeout():
+                    break
                 time.sleep(0.45)
             return [], ''
         except Exception as e:
@@ -943,10 +946,13 @@ class spd_chrome:
         if msg != '':
             return None, msg
 
+        wait = spd_base.waited_t(max_sec)
         # 进行循环等待
         for i in range(loops):
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
+                if wait.timeout():
+                    break
                 time.sleep(0.45)
                 continue
 
@@ -956,6 +962,8 @@ class spd_chrome:
                 return None, msg
             if check_cond(isnot, r):
                 break  # 如果条件满足,则停止循环
+            if wait.timeout():
+                break
             time.sleep(0.45)
             msg = 'waiting'
         return xhtml, msg
@@ -971,10 +979,13 @@ class spd_chrome:
         if msg != '':
             return None, msg
 
+        wait = spd_base.waited_t(max_sec)
         # 进行循环等待
         for i in range(loops):
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
+                if wait.timeout():
+                    break
                 time.sleep(0.45)
                 continue
 
@@ -983,6 +994,8 @@ class spd_chrome:
                 return None, msg
             if check_cond(isnot, r):
                 break  # 如果条件满足,则停止循环
+            if wait.timeout():
+                break
             time.sleep(0.45)
             msg = 'waiting'
         return html, msg
