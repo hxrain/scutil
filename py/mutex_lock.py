@@ -2,6 +2,7 @@ from functools import wraps
 from threading import Lock
 from threading import RLock
 from threading import Thread
+import time
 
 """
 locker = lock_t()  # 定义互斥锁封装对象
@@ -46,7 +47,7 @@ class lock_t:
 # 给指定函数绑定锁保护的装饰器函数
 def guard(locker):  # 顶层装饰函数,用来接收用户参数,返回外层装饰函数
     def outside(fun):  # 外层装饰函数,用来接收真实的目标函数
-        @wraps(fun) # 使用内置包装器保留fun的原属性(下面的fun已经是闭包中的一个变量了)
+        @wraps(fun)  # 使用内置包装器保留fun的原属性(下面的fun已经是闭包中的一个变量了)
         def wrap(*args, **kwargs):  # 包装函数对真实函数进行锁保护的调用
             locker.lock()
             ret = fun(*args, **kwargs)
@@ -63,6 +64,19 @@ def start_thread(fun, *args, run=True):
     thd = Thread(target=fun, args=args)
     if run:
         thd.start()
+    return thd
+
+
+# 创建并启动一个间隔定时器函数线程,周期运行
+def start_timer(fun, interval, *args):
+    def proc():
+        while not thd.stop:
+            fun(*args)
+            time.sleep(interval)
+
+    thd = Thread(target=proc)
+    thd.stop = False  # 外面可以设置此变量为True,逻辑停止工作函数.
+    thd.start()
     return thd
 
 
