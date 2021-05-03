@@ -3,8 +3,6 @@ import json
 import logging
 import os
 import time
-import warnings
-
 import requests
 import websocket
 import base64
@@ -160,7 +158,8 @@ class Tab(object):
                 self.method_results[msg_id] = message
                 return (1, 0)
 
-        warnings.warn("unknown message: %s" % message)
+        # logger.warn("unknown message: %s" % message)
+        message = None
         return (0, 0)
 
     def _recv_loop(self, wait_result=False, timeout=1):
@@ -205,7 +204,7 @@ class Tab(object):
             return None
 
         if 'result' not in result and 'error' in result:
-            warnings.warn("%s error: %s" % (_method, result['error']['message']))
+            logger.warn("%s error: %s" % (_method, result['error']['message']))
             raise CallMethodException("calling method: %s error: %s" % (_method, result['error']['message']))
 
         return result['result']
@@ -383,6 +382,7 @@ class Browser(object):
 
         tab = self._tabs.pop(tab_id, None)
         tab.close()
+        tab = None
 
         return rp.text
 
