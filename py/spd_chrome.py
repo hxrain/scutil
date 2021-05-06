@@ -10,7 +10,7 @@ import spd_base
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
-# chrome.exe --disk-cache-dir=.\tmp --user-data-dir=.\tmp --cache-path=.\tmp --remote-debugging-port=9222 --disable-web-security --disable-features=IsolateOrigins,site-per-process
+# chrome.exe --disk-cache-dir=.\tmp --user-data-dir=.\tmp --cache-path=.\tmp --remote-debugging-port=9222 --disable-web-security --disable-features=IsolateOrigins,site-per-process --disable-gpu --disable-software-rasterize
 
 class PyChromeException(Exception):
     pass

@@ -370,7 +370,13 @@ def url_equ(a, b):
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
-    # 调整日志输出的级别名称.
+    basedir=os.path.dirname(pspath)
+    try:
+        os.mkdir(basedir)
+    except:
+        pass
+
+        # 调整日志输出的级别名称.
     logging._levelToName[logging.ERROR] = 'ERR!'
     logging._levelToName[logging.WARNING] = 'WRN!'
     logging._levelToName[logging.DEBUG] = 'DBG.'
