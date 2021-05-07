@@ -280,15 +280,15 @@ class Tab(object):
         """清理全部记录的请求信息"""
         self._data_requestWillBeSent.clear()
 
-    def get_request_urls(self, hold_url=None):
+    def get_request_urls(self, hold_url_re=None):
         """获取记录过的请求信息的url列表"""
         self.recv_loop()
-        if hold_url is None:  # 没有明确告知拦截url的模式,则返回全部记录的请求url
+        if hold_url_re is None:  # 没有明确告知拦截url的模式,则返回全部记录的请求url
             return list(self._data_requestWillBeSent.keys())
 
         rst = []
         for url in self._data_requestWillBeSent.keys():
-            if spd_base.query_re_str(url, hold_url):  # 否则记录匹配的请求url
+            if spd_base.query_re_str(url, hold_url_re):  # 否则记录匹配的请求url
                 rst.append(url)
         return rst
 
@@ -613,14 +613,14 @@ class spd_chrome:
         except Exception as e:
             return None, spd_base.es(e)
 
-    def wait_request_urls(self, tab, hold_url, timeout=60):
-        """尝试等待请求信息中出现指定的url"""
+    def wait_request_urls(self, tab, hold_url_re, timeout=60):
+        """尝试等待请求信息中出现指定的url.返回值:([请求信息列表],msg),msg为空正常."""
         loop = timeout * 2
         try:
             t = self._tab(tab)
             wait = spd_base.waited_t(timeout)
             for i in range(loop):
-                dst = t.get_request_urls(hold_url)
+                dst = t.get_request_urls(hold_url_re)
                 if len(dst):
                     return dst, ''
                 if wait.timeout():
@@ -645,11 +645,8 @@ class spd_chrome:
     def clear_request(self, tab, url=None):
         """清空记录的请求内容"""
         try:
-            req_lst, msg = self.get_request(tab, url)
-            if msg:
-                return msg
-            if len(req_lst) == 0:
-                return ''
+            t = self._tab(tab)
+            req_lst = t.get_requests(url)
             req_lst.clear()
             return ''
         except Exception as e:
@@ -657,7 +654,7 @@ class spd_chrome:
 
     def get_response_body(self, tab, url):
         """获取指定url的回应内容
-            工作流程:1 打开tab页的时候,就需要告知url的匹配模式;2 等待页面装载完成,内部记录发送的请求信息; 3根据url查找发送的请求id; 4 使用请求id获取对应的回应内容.
+            工作流程:1 等待页面装载完成,内部记录发送的请求信息; 2 根据url查找发送的请求id; 3 使用请求id获取对应的回应内容.
             返回值: (body,msg)
                     msg为''则正常;body为回应内容
         """
@@ -999,59 +996,3 @@ class spd_chrome:
             time.sleep(0.45)
             msg = 'waiting'
         return html, msg
-
-
-class tiny_chrome:
-    """简单使用的chrome客户端"""
-
-    def __init__(self, cond='html', tab=None, proto_url="http://127.0.0.1:9222"):
-        self.sc = spd_chrome(proto_url)
-        self.tab = tab if tab else self.sc.new()[0]
-        self.chrome_timeout = 600
-        self.cond(cond)
-        self.resp_body_only = False  # 渲染结果是否仅保留body内容(json回应时有意义)
-
-    def cond(self, cond, cond_is_re=True):
-        """设置完成条件"""
-        self.cond = cond
-        self.cond_is_re = cond_is_re
-
-    def wait(self, max_sec=None):
-        """阻塞等待页面渲染,完成条件是cond正则表达式/xpath表达式匹配到了结果;返回值:是否成功,页面内容,状态码,错误信息"""
-        if max_sec is None:
-            max_sec = self.chrome_timeout
-
-        if self.cond_is_re:
-            rsp, msg = self.sc.wait_re(self.tab, self.cond, max_sec, self.resp_body_only)  # 等待页面装载完成
-        else:
-            rsp, msg = self.sc.wait_xp(self.tab, self.cond, max_sec, self.resp_body_only)  # 等待页面装载完成
-
-        if msg != '':
-            return False, '', 999, msg
-        else:
-            return True, rsp, 200, ''
-
-    def exec(self, js):
-        """运行js代码.返回值(运行结果,错误消息)"""
-        return self.sc.run(self.tab, js)
-
-    def take(self, url, max_sec=None):
-        """导航并抓取指定的url页面,完成条件是cond_re;返回值:是否成功,页面内容,状态码,错误信息"""
-        r = self.sc.goto(self.tab, url)  # 控制浏览器访问入口url
-        if not r[0]:
-            return False, '', 998, 'chrome open fail.'
-        return self.wait(max_sec)
-
-    def post(self, url, data, max_sec=None):
-        """使用chrome控制器,发起ajax/post请求url页面,完成条件是cond_re"""
-        r = self.sc.post(self.tab, url, data)  # 控制浏览器访问入口url
-        if r[1]:
-            return False, '', 997, r[1]
-        return self.wait(max_sec)
-
-    def get(self, url, max_sec=None):
-        """使用chrome控制器,发起ajax/get请求url页面,完成条件是cond_re"""
-        r = self.sc.get(self.tab, url)  # 控制浏览器访问入口url
-        if r[1]:
-            return False, '', 996, r[1]
-        return self.wait(max_sec)

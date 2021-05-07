@@ -325,6 +325,29 @@ class source_base:
             self.spider.http.rst['error'] = ''
             return True
 
+    def chrome_hold(self, url, chrome, tab, timeout=None):
+        """使用chrome控制器,在指定的tab上提取指定url的回应内容"""
+        if timeout is None:
+            timeout = self.chrome_timeout
+        reqs, msg = chrome.wait_request_urls(tab, url, timeout)
+
+        rbody = ''
+        if msg == '':
+            rbody, msg = chrome.get_response_body(tab, url)
+
+        if msg != '':
+            self.spider.http.rst['BODY'] = ''
+            self.spider.http.rst['status_code'] = 994
+            self.spider.http.rst['error'] = msg
+            return False
+
+        self.spider.http.rst['BODY'] = rbody
+        self.spider.http.rst['status_code'] = 200
+        self.spider.http.rst['error'] = ''
+
+        chrome.clear_request(tab)
+        return True
+
     def chrome_take(self, url, chrome, tab, cond_re, body_only=False):
         """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
