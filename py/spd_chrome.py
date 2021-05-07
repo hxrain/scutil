@@ -136,7 +136,7 @@ class Tab(object):
             # logger.error("websocket exception", exc_info=True)
             return (None, None)  # websocket错误了
         except Exception as e:
-            logger.error("exception", exc_info=True)
+            # logger.error("exception", exc_info=True)
             return (None, None)  # 其他错误
 
         if self.debug:  # pragma: no cover
@@ -204,7 +204,7 @@ class Tab(object):
             return None
 
         if 'result' not in result and 'error' in result:
-            logger.warn("%s error: %s" % (_method, result['error']['message']))
+            # logger.warn("%s error: %s" % (_method, result['error']['message']))
             raise CallMethodException("calling method: %s error: %s" % (_method, result['error']['message']))
 
         return result['result']
