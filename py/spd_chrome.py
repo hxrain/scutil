@@ -497,7 +497,7 @@ var _$_ = function(el, parent) {
 	//获取iframe的整体内容.
 	api.frm_html=function(){
 	    cw=api.frm()
-	    if (cw!=null)
+	    if (cw!=null && cw.document!=null && cw.document.documentElement!=null)
 	        return cw.document.documentElement.outerHTML;
 	    return "";
 	}
@@ -684,6 +684,28 @@ class spd_chrome:
         try:
             t = self._tab(tab)
             rst = t.call_method('Network.clearBrowserCookies', _timeout=self.proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, spd_base.es(e)
+
+    def clear_cache(self, tab):
+        """删除浏览器全部的cache内容;
+            返回值: (bool,msg)
+                    msg=''为正常,否则为错误信息"""
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('Network.clearBrowserCache', _timeout=self.proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, spd_base.es(e)
+
+    def miss_cache(self, tab, is_disable=True):
+        """是否屏蔽缓存内容的使用;
+            返回值: (bool,msg)
+                    msg=''为正常,否则为错误信息"""
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('Network.setCacheDisabled', cacheDisabled=is_disable, _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
             return False, spd_base.es(e)
