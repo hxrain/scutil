@@ -90,6 +90,7 @@ class Tab(object):
         self._data_requestWillBeSent = {}  # 记录请求内容,以url为key,value为[请求内容对象]列表
         self.req_event_filter_re = None  # 过滤请求信息使用的url匹配re规则
         self._last_act(False)
+        self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
 
     def _last_act(self, using):
         """记录该tab是否处于使用中,便于外部跟踪状态"""
@@ -109,8 +110,18 @@ class Tab(object):
         if self.debug:  # pragma: no cover
             print("SEND > %s" % msg_json)
 
+        reconn = False
         try:
             self._websocket.send(msg_json)  # 发送请求
+        except Exception as e:
+            reconn = True  # 发送失败则标记,准备重试
+
+        try:
+            if reconn:  # 需要重试ws连接,并重新发送
+                self._close_websock()
+                self._open_websock()
+                self._websocket.send(msg_json)  # 重新发送请求
+
             rst = self._recv_loop(True, timeout)  # 循环接收,要求必须尝试等待结果
             if rst[0]:
                 return self.method_results[msg_id]
@@ -190,11 +201,9 @@ class Tab(object):
     def call_method(self, _method, *args, **kwargs):
         """调用协议方法,核心功能.具体请求交互细节可参考协议描述. https://chromedevtools.github.io/devtools-protocol/
            返回值:None超时;其他为回应结果"""
-        if not self._websocket:
-            return None
 
-        if self.cycle and self.cycle.hit():
-            self.reopen()  # 尝试周期性进行ws连接的重连
+        if not self._websocket or (self.cycle and self.cycle.hit()):
+            self.reopen()  # 进行ws的重连
 
         # 不允许使用普通参数传递,必须为key/value型参数
         timeout = kwargs.pop("_timeout", None)  # 额外摘取超时控制参数
@@ -292,32 +301,39 @@ class Tab(object):
                 rst.append(url)
         return rst
 
+    def _open_websock(self):
+        if self._websocket:
+            return
+        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True)
+
+    def _close_websock(self):
+        if self._websocket:
+            self._websocket.close()
+            self._websocket = None
+
     def init(self, req_event_filter=None):
         """启动tab交互象,建立websocket连接"""
         if self._websocket:
             return True
 
         self.req_event_filter_re = req_event_filter
-        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True)
-        self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
-        self.call_method('Network.enable', _timeout=1)
+        self.reopen()
         return True
 
     def reopen(self):
-        """与tab的websocket连接进行重连处理"""
-        if self._websocket:
-            self._websocket.close()
-            self._websocket = None
-
-        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True)
-        self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
-        self.call_method('Network.enable', _timeout=1)
+        """对tab的websocket连接进行强制重连处理"""
+        try:
+            self._close_websock()
+            self._open_websock()
+            self.call_method('Network.enable', _timeout=1)
+            return True
+        except Exception as e:
+            # logger.warn('reopen error: %s :: %s'%(str(e),self._websocket_url))
+            return False
 
     def close(self):
         """停止tab交互,关闭websocket连接"""
-        if self._websocket:
-            self._websocket.close()
-            self._websocket = None
+        self._close_websock()
         self._data_requestWillBeSent.clear()
         return True
 
