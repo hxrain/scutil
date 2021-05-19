@@ -7,6 +7,7 @@ import requests
 import websocket
 import base64
 import spd_base
+import socket
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
@@ -62,6 +63,11 @@ class cycle_t:
             self.last_time = now
             return True
         return False
+
+
+# 默认chrome缓存的回应内容比较小,进行内容提取的时候会反馈错误"evicted from inspector cache",需要给出较大的缓存空间
+_maxResourceBufferSize = 1024 * 1024 * 64  # 单个资源的缓存尺寸
+_maxTotalBufferSize = int(1024 * 1024 * 1024 * 1.8)  # 总共资源的缓存尺寸,需要小于2G
 
 
 # chrome浏览器Tab页操控功能
@@ -257,6 +263,7 @@ class Tab(object):
     def _on_requestWillBeSent(self, requestId, loaderId, documentURL, request, timestamp, wallTime, initiator, **param):
         """记录发送的请求信息"""
         url = request['url']
+
         if self.req_event_filter_re and not spd_base.query_re_str(url, self.req_event_filter_re):
             return  # 如果明确指定了re规则进行匹配,则不匹配时直接退出
 
@@ -304,7 +311,8 @@ class Tab(object):
     def _open_websock(self):
         if self._websocket:
             return
-        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True)
+        opt = [(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 64)]
+        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True, sockopt=opt, skip_utf8_validation=True)
 
     def _close_websock(self):
         if self._websocket:
@@ -325,10 +333,10 @@ class Tab(object):
         try:
             self._close_websock()
             self._open_websock()
-            self.call_method('Network.enable', _timeout=1)
+            self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
             return True
         except Exception as e:
-            # logger.warn('reopen error: %s :: %s'%(str(e),self._websocket_url))
+            logger.warn('reopen error: %s :: %s' % (str(e), self._websocket_url))
             return False
 
     def close(self):
