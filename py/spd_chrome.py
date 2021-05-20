@@ -66,7 +66,7 @@ class cycle_t:
 
 
 # 默认chrome缓存的回应内容比较小,进行内容提取的时候会反馈错误"evicted from inspector cache",需要给出较大的缓存空间
-_maxResourceBufferSize = 1024 * 1024 * 64  # 单个资源的缓存尺寸
+_maxResourceBufferSize = 1024 * 1024 * 256  # 单个资源的缓存尺寸
 _maxTotalBufferSize = int(1024 * 1024 * 1024 * 1.8)  # 总共资源的缓存尺寸,需要小于2G
 
 
