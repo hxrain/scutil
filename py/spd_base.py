@@ -387,7 +387,7 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
 
     # 生成文件处理器
     if max_baks:
-        filehandler = logging.handlers.RotatingFileHandler(pspath, encoding='utf-8', maxBytes=1024 * 1024 * 4, backupCount=max_baks)
+        filehandler = logging.handlers.RotatingFileHandler(pspath, encoding='utf-8', maxBytes=1024 * 1024, backupCount=max_baks)
     else:
         filehandler = logging.handlers.WatchedFileHandler(pspath, encoding='utf-8')
     filehandler.setLevel(lvl)
