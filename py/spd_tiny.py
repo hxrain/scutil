@@ -932,7 +932,7 @@ class collect_manager:
         for spd in self.spiders:
             if len(spd.source.stat) == 1 and 200 in spd.source.stat:
                 continue
-            _logger.info("<%s> | source <%s {%d}> | %s | stat <%s>", spd.source.module_name, spd.source.name, spd.source.id, spd.source.url, spd.source.stat)
+            _logger.info("<%s> | source <%s {%d}> | stat <%s> | %s", spd.source.module_name, spd.source.name, spd.source.id, spd.source.stat, spd.source.url)
 
     def loop(self):
         """进行持续循环运行"""
