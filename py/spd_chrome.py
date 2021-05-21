@@ -867,7 +867,7 @@ class spd_chrome:
     def dhtml(self, tab, body_only=False, frmSel=None):
         """获取指定tab页当前的动态渲染后的html内容(给定iframe选择器时,是获取iframe的内容).返回值(内容串,错误消息)"""
         if frmSel is None:
-            rst, msg = self.exec(tab, 'document.documentElement.outerHTML')
+            rst, msg = self.exec(tab, 'document&&document.documentElement?document.documentElement.outerHTML:""')
         else:
             rst, msg = self.run(tab, """_$_('%s').frm_html()""" % (frmSel))
         if not body_only or msg:
