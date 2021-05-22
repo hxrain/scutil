@@ -992,23 +992,30 @@ class spd_chrome:
         wait = spd_base.waited_t(max_sec)
         # 进行循环等待
         for i in range(loops):
+            msg = 'waiting'
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
+                logger.debug('xpath (%s) take error <%s>. html:\n%s' % (xpath, msg, html))
                 if wait.timeout():
                     break
                 time.sleep(0.45)
-                continue
+                continue  # html导出错误,重试
 
             xhtml = spd_base.format_xhtml(html)  # 执行xpath之前先进行xhtml格式化
             r, msg = spd_base.query_xpath_x(xhtml, xpath)
             if msg != '':
-                return None, msg
+                logger.debug('xpath (%s) query error <%s>. html:\n%s' % (xpath, msg, html))
+                if wait.timeout():
+                    break
+                time.sleep(0.45)
+                continue  # html/xpath查询错误,重试
+
             if check_cond(isnot, r):
                 break  # 如果条件满足,则停止循环
             if wait.timeout():
                 break
             time.sleep(0.45)
-            msg = 'waiting'
+
         return xhtml, msg
 
     def wait_re(self, tab, regexp, max_sec=60, body_only=False, frmSel=None):
