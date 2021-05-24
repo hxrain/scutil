@@ -2,6 +2,8 @@ import inspect
 import re
 import sys
 import tracemalloc
+import traceback
+
 
 def get_curr_func_name(is_parent=False):
     """调用者获取当前自己所在函数或父函数的名字"""
@@ -9,6 +11,30 @@ def get_curr_func_name(is_parent=False):
         return sys._getframe(2).f_code.co_name
     else:
         return sys._getframe(1).f_code.co_name
+
+
+def get_stackup(start=0):
+    """调用者获取上级调用栈信息"""
+    rst = []
+    d = start
+    while True:
+        d += 1
+        try:
+            frm = sys._getframe(d)
+            rst.insert(0, '  File "%s", line %d, in %s' % (frm.f_code.co_filename, frm.f_lineno, frm.f_code.co_name))
+            if frm.f_code.co_name == '<module>':
+                break
+        except:
+            break
+    rst.insert(0, 'Traceback (call stack parent)')
+    return '\n'.join(rst)
+
+
+def get_trace_stack():
+    """获取当前调用栈信息,包括之上的父调用与之下的异常抛出点"""
+    up = get_stackup(2)
+    dn = traceback.format_exc()
+    return '%s\n%s' % (up, dn)
 
 
 def get_curr_func_params(drop_self=True):
@@ -28,12 +54,13 @@ def get_curr_func_params(drop_self=True):
 
 class tramem_mgr:
     """内存快照分析管理器,便于对比两次快照中的内存增量,快速发现内存泄露"""
+
     def __init__(self, exclude_std=True, min_size=1024, frames=1):
-        self.snap1 = None
-        self.snap2 = None
+        self.snap1 = None  # 快照槽位1
+        self.snap2 = None  # 快照槽位2
         self.min_size = min_size
 
-        self.filters = [
+        self.filters = [  # 定义过滤器,丢弃不关注的信息
             tracemalloc.Filter(False, '<frozen importlib._bootstrap_external>'),
             tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
             tracemalloc.Filter(False, "<unknown>"),
@@ -47,13 +74,16 @@ class tramem_mgr:
         self.init(frames)
 
     def init(self, frames=1):
+        """初始化快照管理器,并捕捉最初的状态"""
         tracemalloc.start(frames)
         self.capture(1)
 
     def capture(self, idx=1):
+        """捕捉最新的快照到指定的槽位"""
         self.__dict__['snap%d' % idx] = tracemalloc.take_snapshot().filter_traces(self.filters)
 
     def comp(self, i1, i2):
+        """比较给定的两个槽位的快照,得到比较的结果"""
         s1 = self.__dict__['snap%d' % i1]
         s2 = self.__dict__['snap%d' % i2]
         if s2 is None or s1 is None:
@@ -68,6 +98,7 @@ class tramem_mgr:
         return '\n'.join(rst)
 
     def take(self, idx):
+        """快捷方法,抓取指定的快照,并进行前后槽位的快照比较,得到差异结果"""
         idx = int(idx)
         if idx in {1, 2}:
             self.capture(idx)
