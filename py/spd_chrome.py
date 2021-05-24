@@ -8,6 +8,8 @@ import websocket
 import base64
 import spd_base
 import socket
+import traceback
+import py_util
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
@@ -95,7 +97,7 @@ class Tab(object):
 
         self._data_requestWillBeSent = {}  # 记录请求内容,以url为key,value为[请求内容对象]列表
         self.req_event_filter_re = None  # 过滤请求信息使用的url匹配re规则
-        self._last_act(False)
+        self._last_act(kwargs.get("act", False))
         self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
 
     def _last_act(self, using):
@@ -166,7 +168,7 @@ class Tab(object):
                 try:
                     self.event_handlers[method](**message['params'])
                 except Exception as e:
-                    logger.error("callback %s exception %s" % (method, spd_base.es(e)), exc_info=True)
+                    logger.error("callback %s exception %s" % (method, py_util.get_trace_stack()))
             return (0, 1)
         elif "id" in message:
             # 接收到结果了,记录下来
@@ -336,7 +338,7 @@ class Tab(object):
             self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
             return True
         except Exception as e:
-            logger.warn('reopen error: %s :: %s' % (str(e), self._websocket_url))
+            logger.warn('reopen error: %s :: %s' % (self._websocket_url, py_util.get_trace_stack()))
             return False
 
     def close(self):
@@ -363,7 +365,7 @@ class Browser(object):
             tab.init(req_event_filter)
         return tab
 
-    def list_tab(self, timeout=None, backinit=True, req_event_filter=None):
+    def list_tab(self, timeout=None, backinit=True, req_event_filter=None, excludes={}):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控"""
         rp = requests.get("%s/json" % self.dev_url, json=True, timeout=timeout)
         tabs_map = {}
@@ -375,16 +377,19 @@ class Browser(object):
 
             id = tab_json['id']
             tinfo = {'id': id, 'title': tab_json['title'], 'url': tab_json['url']}
-            _tabs_list.append(tinfo)
+
             if id in self._tabs:
+                _tabs_list.append(tinfo)
                 tabs_map[id] = self._tabs[id]
-            else:
+            elif id not in excludes:
+                _tabs_list.append(tinfo)
                 tabs_map[id] = Tab(**tab_json)
                 if backinit:
                     tabs_map[id].init(req_event_filter)
 
-            tabs_map[id].last_url = tinfo['url']
-            tabs_map[id].last_title = tinfo['title']
+            if id in tabs_map:
+                tabs_map[id].last_url = tinfo['url']
+                tabs_map[id].last_title = tinfo['title']
 
         self._tabs = tabs_map
         return _tabs_list
@@ -609,7 +614,7 @@ class spd_chrome:
             tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter)
             return tab.id, ''
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def new(self, url='', req_event_filter=None):
         """打开tab页,并浏览指定的url;返回值:(tab页对象,错误消息)"""
@@ -617,17 +622,17 @@ class spd_chrome:
             tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter)
             return tab, ''
         except Exception as e:
-            return None, spd_base.es(e)
+            return None, py_util.get_trace_stack()
 
-    def list(self, backinit=True):
+    def list(self, backinit=True, excludes={}):
         """列出现有打开的tab页,backinit可告知是否反向补全外部打开的tab进行操控;返回值:([{tab}],错误消息)
             按最后的活动顺序排列,元素0总是当前激活的tab页
         """
         try:
-            rst = self.browser.list_tab(self.proto_timeout, backinit)
+            rst = self.browser.list_tab(self.proto_timeout, backinit, excludes=excludes)
             return rst, ''
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def get_request_urls(self, tab, hold_url=None):
         """获取指定tab记录的请求信息,与hold_url匹配的url列表,或全部url列表;返回值:([urls],msg)"""
@@ -635,7 +640,7 @@ class spd_chrome:
             t = self._tab(tab)
             return t.get_request_urls(hold_url), ''
         except Exception as e:
-            return None, spd_base.es(e)
+            return None, py_util.get_trace_stack()
 
     def wait_request_urls(self, tab, hold_url_re, timeout=60):
         """尝试等待请求信息中出现指定的url.返回值:([请求信息列表],msg),msg为空正常."""
@@ -652,7 +657,7 @@ class spd_chrome:
                 time.sleep(0.45)
             return [], ''
         except Exception as e:
-            return None, spd_base.es(e)
+            return None, py_util.get_trace_stack()
 
     def get_request_info(self, tab, url):
         """获取指定url的请求信息
@@ -664,7 +669,7 @@ class spd_chrome:
             t = self._tab(tab)
             return t.get_requests(url), ''
         except Exception as e:
-            return None, spd_base.es(e)
+            return None, py_util.get_trace_stack()
 
     def clear_request(self, tab, url=None):
         """清空记录的请求内容"""
@@ -674,7 +679,7 @@ class spd_chrome:
             req_lst.clear()
             return ''
         except Exception as e:
-            return spd_base.es(e)
+            return py_util.get_trace_stack()
 
     def get_response_body(self, tab, url):
         """获取指定url的回应内容
@@ -699,7 +704,7 @@ class spd_chrome:
                 body = base64.decodebytes(body.encode('latin-1'))
             return body, ''
         except Exception as e:
-            return None, spd_base.es(e)
+            return None, py_util.get_trace_stack()
 
     def clear_cookies(self, tab):
         """删除浏览器全部的cookie值;
@@ -710,7 +715,7 @@ class spd_chrome:
             rst = t.call_method('Network.clearBrowserCookies', _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
-            return False, spd_base.es(e)
+            return False, py_util.get_trace_stack()
 
     def clear_cache(self, tab):
         """删除浏览器全部的cache内容;
@@ -721,7 +726,7 @@ class spd_chrome:
             rst = t.call_method('Network.clearBrowserCache', _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
-            return False, spd_base.es(e)
+            return False, py_util.get_trace_stack()
 
     def miss_cache(self, tab, is_disable=True):
         """是否屏蔽缓存内容的使用;
@@ -732,7 +737,7 @@ class spd_chrome:
             rst = t.call_method('Network.setCacheDisabled', cacheDisabled=is_disable, _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
-            return False, spd_base.es(e)
+            return False, py_util.get_trace_stack()
 
     def set_cookie(self, tab, name, val, domain, expires=None, path='/', secure=False):
         """设置cookie,需要给出必要的参数;
@@ -745,7 +750,7 @@ class spd_chrome:
             rst = t.call_method('Network.setCookie', name=name, value=val, domain=domain, expires=expires, path=path, secure=secure, _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
-            return False, spd_base.es(e)
+            return False, py_util.get_trace_stack()
 
     def remove_cookies(self, tab, url, names=None):
         """删除匹配url与names的cookie值;返回值:(bool,msg),msg=''为正常,否则为错误信息"""
@@ -766,7 +771,7 @@ class spd_chrome:
                     t.call_method('Network.deleteCookies', name=name, domain=c['domain'], path=c['path'], _timeout=self.proto_timeout)  # 删除时除了名字,还需要指定必要的限定信息
             return True, ''
         except Exception as e:
-            return False, spd_base.es(e)
+            return False, py_util.get_trace_stack()
 
     def query_cookies(self, tab, urls=None):
         """查询指定url对应的cookie.如果urls列表没有指定,则获取当前tab页下的全部cookie信息.返回值:([{cookie}],msg)
@@ -796,13 +801,13 @@ class spd_chrome:
                 remove_key(r, 'sourceScheme')
             return ret, ''
         except Exception as e:
-            return None, spd_base.es(e)
+            return None, py_util.get_trace_stack()
 
     def _tab(self, tab):
         """根据tab标识或序号获取tab对象.返回值:tab对象"""
         if isinstance(tab, int):
             # tab参数为序号的时候,需要进行列表查询并动态获取id
-            lst = self.browser.list_tab(self.proto_timeout)
+            lst = self.browser.list_tab(self.proto_timeout, False)
             id = lst[tab]['id']
         elif isinstance(tab, Tab):
             return tab
@@ -815,7 +820,7 @@ class spd_chrome:
         try:
             return self._tab(tab), ''
         except Exception as e:
-            return None, spd_base.es(e)
+            return None, py_util.get_trace_stack()
 
     def close(self, tab):
         """关闭指定的tab页.tab可以是id也可以是序号.返回值:(tab页id,错误消息)"""
@@ -824,7 +829,7 @@ class spd_chrome:
             self.browser.close_tab(t.id, self.proto_timeout)
             return t.id, ''
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def active(self, tab):
         """激活指定的tab页,返回值:(tab页id,错误消息)"""
@@ -833,7 +838,7 @@ class spd_chrome:
             self.browser.activate_tab(t.id, self.proto_timeout)
             return t.id, ''
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def _goto(self, tab, url):
         """控制指定的tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
@@ -891,7 +896,7 @@ class spd_chrome:
             else:
                 return '', ret
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def dom_node(self, tab, sel, parentNodeId=1):
         """使用css选择表达式,或xpath表达式,在父节点id之下,查询对应的节点id"""
@@ -905,7 +910,7 @@ class spd_chrome:
             else:
                 return '', ret
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def dom_dhtml(self, tab, sel, parentNodeId=1):
         """获取dom对象的html文本,但对于iframe无效"""
@@ -922,7 +927,7 @@ class spd_chrome:
             else:
                 return '', ret
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def exec(self, tab, js):
         """在指定的tab页中运行js代码.返回值(内容串,错误消息)"""
@@ -941,7 +946,7 @@ class spd_chrome:
             else:
                 return '', ret
         except Exception as e:
-            return '', spd_base.es(e)
+            return '', py_util.get_trace_stack()
 
     def run(self, tab, js):
         '''基于dom100运行js代码'''
@@ -975,7 +980,7 @@ class spd_chrome:
                           _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
-            return False, spd_base.es(e)
+            return False, py_util.get_trace_stack()
 
     def wait_xp(self, tab, xpath, max_sec=60, body_only=False, frmSel=None):
         """在指定的tab页上,等待xpath表达式的结果出现,最大等待max_sec秒.返回值:(被xhtml格式化的内容串,错误消息)"""
@@ -1032,6 +1037,10 @@ class spd_chrome:
         wait = spd_base.waited_t(max_sec)
         # 进行循环等待
         for i in range(loops):
+            if t.id not in self.browser._tabs:
+                msg = 'TNE'
+                break
+
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
                 if wait.timeout():
