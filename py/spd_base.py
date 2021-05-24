@@ -791,7 +791,7 @@ def query_xpath(xstr, cc_xpath, fixNode='-'):
         else:
             HTMLRoot = etree.HTML(xstr)
         if HTMLRoot is None:
-            return [], 'xml/html xpath parse fail.'
+            return [], 'xpath xml/html load fail.'
         r = HTMLRoot.xpath(cc_xpath)
         return r, ''
     except etree.XPathEvalError as e:
@@ -1040,7 +1040,7 @@ class table_xpath:
         rst, msg = pair_extract(page, [rule_key, rule_val])
         if msg != '':
             if self.logger:
-                self.logger.warn('page table xpath parse error <%s>:\n%s', msg, page)
+                self.logger.warn('page table xpath query error <%s>:\n%s', msg, page)
             return
 
         self.dct = make_pairs_dict(rst, self.trsxml)
