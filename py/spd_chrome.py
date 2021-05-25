@@ -999,8 +999,9 @@ class spd_chrome:
         for i in range(loops):
             msg = 'waiting'
             html, msg = self.dhtml(t, body_only, frmSel)
-            if msg != '':
-                logger.warn('xpath (%s) take error <%s>. html:\n%s' % (xpath, msg, html))
+            if msg != '' or html == '':
+                if msg:
+                    logger.warn('xpath (%s) take error <%s> :\n%s' % (xpath, msg, html))
                 if wait.timeout():
                     break
                 time.sleep(0.45)
@@ -1009,7 +1010,7 @@ class spd_chrome:
             xhtml = spd_base.format_xhtml(html)  # 执行xpath之前先进行xhtml格式化
             r, msg = spd_base.query_xpath_x(xhtml, xpath)
             if msg != '':
-                logger.warn('xpath (%s) query error <%s>. html:\n%s' % (xpath, msg, html))
+                logger.warn('xpath (%s) query error <%s> :\n%s' % (xpath, msg, html))
                 if wait.timeout():
                     break
                 time.sleep(0.45)
