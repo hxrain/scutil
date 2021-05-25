@@ -168,7 +168,7 @@ class Tab(object):
                 try:
                     self.event_handlers[method](**message['params'])
                 except Exception as e:
-                    logger.error("callback %s exception %s" % (method, py_util.get_trace_stack()))
+                    logger.warn("callback %s exception %s" % (method, py_util.get_trace_stack()))
             return (0, 1)
         elif "id" in message:
             # 接收到结果了,记录下来
@@ -1000,7 +1000,7 @@ class spd_chrome:
             msg = 'waiting'
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '':
-                logger.debug('xpath (%s) take error <%s>. html:\n%s' % (xpath, msg, html))
+                logger.warn('xpath (%s) take error <%s>. html:\n%s' % (xpath, msg, html))
                 if wait.timeout():
                     break
                 time.sleep(0.45)
@@ -1009,7 +1009,7 @@ class spd_chrome:
             xhtml = spd_base.format_xhtml(html)  # 执行xpath之前先进行xhtml格式化
             r, msg = spd_base.query_xpath_x(xhtml, xpath)
             if msg != '':
-                logger.debug('xpath (%s) query error <%s>. html:\n%s' % (xpath, msg, html))
+                logger.warn('xpath (%s) query error <%s>. html:\n%s' % (xpath, msg, html))
                 if wait.timeout():
                     break
                 time.sleep(0.45)
