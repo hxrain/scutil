@@ -2,7 +2,7 @@
 
 import mean_shift as ms
 import nlp_tiny_bm25 as tb
-
+import uni_blocks as ub
 Q = tb.BM25_Core(tb.TDF_IDF())
 
 
@@ -50,7 +50,7 @@ def sims_xsort_distance(txts, txts_dict, sim_fn):
     tolset = set()
     for i in range(cnt):
         s = txts[i]
-        txts_dict[s] = set(tb.preproc_doc(s))  # 记录短语对应的字集
+        txts_dict[s] = set(ub.split_text(s))  # 记录短语对应的字集
         tolset = tolset.union(txts_dict[s])  # 记录短句的合并字集
 
     # 全部短句与合并字集进行相似度距离计算
