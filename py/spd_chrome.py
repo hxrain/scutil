@@ -929,6 +929,14 @@ class spd_chrome:
         except Exception as e:
             return '', py_util.get_trace_stack()
 
+    def clean(self, tab):
+        """清空当前tab页的内容,返回值:错误信息.空串正常."""
+        txt, msg = self.exec(tab, "document.documentElement.innerHTML='';")
+        if msg:
+            time.sleep(1)
+            txt, msg = self.exec(tab, "document.documentElement.innerHTML='';")
+        return msg
+
     def exec(self, tab, js):
         """在指定的tab页中运行js代码.返回值(内容串,错误消息)"""
         try:

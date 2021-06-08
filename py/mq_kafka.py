@@ -30,10 +30,16 @@ class sender:
         if self.mq is not None:
             return ''
 
+        cfg = {
+            'max_request_size': 8 * 1024 * 1024,
+            'buffer_memory': 64 * 1024 * 1024,
+            'batch_size': 2 * 1024 *1024
+        }
+
         try:
             if isinstance(self.auth, sasl_plain):
                 self.mq = KafkaProducer(bootstrap_servers=self.host, sasl_mechanism="PLAIN", security_protocol='SASL_PLAINTEXT',
-                                        sasl_plain_username=self.auth.user, sasl_plain_password=self.auth.pwd)
+                                        sasl_plain_username=self.auth.user, sasl_plain_password=self.auth.pwd, **cfg)
             else:
                 self.mq = KafkaProducer(bootstrap_servers=self.host)
         except Exception as e:
