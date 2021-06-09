@@ -31,9 +31,10 @@ class sender:
             return ''
 
         cfg = {
-            'max_request_size': 8 * 1024 * 1024,
+            'max_request_size': 16 * 1024 * 1024,
             'buffer_memory': 64 * 1024 * 1024,
-            'batch_size': 2 * 1024 *1024
+            'batch_size': 2 * 1024 * 1024,
+            'compression_type': 'gzip'
         }
 
         try:
