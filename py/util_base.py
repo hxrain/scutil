@@ -7,6 +7,7 @@ import re
 import time
 from xml.dom import minidom
 
+
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
@@ -90,6 +91,12 @@ def append_lines(fname, dats, encoding=None):
     except Exception as e:
         return False
 
+
+def clean_blank_line(txt):
+    """删除文本中的空白行(只由空白和回车符构成的行)"""
+    return re.sub(r'\n[\s\t]*\r?\n', '\n', txt)
+
+
 class waited_t:
     """简单的超时等待计时器"""
 
@@ -105,6 +112,7 @@ class waited_t:
     def timeout(self):
         """用当前时间判断,是否超时了"""
         return time.time() >= self.end
+
 
 # 文件行输出器
 class append_line_t:
@@ -519,7 +527,6 @@ def json2dict(jstr, indent=True, utf8=False):
         return [], 'JSON ERR : ' + es(e)
 
 
-
 def replace_re(cnt_str, cc_re, cc_dst):
     """将cnt_str中符合cc_re正则表达式的部分替换为cc_dst"""
     try:
@@ -644,4 +651,3 @@ def query_re_str(cnt_str, cc_re, defval=None):
     if len(rs) != 0:
         return rs[0]
     return defval
-
