@@ -105,7 +105,7 @@ class dfa_match_t():
         rs = self.do_check(message, msg_len, 0, max_match, isall)
         if len(rs) == 0:
             return []
-        return self.do_complete(rs,message,msg_len)
+        return self.do_complete(rs, message, msg_len)
 
     # 根据do_match匹配结果,补全未匹配的部分
     def do_complete(self, matchs, message, msg_len=None):
@@ -145,17 +145,17 @@ class dfa_match_t():
             rst.append((rst[-1][1], msg_len, None))  # 补充最后剩余的部分
         return rst
 
-    def do_check(self, message, msg_len=None, offset=0, max_match=True, isall=True):
+    def do_check(self, message, msg_len=None, offset=0, max_match=True, isall=True,skip_match=False):
         """对给定的消息进行关键词匹配测试,返回值:匹配结果,[三元组(begin,end,val)列表]"""
         rst = []
 
         def cb(b, e, v):
             rst.append((b, e, v))
 
-        self.do_loop(cb, message, msg_len, offset, max_match, isall)
+        self.do_loop(cb, message, msg_len, offset, max_match, isall,skip_match)
         return rst
 
-    def do_loop(self, cb, message, msg_len=None, offset=0, max_match=True, isall=True):
+    def do_loop(self, cb, message, msg_len=None, offset=0, max_match=True, isall=True, skip_match=False):
         """对给定的消息进行关键词匹配循环,返回值:匹配结果,[三元组(begin,end,val)列表]"""
         if msg_len is None:
             msg_len = len(message)
@@ -189,5 +189,8 @@ class dfa_match_t():
                     rc += 1
                     break
             # 跳过当前消息字符,开始下一轮匹配
-            start += 1
+            if skip_match:
+                start += max(1, step_ins)
+            else:
+                start += 1
         return rc
