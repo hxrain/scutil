@@ -6,14 +6,14 @@ class addr_analyse_t:
     """基于给定的文本,分析可能的行政区划地点"""
 
     def __init__(self):
-        self.dfa = dm.dfa_match_t()
+        self.dfa = dm.dfa_match_t() #用DFA引擎装载省市区县名称与对应的区划代码
         for name in cai.map_area_ids:
             ids = cai.map_area_ids[name]
             self.dfa.dict_add(name, ids)
 
     def extract(self, txt):
         """根据给定的文本,尝试分析其中出现过最基层(区县或市或省)的行政代码.返回值:[区划代码]或None"""
-        mrs = self.dfa.do_check(txt, max_match=True, isall=False)
+        mrs = self.dfa.do_check(txt, max_match=True, isall=True, skip_match=True)
         mrs_len = len(mrs)
         if mrs_len == 0:
             return None
@@ -66,6 +66,7 @@ class addr_analyse_t:
         return rst
 
     def query(self, txt):
+        """根据给定的文本,尝试分析其中出现过的行政区划层级地址.返回值:[(省,市,区县)]或None"""
         id_grops = self.extract(txt)
         if id_grops is None:
             return None
