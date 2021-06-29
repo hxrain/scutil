@@ -3284,7 +3284,7 @@ def is_depen(ida, idb):
     if len(ida) != 6 or len(idb) != 6:
         return None
 
-    if idb<ida:
+    if idb < ida:
         return 0
 
     if ida == idb:
@@ -3365,9 +3365,3 @@ def split_ex(areaid):
     if len(rst) == 0:
         return None
     return rst, ids
-
-
-for m in map_area_ids:
-    ids = map_area_ids[m]
-    if len(ids) > 1:
-        print(m, ids)

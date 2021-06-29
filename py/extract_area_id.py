@@ -6,7 +6,7 @@ class addr_analyse_t:
     """基于给定的文本,分析可能的行政区划地点"""
 
     def __init__(self):
-        self.dfa = dm.dfa_match_t() #用DFA引擎装载省市区县名称与对应的区划代码
+        self.dfa = dm.dfa_match_t()  # 用DFA引擎装载省市区县名称与对应的区划代码
         for name in cai.map_area_ids:
             ids = cai.map_area_ids[name]
             self.dfa.dict_add(name, ids)
@@ -76,5 +76,5 @@ class addr_analyse_t:
             for id in ids:
                 lst = cai.split_ex(id)
                 if lst:
-                    rst.append(tuple(lst[0]))
+                    rst.append([str(id), *lst[0]])  # 记录[区划id,以及区划分级名字列表]
         return rst
