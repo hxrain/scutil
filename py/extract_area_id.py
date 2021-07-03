@@ -20,6 +20,21 @@ class addr_analyse_t:
 
         rst = []  # 最终结果,分组集合列表
 
+        def _rec_rst(res):
+            if res in rst:
+                return
+            dels = []
+            for old in rst:
+                if cai.check_depen(res, old):
+                    return  # 待记录的区域比已有区域大,不记录了.
+                if cai.check_depen(old, res):
+                    dels.append(old)  # 如果待记录的区域比已有区域小,则准备删除已有区域.
+
+            for d in dels:
+                rst.remove(d)
+
+            rst.append(res)
+
         def az_one(ids):
             """分析单组检索结果(组内多个区划代码的细分处理)"""
             if not isinstance(ids, list):
@@ -27,7 +42,7 @@ class addr_analyse_t:
 
             ids_len = len(ids)
             if ids_len == 1:
-                rst.append({ids[0]})  # 单名区划代码,直接放入最终结果
+                _rec_rst({ids[0]})  # 单名区划代码,直接放入最终结果
                 return
 
             res = set()
@@ -37,7 +52,7 @@ class addr_analyse_t:
                 for ci in pc_ids:
                     ci_ids = pc_ids[ci]  # 市级同名区划代码
                     res.add(min(ci_ids))  # 取范围大的结果(区划代码的最小值),比如: 阜新 => 阜新市/阜新县 => 阜新市
-            rst.append(res)
+            _rec_rst(res)
 
         last_deps = mrs[0][2]
         if mrs_len == 1:  # 只有一个区划名称被匹配,分析结果后直接返回
@@ -62,6 +77,8 @@ class addr_analyse_t:
                 az_one(last_deps)  # 则记录上一次的最后结果
                 if mi == mrs_len - 1:
                     az_one(curr_mr[2])  # 如果循环马上结束了,那么就记录当前的最后结果
+                else:
+                    last_deps = list(curr_mr[2]) #否则当前区划信息留存到下次处理
 
         return rst
 

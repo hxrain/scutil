@@ -3217,19 +3217,19 @@ map_id_areas = {
 }
 
 
-def drop_area_tail(name):
+def drop_area_tail(name, tails={'省', '市', '区', '县', '州'}):
     """对地区的名字进行尾部移除的处理,尝试得到地区名字主干部分"""
     if len(name) <= 2:
         return name
     if name[-2:] in {'新区', '地区', '林区', '矿区', '政区', '市区', '治州', '治县'}:
         return name
-    if name[-1] in {'省', '市', '区', '县', '州'}:
+    if name[-1] in tails:
         return name[:-1]
     return name
 
 
 # 区划名称映射区划id集合
-def make_map_area_ids():
+def make_map_area_ids(tails=None):
     rst = {}
 
     def _rec(name, id):
@@ -3242,12 +3242,15 @@ def make_map_area_ids():
         alst = map_id_areas[id]
         for name in alst:
             _rec(name, id)
-            _rec(drop_area_tail(name), id)
+            if tails:
+                _rec(drop_area_tail(name, tails), id)
+            else:
+                _rec(drop_area_tail(name), id)
     return rst
 
 
 # 生成区域名称对应的区划id集合
-map_area_ids = make_map_area_ids()
+map_area_ids = make_map_area_ids({'省', '市', '州'})
 
 
 def query_area_by_id(id):
@@ -3276,24 +3279,48 @@ def query_ids_by_area(name):
 
 
 def is_depen(ida, idb):
-    """分析idb从属依赖ida的相关性;返回值:None错误;0不相关;1同省;2同市;3同区县"""
+    """分析idb从属依赖ida的相关性;返回值:(a,b),错误为(None,None);
+        a=0不相关;1同省;2同市;3同区县
+        b=0正常;1省级范围倒置;2不同市;3市级范围倒置;4不同区
+        (0,0)不相关;(0,1)省级范围倒置;(0,3)市级范围倒置;
+        (1,0)省属市;(1,2)同省不同市;
+        (2,0)市属县;(2,4)同市不同区;
+        (3,0)同区县
+    """
     if isinstance(ida, int):
         ida = str(ida)
     if isinstance(idb, int):
         idb = str(idb)
     if len(ida) != 6 or len(idb) != 6:
-        return None
-
-    if idb < ida:
-        return 0
+        return None, None
 
     if ida == idb:
-        return 3
-    if ida[:-2] == idb[:-2]:
-        return 2
-    if ida[:-4] == idb[:-4]:
-        return 1
-    return 0
+        return (3, 0)  # 同区县
+
+    if ida[:2] != idb[:2]:
+        return (0, 0)  # 不同省
+
+    a = ida[2:]
+    b = idb[2:]
+    if a != '0000' and b == '0000':
+        return (0, 1)  # 范围倒置,不相关
+    if a == '0000' and b != '0000':
+        return (1, 0)  # 省属市
+
+    if ida[:4] != idb[:4]:
+        return (1, 2)  # 同省,不同市
+
+    a = ida[4:]
+    b = idb[4:]
+    if a != '00' and b == '00':
+        return (0, 3)  # 范围倒置,不相关
+    if a == '00' and b != '00':
+        return (2, 0)  # 市属区县
+
+    if ida != idb:
+        return (2, 4)  # 同市,不同区
+
+    return (3, 0)  # 同区县
 
 
 def grouping(ids):
@@ -3316,11 +3343,17 @@ def check_depen(aids, bids):
     dct = {}
     for bid in bids:
         for aid in aids:
-            fd = is_depen(aid, bid)  # 检查b与a的从属相关性
+            d = is_depen(aid, bid)  # 检查b与a的从属相关性
+            fd = d[0]
             if fd:
+                if d[1]:
+                    continue
                 if fd not in dct:
                     dct[fd] = []  # 根据从属相关性等级进行结果记录
                 dct[fd].append(bid)
+
+    if len(dct) == 0:
+        return None
 
     for l in range(3, 0, -1):
         if l in dct:
