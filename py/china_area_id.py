@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# 区划id映射地区名称
+# 行政区划编码映射地区名称
 map_id_areas = {
     110000: ['北京市'],
     110101: ['东城区'],
@@ -3272,7 +3272,7 @@ def query_area_by_ids(ids):
 
 
 def query_ids_by_area(name):
-    """根据区域名称查询对应的区域id集合,不存在时返回None"""
+    """根据单独的省市区县名称查询对应的区域id集合,不存在时返回None"""
     if name not in map_area_ids:
         return None
     return map_area_ids[name]

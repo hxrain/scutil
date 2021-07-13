@@ -198,7 +198,7 @@ def query_xpath(xstr, cc_xpath, fixNode='-'):
 
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath;可以删除removeTags元组列表指出的标签(保留元素内容)
 # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
-def query_xpath_x(cnt_str, cc_xpath, removeTags=None):
+def query_xpath_x(cnt_str, cc_xpath, removeTags=None,removeAtts=None):
     rs, msg = query_xpath(cnt_str, cc_xpath)
     if msg != '':
         return rs, msg
@@ -207,6 +207,8 @@ def query_xpath_x(cnt_str, cc_xpath, removeTags=None):
         if isinstance(rs[i], etree._Element):
             if removeTags:
                 etree.strip_tags(rs[i], removeTags)
+            if removeAtts:
+                etree.strip_attributes(rs[i], removeAtts)
             rs[i] = etree.tostring(rs[i], encoding='unicode', method='html')
 
     return rs, msg
