@@ -1,4 +1,5 @@
 import china_area_id as cai
+import re
 
 # map_postid_areas 邮政编码 => 行政区划代码 映射表.
 # map_telid_areas  固话区号 => 行政区划代码 映射表.
@@ -572,7 +573,7 @@ def query_area_by_postid(pid):
         return None
     if pid in map_postid_areas:
         return map_postid_areas[pid]
-    pid = pid[:4] + 00
+    pid = pid[:4] + '00'
     if pid in map_postid_areas:
         return map_postid_areas[pid]
     return None
@@ -583,3 +584,11 @@ def query_area_by_telid(telid):
     if telid in map_telid_areas:
         return map_telid_areas[telid]
     return None
+
+
+def query_area_by_tel(tel):
+    """根据电话号码中的区号查询对应的行政区划代码.返回值:行政区划代码,或None"""
+    telids = re.findall(r'(\+86)?[\+\-\s]?(0\d{2,3})', tel)
+    if len(telids) == 0:
+        return None
+    return query_area_by_telid(telids[0][1])
