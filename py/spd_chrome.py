@@ -96,9 +96,11 @@ class Tab(object):
         self.method_results = {}  # 记录请求对应的回应结果
 
         self._data_requestWillBeSent = {}  # 记录请求内容,以url为key,value为[请求内容对象]列表
+        self._data_requestIDs = {}  # 记录请求ID对应的请求信息
         self.req_event_filter_re = None  # 过滤请求信息使用的url匹配re规则
         self._last_act(kwargs.get("act", False))
         self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
+        self.set_listener('Network.responseReceived', self._on_responseReceived)
 
     def _last_act(self, using):
         """记录该tab是否处于使用中,便于外部跟踪状态"""
@@ -274,6 +276,15 @@ class Tab(object):
         if len(self._data_requestWillBeSent[url]) > 100:
             self._data_requestWillBeSent[url].pop(0)  # 如果信息列表过长则清空最初的旧数据
         self._data_requestWillBeSent[url].append((request, requestId))  # 记录请求信息和请求id
+        self._data_requestIDs[requestId] = [request]  # 记录requestid对应的请求信息
+
+    def _on_responseReceived(self, requestId, loaderId, timestamp, type, response, frameId):
+        """记录请求对应的应答信息"""
+        if requestId not in self._data_requestIDs:
+            return
+
+        r = self._data_requestIDs[requestId]
+        r.append(response)
 
     def recv_loop(self, loops=50):
         for i in range(loops):
@@ -297,17 +308,23 @@ class Tab(object):
     def clear_requests(self):
         """清理全部记录的请求信息"""
         self._data_requestWillBeSent.clear()
+        self._data_requestIDs.clear()
 
-    def get_request_urls(self, hold_url_re=None):
+    def get_request_urls(self, hold_url, url_is_re=True):
         """获取记录过的请求信息的url列表"""
         self.recv_loop()
-        if hold_url_re is None:  # 没有明确告知拦截url的模式,则返回全部记录的请求url
+        if hold_url is None:  # 没有明确告知拦截url的模式,则返回全部记录的请求url
             return list(self._data_requestWillBeSent.keys())
 
         rst = []
-        for url in self._data_requestWillBeSent.keys():
-            if spd_base.query_re_str(url, hold_url_re):  # 否则记录匹配的请求url
-                rst.append(url)
+        if url_is_re:
+            for url in self._data_requestWillBeSent.keys():
+                if spd_base.query_re_str(url, hold_url):  # 否则记录匹配的请求url
+                    rst.append(url)
+        else:
+            if self.get_requests(hold_url):
+                rst.append(hold_url)
+
         return rst
 
     def _open_websock(self):
@@ -344,7 +361,7 @@ class Tab(object):
     def close(self):
         """停止tab交互,关闭websocket连接"""
         self._close_websock()
-        self._data_requestWillBeSent.clear()
+        self.clear_requests()
         return True
 
 
@@ -602,6 +619,22 @@ def check_cond(isnot, rst):
         return len(rst) > 0
 
 
+def make_cookie_str(cks):
+    """根据cookie字典列表生成提交时使用的cookie串"""
+    rst = []
+    for c in cks:
+        rst.append('%s=%s' % (c['name'], c['value']))
+    return '; '.join(rst)
+
+
+def make_cookie_dct(cks):
+    """根据cookie字典列表生成提交时使用的cookie字典"""
+    rst = {}
+    for c in cks:
+        rst[c['name']] = c['value']
+    return rst
+
+
 # 定义常见爬虫功能类
 class spd_chrome:
     def __init__(self, proto_url="http://127.0.0.1:9222"):
@@ -634,22 +667,22 @@ class spd_chrome:
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def get_request_urls(self, tab, hold_url=None):
+    def get_request_urls(self, tab, hold_url=None, url_is_re=True):
         """获取指定tab记录的请求信息,与hold_url匹配的url列表,或全部url列表;返回值:([urls],msg)"""
         try:
             t = self._tab(tab)
-            return t.get_request_urls(hold_url), ''
+            return t.get_request_urls(hold_url, url_is_re), ''
         except Exception as e:
             return None, py_util.get_trace_stack()
 
-    def wait_request_urls(self, tab, hold_url_re, timeout=60):
+    def wait_request_urls(self, tab, url, timeout=60, url_is_re=True):
         """尝试等待请求信息中出现指定的url.返回值:([请求信息列表],msg),msg为空正常."""
         loop = timeout * 2
         try:
             t = self._tab(tab)
             wait = spd_base.waited_t(timeout)
             for i in range(loop):
-                dst = t.get_request_urls(hold_url_re)
+                dst = t.get_request_urls(url, url_is_re)
                 if len(dst):
                     return dst, ''
                 if wait.timeout():
@@ -659,7 +692,7 @@ class spd_chrome:
         except Exception as e:
             return None, py_util.get_trace_stack()
 
-    def get_request_info(self, tab, url):
+    def get_request_info(self, tab, url, url_is_re=False):
         """获取指定url的请求信息
             工作流程:1 打开tab页的时候,就需要告知url的匹配模式;2 等待页面装载完成,内部记录发送的请求信息; 3根据url查找发送的请求内容.
             返回值: [(request,requestId)],msg
@@ -667,7 +700,17 @@ class spd_chrome:
         """
         try:
             t = self._tab(tab)
-            return t.get_requests(url), ''
+            if url_is_re:
+                urls = t.get_request_urls(url, url_is_re)
+                if len(urls) == 0:
+                    return None, ''
+                rst = []
+                for u in urls:
+                    rst.extend(t.get_requests(u))
+                return rst, ''
+            else:
+                return t.get_requests(url), ''
+
         except Exception as e:
             return None, py_util.get_trace_stack()
 
@@ -681,14 +724,14 @@ class spd_chrome:
         except Exception as e:
             return py_util.get_trace_stack()
 
-    def get_response_body(self, tab, url):
+    def get_response_body(self, tab, url, url_is_re=False):
         """获取指定url的回应内容
             工作流程:1 等待页面装载完成,内部记录发送的请求信息; 2 根据url查找发送的请求id; 3 使用请求id获取对应的回应内容.
             返回值: (body,msg)
                     msg为''则正常;body为回应内容
         """
         try:
-            req_lst, msg = self.get_request_info(tab, url)
+            req_lst, msg = self.get_request_info(tab, url, url_is_re)
             if msg:
                 return None, msg
             if req_lst is None or len(req_lst) == 0:

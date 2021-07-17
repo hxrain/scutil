@@ -295,19 +295,21 @@ class source_base:
         url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
         return url
 
+    def make_http_result(self, body, code=200, err=''):
+        """生成http抓取结果"""
+        self.spider.http.rst['BODY'] = body
+        self.spider.http.rst['status_code'] = code
+        self.spider.http.rst['error'] = err
+
     def chrome_wait(self, chrome, tab, cond_re, body_only=False, timeout=None, frmSel=None):
         if timeout is None:
             timeout = self.chrome_timeout
         rsp, msg = chrome.wait_re(tab, cond_re, timeout, body_only, frmSel)  # 等待页面装载完成
         if msg != '':
-            self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 998
-            self.spider.http.rst['error'] = msg
+            self.make_http_result('', 998, msg)
             return False
         else:
-            self.spider.http.rst['BODY'] = rsp
-            self.spider.http.rst['status_code'] = 200
-            self.spider.http.rst['error'] = ''
+            self.make_http_result(rsp)
             return True
 
     def chrome_wait_xp(self, chrome, tab, cond_xp, body_only=False, timeout=None, frmSel=None):
@@ -315,56 +317,73 @@ class source_base:
             timeout = self.chrome_timeout
         rsp, msg = chrome.wait_xp(tab, cond_xp, timeout, body_only, frmSel)  # 等待页面装载完成
         if msg != '':
-            self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 997
-            self.spider.http.rst['error'] = msg
+            self.make_http_result('', 997, msg)
             return False
         else:
-            self.spider.http.rst['BODY'] = rsp
-            self.spider.http.rst['status_code'] = 200
-            self.spider.http.rst['error'] = ''
+            self.make_http_result(rsp)
             return True
 
-    def chrome_hold(self, url, chrome, tab, timeout=None):
+    def chrome_hold(self, url, chrome, tab, timeout=None, url_is_re=False):
         """使用chrome控制器,在指定的tab上提取指定url的回应内容"""
         if timeout is None:
             timeout = self.chrome_timeout
-        reqs, msg = chrome.wait_request_urls(tab, url, timeout)
 
         rbody = ''
+        reqs, msg = chrome.wait_request_urls(tab, url, timeout, url_is_re)
         if msg == '':
-            rbody, msg = chrome.get_response_body(tab, url)
+            rbody, msg = chrome.get_response_body(tab, url, url_is_re)
 
         if msg != '':
-            self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 994
-            self.spider.http.rst['error'] = msg
+            self.make_http_result('', 994, msg)
             return False
 
-        self.spider.http.rst['BODY'] = rbody
-        self.spider.http.rst['status_code'] = 200
-        self.spider.http.rst['error'] = ''
+        self.make_http_result(rbody)
 
         chrome.clear_request(tab)
         return True
 
-    def chrome_take(self, url, chrome, tab, cond_re, body_only=False):
+    def chrome_exec(self, js, chrome, tab, cond_re, is_run=False):
+        """使用chrome控制器,在指定的tab上运行指定的js代码(或代码列表),完成条件是cond_re"""
+
+        def exec(s):
+            if is_run:
+                r = chrome.run(tab, s)  # 控制浏览器访问入口url
+            else:
+                r = chrome.exec(tab, s)  # 控制浏览器访问入口url
+            if r[1]:
+                self.make_http_result('', 993, 'chrome exec js fail.')
+                return False
+            return True
+
+        if isinstance(js, str):
+            if not exec(js):
+                return False
+        elif isinstance(js, list):
+            for s in js:
+                if not exec(s):
+                    return False
+        return self.chrome_wait(chrome, tab, cond_re, True)
+
+    def chrome_cookies(self, url, chrome, tab):
+        """使用chrome控制器,在指定的tab上获取指定url对应的cookie值列表"""
+        cks, msg = chrome.query_cookies(tab, url)
+        if msg:
+            return None
+        return cks
+
+    def chrome_take(self, url, chrome, tab, cond_re, body_only=False, frmSel=None):
         """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
-            self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 900
-            self.spider.http.rst['error'] = 'chrome open fail.'
+            self.make_http_result('', 900, 'chrome open fail.')
             return False
-        return self.chrome_wait(chrome, tab, cond_re, body_only)
+        return self.chrome_wait(chrome, tab, cond_re, body_only, frmSel=frmSel)
 
     def chrome_post(self, url, chrome, data, tab, cond_re, body_only=False, contentType="application/x-www-form-urlencoded"):
         """使用chrome控制器,在指定的tab上发起ajax/post请求url页面,完成条件是cond_re"""
         r = chrome.post(tab, url, data, contentType)  # 控制浏览器访问入口url
         if r[1]:
-            self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 996
-            self.spider.http.rst['error'] = r[1]
+            self.make_http_result('', 996, r[1])
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only)
 
@@ -372,9 +391,7 @@ class source_base:
         """使用chrome控制器,在指定的tab上发起ajax/get请求url页面,完成条件是cond_re"""
         r = chrome.get(tab, url)  # 控制浏览器访问入口url
         if r[1]:
-            self.spider.http.rst['BODY'] = ''
-            self.spider.http.rst['status_code'] = 995
-            self.spider.http.rst['error'] = r[1]
+            self.make_http_result('', 995, r[1])
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only)
 
@@ -395,7 +412,7 @@ class source_base:
         return None
 
     def on_page_take(self, info, page_url, req):
-        """发起对page_url的http抓取动作,
+        """发起对page_url的http抓取动作,快捷方法为: make_http_result
             self.spider.http.rst['BODY'] 中保存了抓取结果;
             self.spider.http.rst['status_code'] 记录http状态码;
             self.spider.http.rst['error'] 记录错误原因.
@@ -458,6 +475,8 @@ class spider_base:
 
             # 对细览页进行后续处理
             xstr = self.call_src_method('on_page_format', self.http.get_BODY())
+            if xstr == '__EMPTY__':
+                break
             info_stat = self.call_src_method('on_page_info', info, list_url, xstr)
             if not info_stat:
                 continue
