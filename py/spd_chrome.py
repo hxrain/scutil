@@ -305,6 +305,16 @@ class Tab(object):
         else:
             return self._data_requestWillBeSent
 
+    def get_response(self, reqid):
+        """根据请求id获取对应的回应信息,返回值:None回应不存在;其他为回应对象."""
+        self.recv_loop()
+        if reqid not in self._data_requestIDs:
+            return None
+        r = self._data_requestIDs[reqid]
+        if len(r) != 2:
+            return None
+        return r
+
     def clear_requests(self):
         """清理全部记录的请求信息"""
         self._data_requestWillBeSent.clear()
@@ -724,30 +734,50 @@ class spd_chrome:
         except Exception as e:
             return py_util.get_trace_stack()
 
-    def get_response_body(self, tab, url, url_is_re=False):
+    def get_response_body(self, tab, url, url_is_re=False, timeout=30):
         """获取指定url的回应内容
             工作流程:1 等待页面装载完成,内部记录发送的请求信息; 2 根据url查找发送的请求id; 3 使用请求id获取对应的回应内容.
             返回值: (body,msg)
                     msg为''则正常;body为回应内容
         """
-        try:
-            req_lst, msg = self.get_request_info(tab, url, url_is_re)
-            if msg:
-                return None, msg
-            if req_lst is None or len(req_lst) == 0:
-                return None, ''
+        t = self._tab(tab)
 
-            req, reqid = req_lst[-1]
+        def wait(reqid):
+            """等待回应到达"""
+            loop = timeout * 2
+            wait = spd_base.waited_t(timeout)
+            for i in range(loop):
+                r = t.get_response(reqid)
+                if r:
+                    return True
+                if wait.timeout():
+                    break
+                time.sleep(0.45)
+            return False
 
-            t = self._tab(tab)
-            rst = t.call_method('Network.getResponseBody', requestId=reqid, _timeout=self.proto_timeout)
-            body = rst['body']
-            en = rst['base64Encoded']
-            if en:
-                body = base64.decodebytes(body.encode('latin-1'))
-            return body, ''
-        except Exception as e:
-            return None, py_util.get_trace_stack()
+        def call(reqid):
+            try:
+                rst = t.call_method('Network.getResponseBody', requestId=reqid, _timeout=self.proto_timeout)
+                body = rst['body']
+                en = rst['base64Encoded']
+                if en:
+                    body = base64.decodebytes(body.encode('latin-1'))
+                return body, ''
+            except Exception as e:
+                return None, py_util.get_trace_stack()
+
+        req_lst, msg = self.get_request_info(tab, url, url_is_re)
+        if msg:
+            return None, msg
+        if req_lst is None or len(req_lst) == 0:
+            return None, ''
+
+        req, reqid = req_lst[-1]
+        if not wait(reqid):
+            return None, ''
+
+        rst, msg = call(reqid)
+        return rst, msg
 
     def clear_cookies(self, tab):
         """删除浏览器全部的cookie值;
@@ -890,6 +920,15 @@ class spd_chrome:
             t.clear_requests()  # 每次发起新导航的时候,都清空之前记录的请求信息
             rst = t.call_method('Page.navigate', url=url, _timeout=self.proto_timeout)
             return rst, ''
+        except Exception as e:
+            return None, spd_base.es(e)
+
+    def stop(self, tab):
+        """控制指定的tab页停止浏览.返回值:错误消息,空正常"""
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('Page.stopLoading', _timeout=self.proto_timeout)
+            return ''
         except Exception as e:
             return None, spd_base.es(e)
 

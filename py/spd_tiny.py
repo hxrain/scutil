@@ -373,9 +373,10 @@ class source_base:
 
     def chrome_take(self, url, chrome, tab, cond_re, body_only=False, frmSel=None):
         """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
+        chrome.stop(tab)
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
-            self.make_http_result('', 900, 'chrome open fail.')
+            self.make_http_result('', 900, 'chrome open fail. %s' % r[2])
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only, frmSel=frmSel)
 

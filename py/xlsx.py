@@ -132,16 +132,25 @@ class xlsx_editor:
 
     def __init__(self, fname=None, data_only=True):
         """构造并装载数据,告知是否取公式的数据结果"""
-        self.open(fname, data_only)
+        self.file = None
+        if fname != '':
+            self.open(fname, data_only)
 
     def open(self, fname=None, data_only=True):
         """打开文件装载数据/或创建新文档,告知是否取公式的数据结果"""
-        if fname:
-            self.file = load_workbook(fname, data_only=data_only)
-            self.fname = fname
-        else:
-            self.file = Workbook()
-            self.fname = None
+        try:
+            if fname:
+                self.file = load_workbook(fname, data_only=data_only)
+                self.fname = fname
+            else:
+                self.file = Workbook()
+                self.fname = None
+            return ''
+        except Exception as e:
+            return str(e)
+
+    def is_opened(self):
+        return self.file is not None
 
     def sheets(self):
         """获取当前excel中每个表格页的名称.返回值:[tab页名称列表]"""
