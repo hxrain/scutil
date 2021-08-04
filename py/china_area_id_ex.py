@@ -78,20 +78,21 @@ class addr_analyse_t:
                 if mi == mrs_len - 1:
                     az_one(curr_mr[2])  # 如果循环马上结束了,那么就记录当前的最后结果
                 else:
-                    last_deps = list(curr_mr[2]) #否则当前区划信息留存到下次处理
+                    last_deps = list(curr_mr[2])  # 否则当前区划信息留存到下次处理
 
         return rst
 
-    def query(self, txt):
+    def query(self, txt, only=False):
         """根据给定的文本,尝试分析其中出现过的行政区划层级地址.返回值:[(省,市,区县)]或None"""
         id_grops = self.extract(txt)
         if id_grops is None:
             return None
-
         rst = []
         for ids in id_grops:
             for id in ids:
                 lst = cai.split_ex(id)
                 if lst:
                     rst.append([str(id), *lst[0]])  # 记录[区划id,以及区划分级名字列表]
+                if only:
+                    return rst
         return rst
