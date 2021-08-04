@@ -146,3 +146,35 @@ class receiver:
             return
         self.mq.close()
         self.mq = None
+
+
+class mq_pusher_t:
+    """对kafka发送者进行业务包装,组成完整的发送功能对象"""
+
+    def __init__(self, addr, topic, logger, auth=None):
+        self.sender = mq_kafka.sender(addr.split(','), topic, auth)
+        self.logger = logger
+        self.total = 0  # 推送的总数
+        self.round = 0  # 推送的轮次
+        self.count = 0  # 本轮已推送
+        # logging.getLogger("kafka").setLevel(logging.INFO) #调整kafka客户端日志输出级别
+
+    def ready(self):
+        """每轮调用之前,进行计数器调整"""
+        self.round += 1
+        self.count = 0
+
+    def put(self, datas):
+        """进行一次完整的推送动作.返回值:None完成;其他为推送失败的信息对象"""
+        for dat in datas:
+            msg = self.sender.put(dat)
+            if msg != '':
+                self.logger.warning('mq push fail <%s>' % msg)
+                return dat
+            self.total += 1
+            self.count += 1
+        self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d)' % (self.round, self.count, self.total))
+        return None
+
+    def close(self):
+        self.sender.close()

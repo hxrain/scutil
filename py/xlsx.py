@@ -74,9 +74,9 @@ class xlsx_maker:
         self.cell_style.append(fmt)
         return len(self.cell_style) - 1
 
-    def create(self, sheet_name, cols=None, chk_keys=True):
+    def create(self, sheet_name, cols=None, chk_keys=True, keyIdx=None):
         """创建数据表,告知表名与列头"""
-        s = xlsx_sheet()
+        s = xlsx_sheet(keyIdx)
         s.sheet = self.book.add_worksheet(sheet_name)
         s.cell_style = self.cell_style
 
