@@ -6,8 +6,8 @@ import json
 import re
 import time
 from xml.dom import minidom
-
-
+import zipfile
+from hash_calc import calc_key
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
@@ -249,8 +249,11 @@ class lines_writer:
         line = line.strip()
         if line == '': return 0
 
-        t = line.split(self.sep)
-        return self.appendt(t)
+        if self.sep:
+            t = line.split(self.sep)
+            return self.appendt(t)
+        else:
+            return self.appendt(line)
 
     def appendt(self, t):
         """追加()元组内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
@@ -261,7 +264,10 @@ class lines_writer:
         if key in self.keys:
             return 1
         try:
-            self.fp.write(self.sep.join(t) + '\n')
+            if isinstance(t,tuple):
+                self.fp.write(self.sep.join(t) + '\n')
+            else:
+                self.fp.write(t + '\n')
             self.keys.add(key)
             return 2
         except Exception as e:

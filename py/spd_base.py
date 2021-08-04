@@ -10,7 +10,6 @@ import re
 import time
 import base64
 import urllib.parse as up
-import zipfile
 from xml.dom import minidom
 from hash_calc import *
 from util_base import *

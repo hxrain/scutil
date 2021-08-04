@@ -342,7 +342,7 @@ class source_base:
         chrome.clear_request(tab)
         return True
 
-    def chrome_exec(self, js, chrome, tab, cond_re, is_run=False):
+    def chrome_exec(self, js, chrome, tab, cond_re, is_run=False, body_only=True, timeout=None, frmSel=None, cond_xp=None):
         """使用chrome控制器,在指定的tab上运行指定的js代码(或代码列表),完成条件是cond_re"""
 
         def exec(s):
@@ -362,7 +362,10 @@ class source_base:
             for s in js:
                 if not exec(s):
                     return False
-        return self.chrome_wait(chrome, tab, cond_re, True)
+        if cond_xp:
+            return self.chrome_wait_xp(chrome, tab, cond_xp, body_only, timeout, frmSel)
+        else:
+            return self.chrome_wait(chrome, tab, cond_re, body_only, timeout, frmSel)
 
     def chrome_cookies(self, url, chrome, tab):
         """使用chrome控制器,在指定的tab上获取指定url对应的cookie值列表"""
