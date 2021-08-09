@@ -151,7 +151,7 @@ class receiver:
 class mq_pusher_t:
     """对kafka发送者进行业务包装,组成完整的发送功能对象"""
 
-    def __init__(self, addr, topic, logger, auth=None):
+    def __init__(self, addr, topic, logger=None, auth=None):
         self.sender = mq_kafka.sender(addr.split(','), topic, auth)
         self.logger = logger
         self.total = 0  # 推送的总数
@@ -167,14 +167,38 @@ class mq_pusher_t:
     def put(self, datas):
         """进行一次完整的推送动作.返回值:None完成;其他为推送失败的信息对象"""
         for dat in datas:
-            msg = self.sender.put(dat)
-            if msg != '':
-                self.logger.warning('mq push fail <%s>' % msg)
-                return dat
+            if dat:
+                msg = self.sender.put(dat)
+                if msg != '':
+                    if self.logger:
+                        self.logger.warning('mq push fail <%s>' % msg)
+                    return dat
             self.total += 1
             self.count += 1
-        self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d)' % (self.round, self.count, self.total))
+        if self.logger:
+            self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d)' % (self.round, self.count, self.total))
         return None
+
+    def put2(self, datas):
+        """进行一次完整的推送动作.返回值:None完成;其他为推送失败的信息对象"""
+        for idx, dat in enumerate(datas):
+            if dat:
+                msg = self.sender.put(dat)
+                if msg != '':
+                    if self.logger:
+                        self.logger.warning('mq push fail <%s>' % msg)
+                    return dat, idx
+            self.total += 1
+            self.count += 1
+        if self.logger:
+            self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d)' % (self.round, self.count, self.total))
+        return None, -1
 
     def close(self):
         self.sender.close()
+
+
+def make_kafka_pusher(user, pswd, addr, topic, logger=None):
+    """kafka推送器初始化函数"""
+    mqauth = mq_kafka.sasl_plain(user, pswd)
+    return mq_kafka.mq_pusher_t(addr, topic, logger, mqauth)
