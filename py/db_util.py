@@ -33,7 +33,7 @@ class db_fetch_t:
     def upd_stub(self, info):
         """使用给定的info对象强制更新存根信息(在外面推送失败的时候)"""
         self.last_time = self.on_get_lasttime(info, None)
-        self.last_id = self.on_make_onlyval(info, None)
+        self.last_id = self.on_make_unique(info, None)
 
     def save_stub(self):
         """存根信息落盘"""
@@ -57,7 +57,7 @@ class db_fetch_t:
         for r in res:  # 对查询结果进行遍历
             info = self.on_make_info(r, exparam)
             if self.last_id:
-                if self.on_make_onlyval(info, exparam) != self.last_id:
+                if self.on_make_unique(info, exparam) != self.last_id:
                     continue
                 self.last_id = None  # 如果指定了接续记录且遇到了该记录,则可进行后续的正常处理了
             if not self.on_filter(info, exparam):
@@ -74,7 +74,7 @@ class db_fetch_t:
     def on_exec(self, conn, sql, param, exparam):
         """基于conn执行sql查询,param是查询参数,exparam是外部给出的扩展参数.返回值:(bool状态,结果集)"""
 
-    def on_make_onlyval(self, info, exparam):
+    def on_make_unique(self, info, exparam):
         """从查询结果中构造代表此记录的唯一值"""
 
     def on_filter(self, info, exparam):
@@ -87,7 +87,7 @@ class db_fetch_t:
         """从查询结果中构造需要的信息字典"""
 
 
-def proc_fetch(fetcher, pusher, anz_fun):
+def proc_fetch(anz_fun, fetcher, pusher=None, logger=None):
     """进行查询/分析/推送的集成处理;返回值:是否完全执行成功(外面可判断pusher.count决定后续动作)."""
     try:
         # 查询最新信息
@@ -105,14 +105,18 @@ def proc_fetch(fetcher, pusher, anz_fun):
         if len(infos) == 0:
             return False
     except Exception as e:
-        logger.error(e.__traceback__)
+        if logger:
+            logger.error(e.__traceback__)
         return False
 
     # 将分析结果推送给mq
-    fail, idx = pusher.put2(infos)
-    # 如果推送失败则记录失败点,等待重试
-    if fail is not None:
-        fetcher.upd_stub(logs[idx])
+    fail = None
+    if pusher:
+        fail, idx = pusher.put2(infos)
+        # 如果推送失败则记录失败点,等待重试
+        if fail is not None:
+            fetcher.upd_stub(logs[idx])
+
     # 执行点存根信息落盘
     fetcher.save_stub()
     return fail is None

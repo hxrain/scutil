@@ -152,7 +152,7 @@ class mq_pusher_t:
     """对kafka发送者进行业务包装,组成完整的发送功能对象"""
 
     def __init__(self, addr, topic, logger=None, auth=None):
-        self.sender = mq_kafka.sender(addr.split(','), topic, auth)
+        self.sender = sender(addr.split(','), topic, auth)
         self.logger = logger
         self.total = 0  # 推送的总数
         self.round = 0  # 推送的轮次
@@ -200,5 +200,5 @@ class mq_pusher_t:
 
 def make_kafka_pusher(user, pswd, addr, topic, logger=None):
     """kafka推送器初始化函数"""
-    mqauth = mq_kafka.sasl_plain(user, pswd)
-    return mq_kafka.mq_pusher_t(addr, topic, logger, mqauth)
+    mqauth = sasl_plain(user, pswd)
+    return mq_pusher_t(addr, topic, logger, mqauth)

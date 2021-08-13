@@ -8,6 +8,8 @@ import time
 from xml.dom import minidom
 import zipfile
 from hash_calc import calc_key
+
+
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
@@ -44,6 +46,16 @@ def bind_logger_console(lg, lvl=logging.ERROR):
     stm.setLevel(lvl)
     stm.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
     lg.addHandler(stm)
+
+
+def adj_logger_stream(lg, lvl, stream_name='StreamHandler'):
+    """调整日志记录器中指定输出流的输出级"""
+    rc = 0
+    for handler in lg.handlers:
+        if type(handler).__name__ == stream_name:
+            handler.setLevel(lvl)
+            rc += 1
+    return rc
 
 
 # -----------------------------------------------------------------------------
@@ -264,7 +276,7 @@ class lines_writer:
         if key in self.keys:
             return 1
         try:
-            if isinstance(t,tuple):
+            if isinstance(t, tuple):
                 self.fp.write(self.sep.join(t) + '\n')
             else:
                 self.fp.write(t + '\n')
