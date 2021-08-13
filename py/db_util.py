@@ -45,15 +45,16 @@ class db_fetch_t:
             self.logger.info('stub save ok: %s' % (stub))
         return rst
 
-    def query(self, exparam=None):
-        """执行预设查询,得到期待的结果信息列表.返回值:None错误,其他为信息列表"""
+    def query(self, exparam=None, auto_skip=False):
+        """执行预设查询,得到期待的结果信息列表.返回值:(信息列表,原始数据列表)"""
         sql, param = self.on_make_sql(exparam)
         st, res = self.on_exec(self.conn, sql, param, exparam)
         if not st:
             self.logger.warn('db query error: %s' % (res))
-            return None
+            return None, None
 
         rst = []
+        info = None
         for r in res:  # 对查询结果进行遍历
             info = self.on_make_info(r, exparam)
             if self.last_id:
@@ -63,10 +64,13 @@ class db_fetch_t:
             if not self.on_filter(info, exparam):
                 rst.append(info)  # 记录需要的输出信息
 
-        if len(rst):
-            self.last_time = self.on_get_lasttime(rst[-1], exparam)  # 更新最后的更新时间
-
-        return rst
+        if len(rst):  # 存在有效记录,则使用最后的有效记录更新时间点
+            self.last_time = self.on_get_lasttime(rst[-1], exparam)
+        elif info:  # 不存在有效记录,则尝试使用最后的记录更新时间点
+            self.last_time = self.on_get_lasttime(info, exparam)
+        elif auto_skip:  # 使用当前时间作为最后的时间点
+            self.last_time = get_curr_date('%Y-%m-%d %H:%M:%S.%f')
+        return rst, res
 
     def on_make_sql(self, exparam):
         """构造查询sql,以及对应的查询参数"""
@@ -91,12 +95,16 @@ def proc_fetch(anz_fun, fetcher, pusher=None, logger=None):
     """进行查询/分析/推送的集成处理;返回值:是否完全执行成功(外面可判断pusher.count决定后续动作)."""
     try:
         # 查询最新信息
-        logs = fetcher.query()
+        logs, raws = fetcher.query()
         # 如果查询失败或没有信息则返回
         if logs is None:
             return False
+
         if len(logs) == 0:
-            return False
+            fetcher.save_stub()
+            # 原始数据存在但有效数据不存在,说明当前数据需要被忽略,继续下一批
+            return len(raws) != 0
+
         # 执行分析处理动作,得到待发送数据
         infos = anz_fun(logs)
         # 分析处理失败,直接返回
