@@ -92,39 +92,42 @@ class db_fetch_t:
 
 
 def proc_fetch(anz_fun, fetcher, pusher=None, logger=None):
-    """进行查询/分析/推送的集成处理;返回值:是否完全执行成功(外面可判断pusher.count决定后续动作)."""
+    """进行查询/分析/推送的集成处理;返回值:是否完全执行成功,提取数量,推送数量"""
     try:
         # 查询最新信息
         logs, raws = fetcher.query()
         # 如果查询失败或没有信息则返回
         if logs is None:
-            return False
+            return False, 0, 0
 
         if len(logs) == 0:
             fetcher.save_stub()
             # 原始数据存在但有效数据不存在,说明当前数据需要被忽略,继续下一批
-            return len(raws) != 0
+            return len(raws) != 0, len(raws), 0
 
         # 执行分析处理动作,得到待发送数据
         infos = anz_fun(logs)
         # 分析处理失败,直接返回
         if infos is None:
-            return False
+            return False, len(raws), 0
         if len(infos) == 0:
-            return False
+            return False, len(raws), 0
     except Exception as e:
         if logger:
-            logger.error(e.__traceback__)
-        return False
+            logger.error(str(e))
+        return False, 0, 0
 
     # 将分析结果推送给mq
     fail = None
+    idx = 0
     if pusher:
         fail, idx = pusher.put2(infos)
         # 如果推送失败则记录失败点,等待重试
         if fail is not None:
             fetcher.upd_stub(logs[idx])
+        else:
+            idx = len(infos)
 
     # 执行点存根信息落盘
     fetcher.save_stub()
-    return fail is None
+    return fail is None, len(raws), idx
