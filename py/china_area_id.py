@@ -594,8 +594,8 @@ map_id_areas = {
     220204: ['船营区'],
     220211: ['丰满区'],
     220221: ['永吉县'],
-    220271: ['吉林经济技术开发区', '经济技术开发区', '经开区'],
-    220272: ['吉林高新技术产业开发区', '高新技术产业开发区', '高新区'],
+    220271: ['吉林经济技术开发区', '吉林经开区'],
+    220272: ['吉林高新技术产业开发区', '吉林高新区'],
     220273: ['中国新加坡食品区', '新加坡食品区'],
     220281: ['蛟河市'],
     220282: ['桦甸市'],
@@ -1017,7 +1017,7 @@ map_id_areas = {
     340102: ['瑶海区'],
     340103: ['庐阳区'],
     340104: ['蜀山区'],
-    340111: ['包河区','滨湖新区'],
+    340111: ['包河区', '滨湖新区'],
     340121: ['长丰县'],
     340122: ['肥东县'],
     340123: ['肥西县'],
@@ -3401,3 +3401,44 @@ def split_ex(areaid):
     if len(rst) == 0:
         return None
     return rst, ids
+
+
+def query_area_id(addr, min_size=2):
+    """查询addr地址串对应的具体的行政区划代码.返回值:(首部结果,疑似结果)
+       首部结果为None未找到;疑似结果不为None,说明地址串包含两个以上的区划名称.
+    """
+    addr_size = len(addr)
+    begin = 0
+
+    def take():
+        """从当前begin位置开始对addr进行最大化匹配查找.返回值:找到的最后匹配位置,或0未找到"""
+        end = 0
+        for pos in range(begin + min_size, addr_size + 1):
+            if addr[begin:pos] in map_area_ids:
+                end = pos  # 当前文本段是一个标准的区划名称,记录结束位置
+            elif end != 0:
+                break
+        return end
+
+    ids = []
+    while begin < addr_size:  # 对addr进行完整的前后扫描,尝试获取省市区划的各个部分.
+        end = take()
+        if end == 0:
+            begin += 1
+        else:
+            ids.append(map_area_ids[addr[begin:end]])  # 找到了匹配的区划名称,记录对应的区划代码集合
+            begin = end
+
+    # 对匹配的区划代码集列表进行前后叠加,取最终结果
+    rst = ids[0]
+    bad = None
+    for i in range(1, len(ids)):
+        res = check_depen(rst, ids[i])
+        if res is None:
+            bad = max(ids[i])
+            break
+        else:
+            rst = res
+    if len(ids) == 0:
+        return None, None
+    return max(rst), bad
