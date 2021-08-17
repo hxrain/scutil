@@ -13,6 +13,14 @@ from hash_calc import calc_key
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
+    """根据给定的日志输出文件路径,生成日志输出器;
+        lvl:告知允许输出的日志级别
+        max_baks:告知是否允许生成循环备份的日志文件
+            None:使用单日志文件模式
+            isinstance(max_baks,int):告知备份文件数量
+            isinstance(max_baks, tuple):告知备份文件数量,以及文件最大尺寸
+    """
+
     basedir = os.path.dirname(pspath)
     try:
         os.mkdir(basedir)
@@ -29,8 +37,13 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
     ps_logger.setLevel(logging.DEBUG)
 
     # 生成文件处理器
-    if max_baks:
-        filehandler = logging.handlers.RotatingFileHandler(pspath, encoding='utf-8', maxBytes=1024 * 1024, backupCount=max_baks)
+    if max_baks is not None:
+        if isinstance(max_baks, int):
+            max_bytes = 1024 * 1024
+        elif isinstance(max_baks, tuple):
+            max_bytes = max_baks[1] * 1024 * 1024
+            max_baks = max_baks[0]
+        filehandler = logging.handlers.RotatingFileHandler(pspath, encoding='utf-8', maxBytes=max_bytes, backupCount=max_baks)
     else:
         filehandler = logging.handlers.WatchedFileHandler(pspath, encoding='utf-8')
     filehandler.setLevel(lvl)
