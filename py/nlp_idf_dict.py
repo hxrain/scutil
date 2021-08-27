@@ -136,10 +136,10 @@ class TDF_IDF_Core:
             return
         adj_tdf = self.avg_tdf * rate
 
-        for k in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']:
+        for i, k in enumerate(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']):
             if k not in self.idf_dict:
                 continue
-            self.idf_dict[k] = adj_tdf
+            self.idf_dict[k] = adj_tdf + 0.0001 * i
 
     def adjust_alpha(self, rate):
         # 基于平均idf的倍数校正数字的idf
