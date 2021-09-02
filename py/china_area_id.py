@@ -3220,7 +3220,7 @@ map_id_areas = {
 }
 
 
-def drop_area_tail(name, tails={'省', '市', '区', '县', '州'}):
+def drop_area_tail(name, tails):
     """对地区的名字进行尾部移除的处理,尝试得到地区名字主干部分"""
     if len(name) <= 2:
         return name
@@ -3232,7 +3232,7 @@ def drop_area_tail(name, tails={'省', '市', '区', '县', '州'}):
 
 
 # 区划名称映射区划id集合
-def make_map_area_ids(tails=None):
+def make_map_area_ids(tails={'省', '市', '区', '县', '州'}):
     rst = {}
 
     def _rec(name, id):
@@ -3241,19 +3241,18 @@ def make_map_area_ids(tails=None):
         else:
             rst[name].add(id)
 
+    if not tails:
+        tails = {}
     for id in map_id_areas:
         alst = map_id_areas[id]
         for name in alst:
             _rec(name, id)
-            if tails:
-                _rec(drop_area_tail(name, tails), id)
-            else:
-                _rec(drop_area_tail(name), id)
+            _rec(drop_area_tail(name, tails), id)
     return rst
 
 
 # 生成区域名称对应的区划id集合
-map_area_ids = make_map_area_ids({'省', '市', '州'})
+map_area_ids = make_map_area_ids()
 
 
 def query_area_by_id(id):
@@ -3429,6 +3428,9 @@ def query_area_id(addr, min_size=2):
             ids.append(map_area_ids[addr[begin:end]])  # 找到了匹配的区划名称,记录对应的区划代码集合
             begin = end
 
+    if len(ids) == 0:
+        return None, None
+
     # 对匹配的区划代码集列表进行前后叠加,取最终结果
     rst = ids[0]
     bad = None
@@ -3439,6 +3441,4 @@ def query_area_id(addr, min_size=2):
             break
         else:
             rst = res
-    if len(ids) == 0:
-        return None, None
     return max(rst), bad

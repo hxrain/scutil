@@ -71,6 +71,30 @@ def adj_logger_stream(lg, lvl, stream_name='StreamHandler'):
     return rc
 
 
+def json_default(obj):
+    """自定义对象导出json时使用的default转换函数"""
+    dst = {}
+    dst.update(obj.__dict__)  # 将对象的内部词典导入到dst词典中,将对象的输出转换为对象内部数据的输出.
+
+    keys = []
+    keys.extend(dst.keys())  # 备份dst词典的全部key,避免下面被删除时无法访问
+
+    for key in keys:  # 过滤dst的key,做有效性判断,无效结果不输出
+        ov = dst[key]
+        drop = False
+        if ov is None:
+            drop = True
+        elif isinstance(ov, list) and len(ov) == 0:
+            drop = True
+        elif isinstance(ov, dict) and len(ov) == 0:
+            drop = True
+
+        if drop:
+            del dst[key]  # 遍历dst,发现空值则删除对应的key
+
+    return dst  # 返回处理后的结果
+
+
 # -----------------------------------------------------------------------------
 # 从json文件装载字典
 def dict_load(fname, encoding=None):
