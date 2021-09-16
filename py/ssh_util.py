@@ -26,6 +26,9 @@ class SSHClient:
         except Exception as e:
             return str(e)
 
+    def opend(self):
+        return self.sftp is not None
+
     def file_put(self, localhost_file, server_file):
         """将本地文件上传至服务器"""
         try:
