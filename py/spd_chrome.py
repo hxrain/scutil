@@ -614,11 +614,11 @@ print(c.dhtml(tid,True)[0])
 """
 
 
-def parse_cond(xpath):
+def parse_cond(cond):
     """解析判断表达式,如果是以!!开头,则意味着是反向判断"""
-    if xpath.startswith('!!'):
-        return True, xpath[2:]
-    return False, xpath
+    if cond.startswith('!!'):
+        return True, cond[2:]
+    return False, cond
 
 
 def check_cond(isnot, rst):
@@ -1072,12 +1072,12 @@ class spd_chrome:
         except Exception as e:
             return False, py_util.get_trace_stack()
 
-    def wait_xp(self, tab, xpath, max_sec=60, body_only=False, frmSel=None):
-        """在指定的tab页上,等待xpath表达式的结果出现,最大等待max_sec秒.返回值:(被xhtml格式化的内容串,错误消息)"""
+    def wait(self, tab, cond, is_xpath, max_sec=60, body_only=False, frmSel=None):
+        """在指定的tab页上,等待符合条件的结果出现,最大等待max_sec秒.返回值:(内容串,错误消息)"""
         loops = max_sec * 2 if max_sec > 0 else 1  # 间隔0.5秒进行循环判定
         xhtml = ''
 
-        isnot, xpath = parse_cond(xpath)
+        isnot, cond = parse_cond(cond)
 
         # 获取tab标识
         t, msg = self.tab(tab)
@@ -1085,29 +1085,34 @@ class spd_chrome:
             return None, msg
 
         wait = spd_base.waited_t(max_sec)
+        msg = 'waiting'
         # 进行循环等待
         for i in range(loops):
-            msg = 'waiting'
+            if t.id not in self.browser._tabs:
+                msg = 'TNE'
+                break
+
             html, msg = self.dhtml(t, body_only, frmSel)
-            if msg != '' or html == '':
+            if msg != '' or html == '':  # html内容导出错误
                 if msg:
-                    logger.warn('xpath (%s) take error <%s> :\n%s' % (xpath, msg, html))
-                if wait.timeout():
-                    break
-                time.sleep(0.45)
-                continue  # html导出错误,重试
+                    logger.warn('wait (%s) take error <%s> :\n%s' % (cond, msg, html))
+                else:
+                    msg = 'waiting'
+            else:  # html内容导出完成,需要检查完成条件
+                if is_xpath:
+                    xhtml = spd_base.format_xhtml(html)  # 执行xpath之前先进行xhtml格式化
+                    r, msg = spd_base.query_xpath_x(xhtml, cond)
+                else:
+                    xhtml = html
+                    r, msg = spd_base.query_re(html, cond)
 
-            xhtml = spd_base.format_xhtml(html)  # 执行xpath之前先进行xhtml格式化
-            r, msg = spd_base.query_xpath_x(xhtml, xpath)
-            if msg != '':
-                logger.warn('xpath (%s) query error <%s> :\n%s' % (xpath, msg, html))
-                if wait.timeout():
-                    break
-                time.sleep(0.45)
-                continue  # html/xpath查询错误,重试
+                if msg != '':
+                    logger.warn('wait (%s) query error <%s> :\n%s' % (cond, msg, html))
+                elif check_cond(isnot, r):
+                    break  # 如果条件满足,则停止循环
+                else:
+                    msg = 'waiting'
 
-            if check_cond(isnot, r):
-                break  # 如果条件满足,则停止循环
             if wait.timeout():
                 break
             time.sleep(0.45)
@@ -1116,36 +1121,8 @@ class spd_chrome:
 
     def wait_re(self, tab, regexp, max_sec=60, body_only=False, frmSel=None):
         """在指定的tab页上,等待regexp表达式的结果出现,最大等待max_sec秒.返回值:(页面的html内容串,错误消息)"""
-        loops = max_sec * 2 if max_sec > 0 else 1  # 间隔0.5秒进行循环判定
-        html = ''
-        isnot, regexp = parse_cond(regexp)
+        return self.wait(tab, regexp, False, max_sec, body_only, frmSel)
 
-        # 获取tab标识
-        t, msg = self.tab(tab)
-        if msg != '':
-            return None, msg
-
-        wait = spd_base.waited_t(max_sec)
-        # 进行循环等待
-        for i in range(loops):
-            if t.id not in self.browser._tabs:
-                msg = 'TNE'
-                break
-
-            html, msg = self.dhtml(t, body_only, frmSel)
-            if msg != '':
-                if wait.timeout():
-                    break
-                time.sleep(0.45)
-                continue
-
-            r, msg = spd_base.query_re(html, regexp)
-            if msg != '':
-                return None, msg
-            if check_cond(isnot, r):
-                break  # 如果条件满足,则停止循环
-            if wait.timeout():
-                break
-            time.sleep(0.45)
-            msg = 'waiting'
-        return html, msg
+    def wait_xp(self, tab, xpath, max_sec=60, body_only=False, frmSel=None):
+        """在指定的tab页上,等待xpath表达式的结果出现,最大等待max_sec秒.返回值:(被xhtml格式化的内容串,错误消息)"""
+        return self.wait(tab, xpath, True, max_sec, body_only, frmSel)
