@@ -1,6 +1,6 @@
 # kafka-python
 import json
-
+import time
 from kafka import KafkaConsumer
 from kafka import KafkaProducer
 
@@ -165,7 +165,8 @@ class mq_pusher_t:
         self.count = 0
 
     def put(self, datas):
-        """进行一次完整的推送动作.返回值:None完成;其他为推送失败的信息对象"""
+        """进行逐条推送.返回值:None完成;其他为推送失败的信息对象"""
+        bt = time.time()
         for dat in datas:
             if dat:
                 msg = self.sender.put(dat)
@@ -173,25 +174,29 @@ class mq_pusher_t:
                     if self.logger:
                         self.logger.warning('mq push fail <%s>' % msg)
                     return dat
-            self.total += 1
-            self.count += 1
+                self.total += 1
+                self.count += 1
+        ut = time.time() - bt
         if self.logger:
-            self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d)' % (self.round, self.count, self.total))
+            self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d):time(%d ms)' % (self.round, self.count, self.total, int(ut * 1000)))
         return None
 
     def put2(self, datas):
-        """进行一次完整的推送动作.返回值:None完成;其他为推送失败的信息对象"""
+        """进行批量提交推送.返回值:(dat,idx);dat为None完成,其他为推送失败的信息对象"""
+        bt = time.time()
         for idx, dat in enumerate(datas):
             if dat:
-                msg = self.sender.put(dat)
+                msg = self.sender.put(dat, timeout=None)  # 逐条提交时不进行应答等待
                 if msg != '':
                     if self.logger:
                         self.logger.warning('mq push fail <%s>' % msg)
                     return dat, idx
-            self.total += 1
-            self.count += 1
+                self.total += 1
+                self.count += 1
+        self.sender.commit()  # 等待批量提交完成.
+        ut = time.time() - bt
         if self.logger:
-            self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d)' % (self.round, self.count, self.total))
+            self.logger.info('ROUND<%d>|COUNT(%d)|TOTAL(%d):time(%d ms)' % (self.round, self.count, self.total, int(ut * 1000)))
         return None, -1
 
     def close(self):
@@ -200,5 +205,8 @@ class mq_pusher_t:
 
 def make_kafka_pusher(user, pswd, addr, topic, logger=None):
     """kafka推送器初始化函数"""
-    mqauth = sasl_plain(user, pswd)
+    if user or pswd:
+        mqauth = sasl_plain(user, pswd)
+    else:
+        mqauth = None
     return mq_pusher_t(addr, topic, logger, mqauth)
