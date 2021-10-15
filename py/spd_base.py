@@ -662,7 +662,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
 def http_get(url, req=None, timeout=15, allow_redirects=True, session=None, cookieMgr=None):
     rst = {}
     http_req(url, rst, req, timeout, allow_redirects, session, cookieMgr)
-    return rst['BODY'], rst['status_code'], rst['error']
+    return rst.get('BODY',None), rst['status_code'], rst['error']
 
 
 def make_head(req_dict, head_str):
