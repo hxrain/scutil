@@ -18,6 +18,7 @@ class db_fetch_t:
         """从存根文件中获取最后的时间和id"""
         dct = dict_load(self.stub_file, 'utf-8')
         if dct is None:
+            self.logger.warn('stub file load fail: %s' % (self.stub_file))
             return False
         assert ('last_time' in dct)
         assert ('last_id' in dct)
