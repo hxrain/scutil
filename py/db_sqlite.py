@@ -98,7 +98,7 @@ class s3query:
                 self.cur.execute(sql, param)
             if cmt:
                 self.conn.commit()
-            return True, ''
+            return True, self.cur.rowcount
         except Exception as e:
             self.conn.rollback()
             return False, str(e)

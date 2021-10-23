@@ -706,3 +706,22 @@ def query_re_str(cnt_str, cc_re, defval=None):
     if len(rs) != 0:
         return rs[0]
     return defval
+
+# -----------------------------------------------------------------------------
+def is_html(txt):
+    """判断给定的文本串是否可能为html文本"""
+    tags = txt.count('<td')
+    tags += txt.count('<tr')
+    tags += txt.count('<div')
+    tags += txt.count('<span')
+    tags += txt.count('<table')
+    tags += txt.count('<br')
+    tags += txt.count('<p>')
+    tags += txt.count('<li>')
+    if tags >= 4:
+        return True
+    if txt.count('<') >= 20:
+        return True
+    if txt.count('</') >= 10:
+        return True
+    return False
