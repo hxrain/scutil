@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import ttk
 from tkinter.font import Font
 import time
+import bisect
 
 # 屏蔽暂时不使用的代码,否则会导致打包后的exe达到500M
 '''
@@ -64,7 +65,7 @@ class ToolTip(object):
             # 按鼠标位置进行tip显示
             nx = event.x_root + 4
             ny = event.y_root + 4
-            time.sleep(0.01)  # 为了避免事件反复发生,怀疑是tk的bug
+            # time.sleep(0.01)  # 为了避免事件反复发生,怀疑是tk的bug
         else:
             # 按目标控件的坐标范围进行tip显示
             x, y, _cx, _cy = self.widget.bbox("insert")
@@ -85,11 +86,73 @@ class ToolTip(object):
         self.tipwindow.withdraw()
 
 
+def event_handle_warp(fun, dat):
+    """对事件处理函数进行额外数据绑定,返回包装后的函数"""
+
+    def warp_func(event):
+        """包装后的事件处理函数"""
+        event.__dict__['usrdat'] = dat  # 给动态事件对象绑定闭包内的上值数据
+        return fun(event)  # 再调用真正的事件处理函数
+
+    return warp_func  # 返回包装后的事件处理函数
+
+
 def make_tooltip(widget, text, evtpos=False):
     """在指定的控件上,创建tip提示,告知是否按鼠标事件位置进行显示"""
     toolTip = ToolTip(widget, text, evtpos)
     widget.bind('<Enter>', toolTip.show)
     widget.bind('<Leave>', toolTip.hide)
+
+
+class TextTagTooltip_t:
+    """对text文本框中的tag标签进行tip管理"""
+
+    def __init__(self, ui_txt, msg_func=None):
+        self.ui_txt = ui_txt  # 文本框控件
+        self._msg_func = msg_func  # 消息生成函数
+        self._tip = ToolTip(ui_txt.master, '', True)  # 提示窗控件
+        self._tip.msg_cb = self._msg_cb  # 挂接消息生成回调函数
+
+    def _msg_cb(self, event):
+        """转接外面的消息生成函数"""
+        if self._msg_func is None:
+            return event.usrdat
+        return self._msg_func(event.usrdat)
+
+    def tag_name(self, idx1, idx2):
+        """根据tag坐标范围生成tag名字"""
+        return 'txttag_%s_%s' % (idx1, idx2)
+
+    def tag_tip(self, idx1, idx2, fg=None, bg=None):
+        """根据tag坐标范围生成tag,并进行tip绑定"""
+        tag_name = self.tag_name(idx1, idx2)  # 生成唯一名字
+        tag_txt = self.ui_txt.get(idx1, idx2)  # 获取坐标范围内的文本
+        self.ui_txt.tag_add(tag_name, idx1, idx2)  # 生成指定名字和范围的标签
+        # 给标签挂载鼠标进出事件,进入事件的回调函数进行了值包装
+        self.ui_txt.tag_bind(tag_name, '<Enter>', event_handle_warp(self._tip.show, tag_txt))
+        self.ui_txt.tag_bind(tag_name, '<Leave>', self._tip.hide)
+        # 设定标签文本颜色
+        self.tag_color(tag_name, fg, bg)
+        return tag_name
+
+    def tag_color(self, tag_name, fg=None, bg=None):
+        """设定标签文本的前景色和背景色;默认清除."""
+        if fg is None and bg is None:
+            self.ui_txt.tag_config(tag_name, foreground=None, background=None)
+            return
+
+        if fg is not None:
+            self.ui_txt.tag_config(tag_name, foreground=fg)
+        if bg is not None:
+            self.ui_txt.tag_config(tag_name, background=bg)
+
+    def tag_clean(self, tag_name=None):
+        """清除指定的标签,或全部标签."""
+        if tag_name:
+            self.ui_txt.tag_delete(tag_name)
+        else:
+            for tn in self.ui_txt.tag_names():
+                self.ui_txt.tag_delete(tn)
 
 
 class memo_t:
@@ -152,10 +215,45 @@ def ui_value_get(w):
     if isinstance(w, Entry):
         return w.get()
     elif isinstance(w, Text):
-        return w.get(0, END)
+        return w.get('1.0', END)
     elif isinstance(w, ttk.Combobox):
         return w.get()
     elif isinstance(w, memo_t):
         return w.ui_txt.get('1.0', END)
     else:
         return None
+
+
+class text_indexer_t:
+    """tkinter/text控件行列坐标计算器"""
+
+    def __init__(self, txt=None):
+        self.lines = None
+        self.length = None
+        self.parse(txt)
+
+    def parse(self, txt):
+        """解析文本,得到分行索引"""
+        """解析文本,"""
+        self.lines = []
+        segs = txt.split('\n')
+        self.length = len(txt)
+        for line_no, line_txt in enumerate(segs):
+            offset = len(line_txt) + 1
+            if line_no != 0:
+                offset += self.lines[line_no - 1]
+            self.lines.append(offset)
+
+    def index(self, pos):
+        """通过文本的线性字符位置,得到tk/text的行列坐标"""
+        row = bisect.bisect_right(self.lines, pos)
+        if row >= len(self.lines):
+            return None
+
+        if row == 0:
+            col = pos
+        else:
+            col = pos - self.lines[row - 1]
+
+        return '%d.%d' % (row + 1, col)
+
