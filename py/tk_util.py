@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter.font import Font
 import time
 import bisect
+import math
 
 # 屏蔽暂时不使用的代码,否则会导致打包后的exe达到500M
 '''
@@ -14,6 +15,29 @@ def make_image(w=1, h=1, c=0xFFFFFF):
 '''
 
 
+def parse_geometry_size(geo):
+    """解析几何位置信息,得到(宽,高,x,y)"""
+    m = re.findall(r'(\d+)x(\d+)\+(\d+)\+(\d+)', geo)
+    if len(m) == 0:
+        return None
+    r = m[0]
+    return int(r[0]), int(r[1]), int(r[2]), int(r[3])
+
+
+def calc_geometry_center(geo):
+    """计算几何尺寸的中心坐标"""
+    if isinstance(geo, str):
+        geo = parse_geometry_size(geo)
+        if geo is None:
+            return None
+    return geo[2] + geo[0] // 2, geo[3] + geo[1] // 2
+
+
+def calc_distance(x1, y1, x2, y2):
+    """计算两个点之间的距离"""
+    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+
 def center_window(root, width, height):
     """设定窗口的尺寸,并进行屏幕居中"""
     screenwidth = root.winfo_screenwidth()
@@ -21,6 +45,20 @@ def center_window(root, width, height):
     size = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
     root.geometry(size)
     root.update()
+
+
+def center_widget(root, widget):
+    """将已有的widget相对于root主容器进行居中显示"""
+    widget.update()
+    root.update()
+    if root.state() == 'zoomed':
+        cx = root.winfo_screenwidth() // 2
+        cy = root.winfo_screenheight() // 2
+    else:
+        cx, cy = calc_geometry_center(root.geometry())
+    x = cx - widget.winfo_reqwidth() // 2
+    y = cy - widget.winfo_reqheight() // 2
+    widget.geometry('+%d+%d' % (int(x), int(y)))
 
 
 def num_limit(min, max, val):
@@ -32,11 +70,24 @@ def num_limit(min, max, val):
     return val
 
 
+def tabs_current_tab(tabs):
+    """获取ttk.Notebook的当前tab页对象"""
+    idx = tabs.select()
+    return tabs.nametowidget(idx)
+
+
+def tabs_current_idx(tabs):
+    """获取ttk.Notebook的当前tab页对象"""
+    idx = tabs.select()
+    return tabs.index(idx)
+
+
 class ToolTip(object):
     def __init__(self, widget, msg, evt_pos=False):
         self.widget = widget  # 父容器控件
         self.msg = msg  # 待显示的消息
         self.evt_pos = evt_pos  # 是否依据事件位置进行弹出
+        self.showing = None  # 是否正在被显示
 
         # 创建tip顶层窗口
         self.tipwindow = Toplevel(self.widget)
@@ -80,10 +131,12 @@ class ToolTip(object):
         # 让tip窗口可见
         self.tipwindow.update()
         self.tipwindow.deiconify()
+        self.showing = True
 
-    def hide(self, event):
+    def hide(self, *args):
         """隐藏tip窗口"""
         self.tipwindow.withdraw()
+        self.showing = False
 
 
 def event_handle_warp(fun, dat):
@@ -104,6 +157,42 @@ def make_tooltip(widget, text, evtpos=False):
     widget.bind('<Leave>', toolTip.hide)
 
 
+def tag_color(ui_txt, tag_name, fg=None, bg=None):
+    """设定标签文本的前景色和背景色;默认清除."""
+    if tag_name is None:
+        return
+    if fg is None and bg is None:
+        ui_txt.tag_config(tag_name, foreground=None, background=None)
+        return
+
+    if fg is not None:
+        ui_txt.tag_config(tag_name, foreground=fg)
+    if bg is not None:
+        ui_txt.tag_config(tag_name, background=bg)
+
+
+def text_next_idx(ui_txt, idx):
+    """计算文本框指定索引位置出的后一个字符索引"""
+    if not idx:
+        return '1.0'
+    return ui_txt.index('%s +1 chars' % idx)
+
+
+def tag_search_color(ui_txt, begin, cnt, color=None):
+    """给文本框搜索结果着色,color为None则清除"""
+    if not begin:
+        return
+    if isinstance(cnt, IntVar):
+        cnt = cnt.get()
+    end = ui_txt.index('%s +%d chars' % (begin, cnt))
+    tagname = '_search_txttag_%s_%s' % (begin, end)
+    if color is None:
+        ui_txt.tag_delete(tagname)
+    else:
+        ui_txt.tag_add(tagname, begin, end)
+        tag_color(ui_txt, tagname, color)
+
+
 class TextTagTooltip_t:
     """对text文本框中的tag标签进行tip管理"""
 
@@ -112,6 +201,22 @@ class TextTagTooltip_t:
         self._msg_func = msg_func  # 消息生成函数
         self._tip = ToolTip(ui_txt.master, '', True)  # 提示窗控件
         self._tip.msg_cb = self._msg_cb  # 挂接消息生成回调函数
+        self.ui_txt.bind('<Motion>', self._on_mouse_move)  # 绑定鼠标移动事件
+
+    def _on_mouse_move(self, event):
+        '''鼠标移动事件,主要是为了隐藏tip'''
+        if not self._tip.showing:
+            return
+
+        # 得到tip窗口尺寸
+        tipbox = parse_geometry_size(self._tip.tipwindow.geometry())
+        # 计算tip窗口中心点
+        cp = calc_geometry_center(tipbox)
+        # 计算当前鼠标位置和tip窗口中心点的距离
+        dis = calc_distance(cp[0], cp[1], event.x_root, event.y_root)
+        # 如果距离过大则隐藏tip窗口
+        if dis > 100 + tipbox[0] // 2:
+            self._tip.hide()
 
     def _msg_cb(self, event):
         """转接外面的消息生成函数"""
@@ -121,30 +226,28 @@ class TextTagTooltip_t:
 
     def tag_name(self, idx1, idx2):
         """根据tag坐标范围生成tag名字"""
-        return 'txttag_%s_%s' % (idx1, idx2)
+        return '_txttag_%s_%s' % (idx1, idx2)
 
-    def tag_tip(self, idx1, idx2, fg=None, bg=None):
+    def tag_tip(self, idx1, idx2, canRep=False):
         """根据tag坐标范围生成tag,并进行tip绑定"""
+        if not canRep:
+            ot1 = self.ui_txt.tag_names(idx1)
+            ot2 = self.ui_txt.tag_names(idx2)
+            if ot1 or ot2:
+                return None
+
         tag_name = self.tag_name(idx1, idx2)  # 生成唯一名字
         tag_txt = self.ui_txt.get(idx1, idx2)  # 获取坐标范围内的文本
+
         self.ui_txt.tag_add(tag_name, idx1, idx2)  # 生成指定名字和范围的标签
         # 给标签挂载鼠标进出事件,进入事件的回调函数进行了值包装
         self.ui_txt.tag_bind(tag_name, '<Enter>', event_handle_warp(self._tip.show, tag_txt))
         self.ui_txt.tag_bind(tag_name, '<Leave>', self._tip.hide)
-        # 设定标签文本颜色
-        self.tag_color(tag_name, fg, bg)
         return tag_name
 
     def tag_color(self, tag_name, fg=None, bg=None):
         """设定标签文本的前景色和背景色;默认清除."""
-        if fg is None and bg is None:
-            self.ui_txt.tag_config(tag_name, foreground=None, background=None)
-            return
-
-        if fg is not None:
-            self.ui_txt.tag_config(tag_name, foreground=fg)
-        if bg is not None:
-            self.ui_txt.tag_config(tag_name, background=bg)
+        tag_color(self.ui_txt, tag_name, fg, bg)
 
     def tag_clean(self, tag_name=None):
         """清除指定的标签,或全部标签."""
@@ -180,6 +283,17 @@ class memo_t:
 
         # 文本框布局
         self.ui_txt.pack(fill=BOTH, expand=True)
+
+    def set_color(self, fg=None, bg=None):
+        """设定文本的前景色和背景色;默认清除."""
+        if fg is None and bg is None:
+            self.ui_txt.config(foreground=None, background=None)
+            return
+
+        if fg is not None:
+            self.ui_txt.config(foreground=fg)
+        if bg is not None:
+            self.ui_txt.config(background=bg)
 
     def set_font(self, size, family='Consolas'):
         """设置字体"""
@@ -256,4 +370,3 @@ class text_indexer_t:
             col = pos - self.lines[row - 1]
 
         return '%d.%d' % (row + 1, col)
-
