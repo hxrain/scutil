@@ -89,7 +89,13 @@ class dfa_match_t():
                 if m[2] == self.delimit:
                     rst.append(repl * (m[1] - m[0]))
                 else:
-                    rst.append(m[2])
+                    dst_len = len(m[2])  # 替换的目标长度
+                    mt_len = len(message[m[0]:m[1]])  # 匹配的内容长度
+                    old_val = message[m[0]:m[0] + dst_len]  # 目标长度对应的内容
+                    if dst_len > mt_len and max_match and old_val == m[2]:
+                        rst.append(message[m[0]:m[1]])  # 替换的目标与原有值相同,不重复替换
+                    else:
+                        rst.append(m[2])
         return ''.join(rst)
 
     # 对给定的消息进行关键词匹配,得到结果链[(begin,end,val),(begin,end,val),...],val为None说明是原内容部分
@@ -145,14 +151,14 @@ class dfa_match_t():
             rst.append((rst[-1][1], msg_len, None))  # 补充最后剩余的部分
         return rst
 
-    def do_check(self, message, msg_len=None, offset=0, max_match=True, isall=True,skip_match=False):
+    def do_check(self, message, msg_len=None, offset=0, max_match=True, isall=True, skip_match=False):
         """对给定的消息进行关键词匹配测试,返回值:匹配结果,[三元组(begin,end,val)列表]"""
         rst = []
 
         def cb(b, e, v):
             rst.append((b, e, v))
 
-        self.do_loop(cb, message, msg_len, offset, max_match, isall,skip_match)
+        self.do_loop(cb, message, msg_len, offset, max_match, isall, skip_match)
         return rst
 
     def do_loop(self, cb, message, msg_len=None, offset=0, max_match=True, isall=True, skip_match=False):

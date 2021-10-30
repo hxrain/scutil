@@ -40,11 +40,14 @@ class lru_fifo_t:
         """获取现有元素数量"""
         return len(self._ids)
 
-    def hit(self, iid):
+    def hit(self, iid, add=False):
         """判断给定的标识是否存在;如果不存在,则进行追加;返回值:True已存在,False不存在"""
         if iid in self._ids:
             return True
 
+        if not add:
+            return False
+        
         if len(self._ids) >= self._dat['limit']:
             old = self._dat['lst'].pop(0)
             self._ids.remove(old)
