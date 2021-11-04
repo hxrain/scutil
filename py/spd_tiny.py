@@ -220,6 +220,9 @@ class source_base:
         self.list_url_idx = self.list_begin_idx
         return None
 
+    def on_end(self):
+        """全部概细览动作完成"""
+
     def on_ready_info(self, rsp):
         """如果on_ready给出了入口地址,则这里会进行入口信息的处理.比如获取初始访问key;返回值告知是否继续抓取."""
         return True
@@ -716,6 +719,7 @@ class spider_base:
             list_url = self.call_src_method('on_list_url', req_param)
             dbs.update_act(self, list_url is not None)  # 进行中间状态更新
 
+        self.call_src_method('on_end')
         return True
 
 
@@ -932,18 +936,15 @@ class collect_manager:
         _logger.info("total sources <%3d>", total_spiders)
         if self.threads:  # 使用多线程并发运行全部的爬虫
             task_ids = [i - 1 for i in range(len(self.spiders), 0, -1)]  # 待处理任务索引列表,倒序,便于后面pop使用
-            threads = []  # 运行中线程对象列表
-            while len(task_ids) or len(threads):
-                wait_threads(threads, 0.1)  # 等待这一批线程中结束的部分
-                tc = self.threads - len(threads)
-                if tc == 0:  # 没有结束的,那么就继续等
-                    continue
-
-                for i in range(tc):  # 循环补充新的线程任务
+            workers = []  # 工作线程对象列表
+            while len(task_ids) or len(workers):
+                wait_threads(workers, 0.1)  # 在批量线程中等待任意线程结束
+                tc = self.threads - len(workers)
+                for i in range(tc):  # 循环补充新的工作线程
                     if len(task_ids) == 0:
                         break  # 没有待处理任务了,结束
                     spd = self.spiders[task_ids.pop()]  # 得到待处理任务
-                    threads.append(start_thread(self._run_one, spd))  # 创建线程,执行任务,并记录线程对象
+                    workers.append(start_thread(self._run_one, spd))  # 创建线程,执行任务,并记录线程对象
         else:
             idx = 1
             for spd in self.spiders:  # 在主线程中顺序执行全部的爬虫

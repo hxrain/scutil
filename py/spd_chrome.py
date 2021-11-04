@@ -364,6 +364,8 @@ class Tab(object):
             self._open_websock()
             self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
             return True
+        except websocket.WebSocketBadStatusException as e:
+            logger.warn('reopen error: %s :: %d' % (self._websocket_url, e.status_code))
         except Exception as e:
             logger.warn('reopen error: %s :: %s' % (self._websocket_url, py_util.get_trace_stack()))
             return False

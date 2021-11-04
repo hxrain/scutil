@@ -197,7 +197,7 @@ def query_xpath(xstr, cc_xpath, fixNode='-'):
 
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath;可以删除removeTags元组列表指出的标签(保留元素内容)
 # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
-def query_xpath_x(cnt_str, cc_xpath, removeTags=None,removeAtts=None):
+def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None):
     rs, msg = query_xpath(cnt_str, cc_xpath)
     if msg != '':
         return rs, msg
@@ -287,6 +287,29 @@ class xpath:
             return [], es(e)
         except Exception as e:
             return [], es(e)
+
+    # 进行xpath查询,查询表达式为cc_xpath
+    # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
+    def take(self, cc_xpath, idx=None):
+        rst, msg = self.query(cc_xpath)
+        if msg or len(rst) == 0:
+            if idx is None:
+                return [], msg
+            else:
+                return '', msg
+        if idx is None:
+            lst = []
+            for n in rst:
+                if isinstance(n, etree._Element):
+                    lst.append(etree.tostring(n, encoding='unicode', method='xml'))
+                else:
+                    lst.append(n)
+            return lst, msg
+        else:
+            if isinstance(rst[idx], etree._Element):
+                return etree.tostring(rst[idx], encoding='unicode', method='xml'), ''
+            else:
+                return rst[idx], ''
 
 
 # -----------------------------------------------------------------------------
@@ -662,7 +685,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
 def http_get(url, req=None, timeout=15, allow_redirects=True, session=None, cookieMgr=None):
     rst = {}
     http_req(url, rst, req, timeout, allow_redirects, session, cookieMgr)
-    return rst.get('BODY',None), rst['status_code'], rst['error']
+    return rst.get('BODY', None), rst['status_code'], rst['error']
 
 
 def make_head(req_dict, head_str):
