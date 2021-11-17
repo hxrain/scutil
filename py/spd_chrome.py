@@ -848,6 +848,15 @@ class spd_chrome:
         except Exception as e:
             return False, py_util.get_trace_stack()
 
+    def modify_cookies(self, tab, url, name, value):
+        """修改匹配url与name的cookie值;返回值:(bool,msg),msg=''为正常,否则为错误信息"""
+        try:
+            t = self._tab(tab)
+            t.call_method('Network.setCookie', name=name, value=value, url=url, _timeout=self.proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, py_util.get_trace_stack()
+
     def query_cookies(self, tab, urls=None):
         """查询指定url对应的cookie.如果urls列表没有指定,则获取当前tab页下的全部cookie信息.返回值:([{cookie}],msg)
             urls可以进行域名路径限定,如'http://xysy.sanya.gov.cn/CreditHnExtranetWeb'

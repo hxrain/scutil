@@ -671,6 +671,19 @@ class tick_meter:
         return False
 
 
+class time_meter:
+    """简单的间隔时间计量器"""
+
+    def __init__(self):
+        self._begin = time.time()
+
+    def use(self):
+        end = time.time()
+        ut = end - self._begin
+        self._begin = end
+        return ut
+
+
 def es(e: Exception):
     return '%s:%s' % (e.__class__.__name__, e)
 
@@ -707,21 +720,43 @@ def query_re_str(cnt_str, cc_re, defval=None):
         return rs[0]
     return defval
 
+
 # -----------------------------------------------------------------------------
 def is_html(txt):
     """判断给定的文本串是否可能为html文本"""
-    tags = txt.count('<td')
-    tags += txt.count('<tr')
-    tags += txt.count('<div')
-    tags += txt.count('<span')
-    tags += txt.count('<table')
+    tags = txt.count('</td')
+    tags += txt.count('</tr')
+    tags += txt.count('</div')
+    tags += txt.count('</span')
+    tags += txt.count('</table')
     tags += txt.count('<br')
-    tags += txt.count('<p>')
-    tags += txt.count('<li>')
-    if tags >= 4:
+    tags += txt.count('</p')
+    tags += txt.count('</a')
+    tags += txt.count('</li')
+    if tags >= 2:
         return True
     if txt.count('<') >= 20:
         return True
     if txt.count('</') >= 10:
         return True
     return False
+
+
+def save_top(rst, score, docid, top_limit=10):
+    '按score的高低顺序将(score,docid)放入rst,rst超过limit数量后淘汰最后的值'
+    loc = -1
+    for i in range(len(rst)):
+        r = rst[i]
+        if score >= r[0]:
+            rst.insert(i, (score, docid))
+            loc = i
+            break
+
+    if loc == -1:
+        rst.append((score, docid))
+        loc = len(rst)
+
+    if len(rst) > top_limit:
+        rst.pop(-1)
+
+    return loc != -1
