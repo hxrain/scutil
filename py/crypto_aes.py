@@ -1,49 +1,47 @@
 import base64
 
-from Crypto.Cipher import DES
+from Crypto.Cipher import AES
 from crypto_comm import padding
 
 
-class DESCrypt:
-    """DES/DES3加解密功能封装"""
+class AESCrypt:
+    """AES加解密功能封装"""
 
     def __init__(self, key_bytes, mode='cbc', padmode='zero', iv=None):
-        self.CRType = DES  # 记录加密器类型
-        if mode == 'ecb':
-            emode = DES.MODE_ECB
-        elif mode == 'cbc':
-            emode = DES.MODE_CBC
-        else:
-            emode = DES.MODE_CBC
+        self.CRType = AES  # 记录加密器类型
 
-        # DES要求密钥长度必须为8
-        key_bytes = key_bytes[:8]
+        if mode == 'ecb':
+            emode = AES.MODE_ECB
+        elif mode == 'cbc':
+            emode = AES.MODE_CBC
+        else:
+            emode = AES.MODE_CBC
 
         if iv is None:  # 根据是否有初始化向量决定如何构造加密器对象
             self.cryptor = self.CRType.new(key_bytes, emode)
         else:
             self.cryptor = self.CRType.new(key_bytes, emode, iv)
 
-        self.padding = padding(self.CRType.block_size, padmode)
+        # 根据块尺寸构造对应的填充器
+        self._padding = padding(self.cryptor.block_size, padmode)
 
     def encrypt(self, bytes):
         """加密指定的字节数据"""
-        pln = self.padding.pad(bytes)
+        pln = self._padding.pad(bytes)
         return self.cryptor.encrypt(pln)
 
     def decrypt(self, bytes):
         """解密指定的字节数据"""
         pln = self.cryptor.decrypt(bytes)
-        return self.padding.unpad(pln)
+        return self._padding.unpad(pln)
 
 
-def des_base64_decode(dat, key, iv=None, pad='pkcs7', mode='ecb'):
+def aes_base64_decode(dat, key, iv=None, pad='zero', mode='cbc'):
     try:
         key = key.encode('latin-1')
         if iv:
             iv = iv.encode('latin-1')
-
-        des = DESCrypt(key, mode=mode, padmode=pad, iv=iv)
+        des = AESCrypt(key, mode=mode, padmode=pad, iv=iv)
         chp = base64.b64decode(dat)
         edat = des.decrypt(chp)
         return edat.decode('utf-8'), ''
