@@ -387,20 +387,32 @@ class Browser(object):
     def new_tab(self, url=None, timeout=None, start=True, req_event_filter=None):
         """打开新tab页,并浏览指定的网址"""
         url = url or ''
-        rp = requests.get("%s/json/new?%s" % (self.dev_url, url), json=True, timeout=timeout)
-        tab = Tab(**rp.json())
+        rp = requests.get("%s/json/new?%s" % (self.dev_url, url), json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        tab = Tab(**self._load_json(rp))
         self._tabs[tab.id] = tab
         if start:
             tab.init(req_event_filter)
         return tab
 
+    def _load_json(self, rp):
+        try:
+            return rp.json()
+        except Exception as e:
+            logger.warn('json decode fail:\n%s' % rp.text)
+            return None
+
     def list_tab(self, timeout=None, backinit=True, req_event_filter=None, excludes={}):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控"""
-        rp = requests.get("%s/json" % self.dev_url, json=True, timeout=timeout)
+        dst_url = "%s/json" % self.dev_url
+        rp = requests.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
         tabs_map = {}
         _tabs_list = []
 
-        for tab_json in rp.json():
+        tab_jsons = self._load_json(rp)
+        if tab_jsons is None:
+            logger.warn(dst_url)
+
+        for tab_json in tab_jsons:
             if tab_json['type'] != 'page':  # pragma: no cover
                 continue  # 只保留page页面tab,其他后台进程不记录
 
@@ -428,7 +440,7 @@ class Browser(object):
         if isinstance(tab_id, Tab):
             tab_id = tab_id.id
 
-        rp = requests.get("%s/json/activate/%s" % (self.dev_url, tab_id), timeout=timeout)
+        rp = requests.get("%s/json/activate/%s" % (self.dev_url, tab_id), timeout=timeout, proxies={'http': None, 'https': None})
         return rp.text
 
     def close_tab(self, tab_id, timeout=None):
@@ -436,7 +448,7 @@ class Browser(object):
         if isinstance(tab_id, Tab):
             tab_id = tab_id.id
 
-        rp = requests.get("%s/json/close/%s" % (self.dev_url, tab_id), timeout=timeout)
+        rp = requests.get("%s/json/close/%s" % (self.dev_url, tab_id), timeout=timeout, proxies={'http': None, 'https': None})
 
         tab = self._tabs.pop(tab_id, None)
         tab.close()
@@ -446,8 +458,8 @@ class Browser(object):
 
     def version(self, timeout=None):
         """查询浏览器的版本信息"""
-        rp = requests.get("%s/json/version" % self.dev_url, json=True, timeout=timeout)
-        return rp.json()
+        rp = requests.get("%s/json/version" % self.dev_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        return self._load_json(rp)
 
 
 dom100 = '''
