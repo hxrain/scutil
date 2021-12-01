@@ -27,7 +27,7 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
     except:
         pass
 
-        # 调整日志输出的级别名称.
+    # 调整日志输出的级别名称.
     logging._levelToName[logging.ERROR] = 'ERR!'
     logging._levelToName[logging.WARNING] = 'WRN!'
     logging._levelToName[logging.DEBUG] = 'DBG.'
@@ -59,6 +59,27 @@ def bind_logger_console(lg, lvl=logging.ERROR):
     stm.setLevel(lvl)
     stm.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
     lg.addHandler(stm)
+
+
+def make_logger_console(lvl=logging.DEBUG):
+    """生成控制台日志输出器;lvl:告知允许输出的日志级别"""
+    # 调整日志输出的级别名称.
+    logging._levelToName[logging.ERROR] = 'ERR!'
+    logging._levelToName[logging.WARNING] = 'WRN!'
+    logging._levelToName[logging.DEBUG] = 'DBG.'
+
+    # 生成日志记录器
+    ps_logger = logging.getLogger()
+    ps_logger.setLevel(lvl)
+
+    # 生成控制台输出器
+    stm = logging.StreamHandler()
+    stm.setLevel(lvl)
+    stm.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
+
+    # 日志记录器绑定输出器
+    ps_logger.addHandler(stm)
+    return ps_logger
 
 
 def adj_logger_stream(lg, lvl, stream_name='StreamHandler'):
@@ -719,6 +740,12 @@ def query_re_str(cnt_str, cc_re, defval=None):
     if len(rs) != 0:
         return rs[0]
     return defval
+
+def adj_xml_desc(txt):
+    """调整丢弃XML文本中描述节点的字符集编码声明"""
+    txt = txt.replace("""<?xml version="1.0" encoding="utf-8"?>""", """<?xml version="1.0"?>""")
+    txt = txt.replace("""<?xml version="1.0" encoding="UTF-8"?>""", """<?xml version="1.0"?>""")
+    return txt
 
 
 # -----------------------------------------------------------------------------

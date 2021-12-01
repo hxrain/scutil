@@ -245,6 +245,7 @@ class xpath:
     def __init__(self, cntstr, is_xml=False):
         cnt_str = fix_xml_node(cntstr)
         self.cnt_str = None
+        self.rootNode = None
         self.last_err = []
         try:
             if cnt_str.startswith('<?xml') or is_xml:
@@ -310,6 +311,16 @@ class xpath:
                 return etree.tostring(rst[idx], encoding='unicode', method='xml'), ''
             else:
                 return rst[idx], ''
+
+    def xmlnode(self, nodes):
+        """将节点对象转为对应的xml节点文本"""
+        lst = []
+        for n in nodes:
+            if isinstance(n, etree._Element):
+                lst.append(etree.tostring(n, encoding='unicode', method='xml'))
+            else:
+                lst.append(n)
+        return lst
 
 
 # -----------------------------------------------------------------------------
