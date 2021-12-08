@@ -315,8 +315,8 @@ class Tab(object):
             return None
         return r
 
-    def clear_requests(self):
-        """清理全部记录的请求信息"""
+    def clear_request_historys(self):
+        """清理全部历史的请求信息"""
         self._data_requestWillBeSent.clear()
         self._data_requestIDs.clear()
 
@@ -373,7 +373,7 @@ class Tab(object):
     def close(self):
         """停止tab交互,关闭websocket连接"""
         self._close_websock()
-        self.clear_requests()
+        self.clear_request_historys()
         return True
 
 
@@ -940,7 +940,7 @@ class spd_chrome:
         """控制指定的tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
         try:
             t = self._tab(tab)
-            t.clear_requests()  # 每次发起新导航的时候,都清空之前记录的请求信息
+            t.clear_request_historys()  # 每次发起新导航的时候,都清空之前记录的请求信息
             rst = t.call_method('Page.navigate', url=url, _timeout=self.proto_timeout)
             return rst, ''
         except Exception as e:
