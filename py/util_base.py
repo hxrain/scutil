@@ -741,6 +741,7 @@ def query_re_str(cnt_str, cc_re, defval=None):
         return rs[0]
     return defval
 
+
 def adj_xml_desc(txt):
     """调整丢弃XML文本中描述节点的字符集编码声明"""
     txt = txt.replace("""<?xml version="1.0" encoding="utf-8"?>""", """<?xml version="1.0"?>""")
@@ -787,3 +788,54 @@ def save_top(rst, score, docid, top_limit=10):
         rst.pop(-1)
 
     return loc != -1
+
+
+def make_usage_html(title, txt, ver):
+    """生成简单的使用说明的html页面"""
+
+    def conv(s):
+        return s.replace('<', '&lt;').replace(' ', '&ensp;').replace('\n', '<br>\n')
+
+    usage = '''<html><title>JSPD</title><body>
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;<b>%s(%s)</b>
+    %s
+    </body></html>''' % (conv(title), conv(ver), conv(txt))
+    return usage
+
+
+def hash_number(x):
+    """对数字x进行哈希计算"""
+    x ^= x >> 17
+    x *= 0xed5ad4bb
+    x ^= x >> 11
+    x *= 0xac4c1b51
+    x ^= x >> 15
+    x *= 0x31848bab
+    x ^= x >> 14
+    return x
+
+
+def hash_string(v, bitsmask=(1 << 64) - 1):
+    """基于字符集编码的字符串DEK Hash函数"""
+    if not v:
+        return 0
+    x = len(v) * 378551
+    for c in v:
+        x = ((x << 5) ^ (x >> 27)) ^ ord(c)
+    return x & bitsmask
+
+
+def hash_string2(v, hashfunc=hash_number, bitsmask=(1 << 64) - 1):
+    """字符串DEK Hash函数,可配置字符的哈希方式"""
+    if not v:
+        return 0
+    x = len(v) * 378551
+    for c in v:
+        x = ((x << 5) ^ (x >> 27)) ^ hashfunc(ord(c))
+    return x & bitsmask
+
+
+def hash_route(v, dsts):
+    """根据v的哈希值与目标dsts的数量,进行定向路由选取"""
+    code = hash_string(v)
+    return dsts[code % len(dsts)]
