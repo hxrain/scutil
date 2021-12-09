@@ -105,3 +105,42 @@ def wait_threads(thds, timeout=None):
     for t in rst:
         thds.remove(t)
     return rst
+
+
+class obj_pool_t:
+    """简单的对象池,线程安全"""
+
+    def __init__(self, obj_type):
+        self.obj_type = obj_type
+        self.locker = lock_t(True)
+        self.objs = []
+
+    def get(self):
+        """获取对象.返回值:None失败;其他为指定类型的对象"""
+        obj = None
+        self.locker.lock()
+        try:
+            if len(self.objs):
+                obj = self.objs.pop(0)
+            else:
+                obj = self.obj_type()
+        except Exception as e:
+            print('obj_pool memory overflow for get: %s' % self.obj_type.__name__)
+
+        self.locker.unlock()
+        return obj
+
+    def put(self, obj):
+        """归还对象.返回值:是否成功"""
+        ret = False
+        if obj is None:
+            return ret
+
+        self.locker.lock()
+        try:
+            self.objs.append(obj)
+            ret = True
+        except Exception as e:
+            print('obj_pool memory overflow for put: %s' % self.obj_type.__name__)
+        self.locker.unlock()
+        return ret
