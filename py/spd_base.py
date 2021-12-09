@@ -581,15 +581,13 @@ def is_text_content(heads):
 
 # -----------------------------------------------------------------------------
 # 生成HTTP默认头
-def default_headers(url):
+def default_headers(url, Head):
     ur = up.urlparse(url)
     host = ur[1]
-    return requests.structures.CaseInsensitiveDict({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0',
-        'Accept': 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8',
-        'Host': host,
-        'Connection': 'keep-alive',
-    })
+    Head['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0'
+    Head['Accept'] = 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8',
+    Head['Host'] = host
+    Head['Connection'] = 'keep-alive'
 
 
 # -----------------------------------------------------------------------------
@@ -612,7 +610,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     method = req['METHOD'] if req and 'METHOD' in req else 'get'
     SSL_VERIFY = req['SSL_VERIFY'] if req and 'SSL_VERIFY' in req else None
     proxy = req['PROXY'] if req and 'PROXY' in req else None
-    HEAD = req['HEAD'] if req and 'HEAD' in req else None
+    HEAD = req['HEAD'] if req and 'HEAD' in req else {}
     BODY = req['BODY'] if req and 'BODY' in req else None
 
     if proxy is not None:
@@ -636,8 +634,9 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         if session is None:
             session = requests.sessions.Session()
         # 校正会话对象内部的http默认头
-        session.headers = default_headers(url)
+        default_headers(url, HEAD)
 
+        # 发起请求
         rsp = session.request(method, url, proxies=proxy, headers=HEAD, data=BODY, cookies=CKM,
                               timeout=timeout, allow_redirects=allow_redirects, verify=SSL_VERIFY)
     except Exception as e:
@@ -760,7 +759,7 @@ def save_cookie_storage(CM, filename):
 class spd_base:
     '''进行简单功能封装的cookie持久化长连接HTTP爬虫'''
 
-    def __init__(self, filename='./cookie_storage.dat'):
+    def __init__(self, filename='./cookie_storage.dat', sessionMgr=None):
         # 初始记录cookie存盘文件名
         self.ckm_filename = filename
         # 装载可能已经存在的cookie值
@@ -770,7 +769,7 @@ class spd_base:
         # 默认允许自动进行302跳转
         self.allow_redirects = True
         # 生成长连接会话对象
-        self.session = requests.sessions.Session()
+        self.sessionMgr = requests.sessions.Session() if sessionMgr is None else sessionMgr
         # 定义结果对象
         self.rst = {}
 
@@ -802,7 +801,7 @@ class spd_base:
                 req['PROXY'] = prx
 
         self.rst = {}
-        return http_req(url, self.rst, req, self.timeout, self.allow_redirects, self.session, self.cookieMgr)
+        return http_req(url, self.rst, req, self.timeout, self.allow_redirects, self.sessionMgr, self.cookieMgr)
 
     # 保存cookie到文件
     def cookies_save(self):
