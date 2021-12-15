@@ -592,14 +592,29 @@ var _$_ = function(el, parent) {
 
 # 用来进行ajax调用的功能函数
 http_ajax = """
-function http_ajax(url,method="GET",data=null,contentType="application/x-www-form-urlencoded")
+function _$_make_node(id,val)
 {
-    document.documentElement.innerHTML="";
+    var it=document.getElementById(id);
+    if (it==null)
+    {
+        it=document.createElement("textarea");
+        it.id=id;
+        document.body.appendChild(it);
+    }
+    it.innerHTML=val;
+}
+function http_ajax(url,method="GET",data=null,contentType="application/x-www-form-urlencoded",show="root")
+{
+    if (show=="root")
+        document.documentElement.innerHTML="";
 	var xmlhttp=new XMLHttpRequest();
 	xmlhttp.onreadystatechange=function()
 	{
 		if (xmlhttp.readyState==4){
-		    document.documentElement.innerHTML=xmlhttp.responseText;
+		    if (show=="root")
+		        document.documentElement.innerHTML=xmlhttp.responseText;
+		    else
+		        _$_make_node(show,xmlhttp.responseText)
 		}
 	}
 	xmlhttp.open(method,url);
@@ -1066,20 +1081,20 @@ class spd_chrome:
         jss = '{%s%s}' % (dom100, js)
         return self.exec(tab, jss)
 
-    def post(self, tab, url, data="", contentType="application/x-www-form-urlencoded"):
+    def post(self, tab, url, data="", contentType="application/x-www-form-urlencoded", show="root"):
         """在指定的tab页上,利用js的ajax技术,发起post请求.返回值:正常为('','')
            由于浏览器对于跨域请求的限制,所以在执行ajax/post之前,需要先使用goto让页面处于正确的域状态下.
         """
         if isinstance(data, str):
             data = data.replace('\n', '\\n')
-        jss = http_ajax + 'http_ajax("%s","POST","%s","%s");' % (url, data, contentType)
+        jss = http_ajax + 'http_ajax("%s","POST","%s","%s","%s");' % (url, data, contentType, show)
         return self.exec(tab, jss)
 
-    def get(self, tab, url):
+    def get(self, tab, url, show="root"):
         """在指定的tab页上,利用js的ajax技术,发起get请求.返回值:正常为('','')
            由于浏览器对于跨域请求的限制,所以在执行ajax/get之前,需要先使用goto让页面处于正确的域状态下.
         """
-        jss = http_ajax + 'http_ajax("%s","GET","","");' % (url)
+        jss = http_ajax + 'http_ajax("%s","GET","","","%s");' % (url, show)
         return self.exec(tab, jss)
 
     def sendkey(self, tab, keyCode=0x0D, eventType='keyDown'):
