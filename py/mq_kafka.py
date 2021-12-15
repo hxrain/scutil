@@ -156,17 +156,17 @@ class mq_pusher_t:
         self.logger = logger
         self.total = 0  # 推送的总数
         self.round = 0  # 推送的轮次
-        self.count = 0  # 本轮已推送
+        self.count = 0  # 本次推送数
         # logging.getLogger("kafka").setLevel(logging.INFO) #调整kafka客户端日志输出级别
 
     def ready(self):
         """每轮调用之前,进行计数器调整"""
         self.round += 1
-        self.count = 0
 
     def put(self, datas):
         """进行逐条推送.返回值:None完成;其他为推送失败的信息对象"""
         bt = time.time()
+        self.count = 0
         for dat in datas:
             if dat:
                 msg = self.sender.put(dat)
@@ -184,6 +184,7 @@ class mq_pusher_t:
     def put2(self, datas):
         """进行批量提交推送.返回值:(dat,idx);dat为None完成,其他为推送失败的信息对象"""
         bt = time.time()
+        self.count = 0
         for idx, dat in enumerate(datas):
             if dat:
                 msg = self.sender.put(dat, timeout=None)  # 逐条提交时不进行应答等待
