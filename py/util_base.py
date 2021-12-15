@@ -12,7 +12,7 @@ from hash_calc import calc_key
 
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
-def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag='rxlogger'):
+def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
     """根据给定的日志输出文件路径,生成日志输出器;
         lvl:告知允许输出的日志级别
         max_baks:告知是否允许生成循环备份的日志文件
