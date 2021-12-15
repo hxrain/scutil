@@ -4,7 +4,7 @@ import util_base as ub
 class lru_fifo_t:
     """先进先出保留固定数量的最近使用记录"""
 
-    def __init__(self, fname, limit=1000):
+    def __init__(self, fname=None, limit=1000):
         self._ids = set()
         self._dat = {'limit': limit, 'lst': []}
         self._fname = fname
@@ -13,6 +13,8 @@ class lru_fifo_t:
 
     def load(self):
         """装载"""
+        if self._fname is None:
+            return True
         dat = ub.dict_load(self._fname, 'utf-8')
         if dat is None:
             return False
@@ -47,7 +49,7 @@ class lru_fifo_t:
 
         if not add:
             return False
-        
+
         if len(self._ids) >= self._dat['limit']:
             old = self._dat['lst'].pop(0)
             self._ids.remove(old)
@@ -58,4 +60,6 @@ class lru_fifo_t:
 
     def save(self):
         """将内部状态存盘"""
+        if self._fname is None:
+            return False
         return ub.dict_save(self._fname, self._dat, 'utf-8')
