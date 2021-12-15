@@ -12,13 +12,14 @@ from hash_calc import calc_key
 
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
-def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
+def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag='rxlogger'):
     """根据给定的日志输出文件路径,生成日志输出器;
         lvl:告知允许输出的日志级别
         max_baks:告知是否允许生成循环备份的日志文件
             None:使用单日志文件模式
             isinstance(max_baks,int):告知备份文件数量
             isinstance(max_baks, tuple):告知备份文件数量,以及文件最大尺寸
+        tag为不同日志记录器的标识名字
     """
 
     basedir = os.path.dirname(pspath)
@@ -32,14 +33,14 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None):
     logging._levelToName[logging.WARNING] = 'WRN!'
     logging._levelToName[logging.DEBUG] = 'DBG.'
 
-    # 生成日志记录器
-    ps_logger = logging.getLogger()
+    # 生成指定名字标识的日志记录器
+    ps_logger = logging.getLogger(tag)
     ps_logger.setLevel(logging.DEBUG)
 
     # 生成文件处理器
     if max_baks is not None:
         if isinstance(max_baks, int):
-            max_bytes = 1024 * 1024
+            max_bytes = 16 * 1024 * 1024
         elif isinstance(max_baks, tuple):
             max_bytes = max_baks[1] * 1024 * 1024
             max_baks = max_baks[0]
@@ -595,12 +596,20 @@ def json2xml(jstr, indent=True, utf8=False):
         return '', 'JSON ERR : ' + es(e)
 
 
-def json2dict(jstr, indent=True, utf8=False):
+def json2dict(jstr):
     try:
         dic = json.loads(jstr)
         return dic, ''
     except Exception as e:
-        return [], 'JSON ERR : ' + es(e)
+        return None, 'json2dict: ' + es(e)
+
+
+def dict2json(obj, indent=True):
+    try:
+        jstr = json.dumps(obj, ensure_ascii=False, indent=4 if indent else None)
+        return jstr, ''
+    except Exception as e:
+        return None, 'dict2json: ' + es(e)
 
 
 def replace_re(cnt_str, cc_re, cc_dst):
@@ -796,10 +805,11 @@ def make_usage_html(title, txt, ver):
     def conv(s):
         return s.replace('<', '&lt;').replace(' ', '&ensp;').replace('\n', '<br>\n')
 
-    usage = '''<html><title>JSPD</title><body>
+    tit = conv(title)
+    usage = '''<html><title>%s</title><body>
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;<b>%s(%s)</b>
     %s
-    </body></html>''' % (conv(title), conv(ver), conv(txt))
+    </body></html>''' % (tit, tit, conv(ver), conv(txt))
     return usage
 
 
@@ -839,3 +849,55 @@ def hash_route(v, dsts):
     """根据v的哈希值与目标dsts的数量,进行定向路由选取"""
     code = hash_string(v)
     return dsts[code % len(dsts)]
+
+
+def kvcopy(src, dst):
+    """将源对象src中的指定key的内容复制到目标dst中.可指定目标key为dstkey,否则与源key相同"""
+
+    def cpy(key, dstkey=None):
+        if dstkey is None:
+            dstkey = key
+        if key not in src:
+            dst[dstkey] = ''
+            return cpy
+        dst[dstkey] = src[key]
+        return cpy
+
+    return cpy
+
+
+def dict_path(dct, path, dv=None):
+    """根据/k1[i1]/k2这样的简单路径提取dct中对应的值"""
+    segs = path.split('/')
+    if segs[-1] == '':
+        segs.pop(-1)
+    if segs[0] == '':
+        segs.pop(0)
+
+    for i, seg in enumerate(segs):
+        if dct is None:
+            return dv
+        if seg[-1] == ']':
+            rlst, msg = query_re(seg, '(.*?)\[(\d+)\]')
+            if len(rlst) == 0:
+                rlst, msg = query_re(seg, '(.*?)\[(.*?)\]')
+                if len(rlst) == 0:
+                    return dv
+                rs = rlst[0]
+            else:
+                rs = rlst[0]
+                rs = (rs[0], 0 if int(rs[1]) < 1 else int(rs[1]) - 1)
+
+            try:
+                if i == len(segs) - 1:
+                    return dct[rs[0]][rs[1]]
+                else:
+                    dct = dct[rs[0]][rs[1]]
+            except:
+                return dv
+        else:
+            if i == len(segs) - 1:
+                return dct.get(seg, dv)
+            else:
+                dct = dct.get(seg, None)
+    return dv
