@@ -47,7 +47,7 @@ class sender:
             return str(e)
         return ''
 
-    def put(self, data, timeout=10, partition=None, topic=None):
+    def put(self, data, timeout=10, partition=None, topic=None, key=None):
         """发送数据到指定的主题与分区,并在超时时间内进行等待.返回值:空串正常;否则为错误信息"""
         if topic is None:
             topic = self.topic
@@ -61,7 +61,7 @@ class sender:
             if isinstance(data, dict):
                 data = json.dumps(data, ensure_ascii=False)
             # 发起数据的提交
-            r = self.mq.send(topic, data.encode('utf-8'), partition)
+            r = self.mq.send(topic, data.encode('utf-8'), key=key, partition=partition)
             # 等待服务器响应
             if timeout:
                 r.get(timeout)
