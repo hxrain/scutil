@@ -585,7 +585,7 @@ def default_headers(url, Head):
     ur = up.urlparse(url)
     host = ur[1]
     Head['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0'
-    Head['Accept'] = 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8',
+    Head['Accept'] = 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8'
     Head['Host'] = host
     Head['Connection'] = 'keep-alive'
 
@@ -772,9 +772,8 @@ class spd_base:
         self.sessionMgr = requests.sessions.Session() if sessionMgr is None else sessionMgr
         # 定义结果对象
         self.rst = {}
-
-    def _rst_val(self, key, defval):
-        return self.rst[key] if key in self.rst else defval
+        # 最后请求的url
+        self.last_url = None
 
     # 抓取指定的url,通过req可以传递灵活的控制参数
     def take(self, url, req=None, proxy_files='./proxy_host.json'):
@@ -800,8 +799,19 @@ class spd_base:
                     req = {}
                 req['PROXY'] = prx
 
+        self.last_url = url
         self.rst = {}
         return http_req(url, self.rst, req, self.timeout, self.allow_redirects, self.sessionMgr, self.cookieMgr)
+
+    def take2(self, url, req=None, proxy_files='./proxy_host.json'):
+        """对http动作结果做状态码判断,非200回应也算错误"""
+        r = self.take(url, req, proxy_files)
+        if not r:
+            return r
+        if self.get_status_code() != 200:
+            self.rst['error'] = '%s :: %s :: %d' % (self.get_error(), self.get_status_reason(), self.get_status_code())
+            return False
+        return True
 
     # 保存cookie到文件
     def cookies_save(self):
@@ -809,27 +819,27 @@ class spd_base:
 
     # 获取过程中出现的错误
     def get_error(self):
-        return self._rst_val('error', '')
+        return self.rst.get('error', '')
 
     # 获取回应状态码
     def get_status_code(self):
-        return self._rst_val('status_code', 0)
+        return self.rst.get('status_code', 0)
 
     # 获取回应状态简述
     def get_status_reason(self):
-        return self._rst_val('status_reason', '')
+        return self.rst.get('status_reason', '')
 
     # 获取回应头,字典
     def get_HEAD(self):
-        return self._rst_val('HEAD', {})
+        return self.rst.get('HEAD', {})
 
     # 获取会话回应cookie字典
     def get_COOKIE(self):
-        return self._rst_val('COOKIE', {})
+        return self.rst.get('COOKIE', {})
 
     # 获取回应内容,解压缩转码后的内容
     def get_BODY(self):
-        return self._rst_val('BODY', None)
+        return self.rst.get('BODY', None)
 
 
 """
