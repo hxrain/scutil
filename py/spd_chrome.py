@@ -592,21 +592,35 @@ var _$_ = function(el, parent) {
 
 # 用来进行ajax调用的功能函数
 http_ajax = """
-function _$_make_node(id,val)
+function _$_hashcode(str){
+     var hashCode=1
+     for(var i=0;i<str.length;i++)
+        hashCode=37* hashCode + str.charCodeAt(i)
+     return hashCode 
+}
+function _$_make_node(tag,val)
 {
-    var it=document.getElementById(id);
+    var uid="#"+_$_hashcode(tag) //用show关键词的哈希码构造唯一标识
+    var it=document.getElementById(uid);
     if (it==null)
     {
         it=document.createElement("textarea");
-        it.id=id;
+        it.id=uid;
         document.body.appendChild(it);
     }
+    if (val=="")
+        it.setAttribute("show","!");
+    else
+        it.setAttribute("show",tag);//只有成功的时候,指定的show关键词才会出现.
     it.innerHTML=val;
 }
+
 function http_ajax(url,method="GET",data=null,contentType="application/x-www-form-urlencoded",show="root")
 {
     if (show=="root")
         document.documentElement.innerHTML="";
+    else
+        _$_make_node(show,"");
 	var xmlhttp=new XMLHttpRequest();
 	xmlhttp.onreadystatechange=function()
 	{
