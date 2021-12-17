@@ -584,10 +584,15 @@ def is_text_content(heads):
 def default_headers(url, Head):
     ur = up.urlparse(url)
     host = ur[1]
-    Head['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0'
-    Head['Accept'] = 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8'
-    Head['Host'] = host
-    Head['Connection'] = 'keep-alive'
+
+    def make(key, val):
+        if key not in Head:
+            Head[key] = val
+
+    make('User-Agent', 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0')
+    make('Accept', 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8')
+    make('Host', host)
+    make('Connection', 'keep-alive')
 
 
 # -----------------------------------------------------------------------------
@@ -633,7 +638,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     try:
         if session is None:
             session = requests.sessions.Session()
-        # 校正会话对象内部的http默认头
+        # 尝试给出默认头域
         default_headers(url, HEAD)
 
         # 发起请求
