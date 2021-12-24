@@ -1,6 +1,7 @@
 # kafka-python
 import json
 import time
+import ssl
 from kafka import KafkaConsumer
 from kafka import KafkaProducer
 
@@ -11,6 +12,23 @@ class sasl_plain:
     def __init__(self, user, pwd):
         self.user = user
         self.pwd = pwd
+        self.security_protocol = 'SASL_PLAINTEXT'  # 安全加密模式
+        self.ssl_cafile = None  # ssl/ca证书文件
+        self.ssl_keyfile = None  # ssl/key文件
+        self.ssl_content = None  # ssl上下文
+
+    def load_ssl_ca(self, cafile):
+        """使用ssl上下文模式,装载ca文件"""
+        self.security_protocol = 'SASL_SSL'
+        try:
+            self.ssl_content = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            self.ssl_content.verify_mode = ssl.CERT_REQUIRED
+            self.ssl_content.load_verify_locations(cafile)
+            return ''
+        except Exception as e:
+            msg = 'load ssl ca <%s> fail: %s' % (cafile, str(e))
+            print(msg)
+            return msg
 
 
 class sender:
@@ -39,7 +57,8 @@ class sender:
 
         try:
             if isinstance(self.auth, sasl_plain):
-                self.mq = KafkaProducer(bootstrap_servers=self.host, sasl_mechanism="PLAIN", security_protocol='SASL_PLAINTEXT',
+                self.mq = KafkaProducer(bootstrap_servers=self.host, sasl_mechanism="PLAIN", security_protocol=self.auth.security_protocol,
+                                        ssl_cafile=self.auth.ssl_cafile, ssl_context=self.auth.ssl_content, ssl_keyfile=self.auth.ssl_keyfile,
                                         sasl_plain_username=self.auth.user, sasl_plain_password=self.auth.pwd, **cfg)
             else:
                 self.mq = KafkaProducer(bootstrap_servers=self.host)
