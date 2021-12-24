@@ -816,7 +816,7 @@ map_id_areas = {
     320200: ['无锡市'],
     320205: ['锡山区'],
     320206: ['惠山区'],
-    320211: ['滨湖区'],
+    320211: ['滨湖区', '太湖新区', '太湖新城'],
     320213: ['梁溪区'],
     320214: ['新吴区'],
     320281: ['江阴市'],
@@ -3411,8 +3411,14 @@ def query_area_id(addr, min_size=2):
 
     def take():
         """从当前begin位置开始对addr进行最大化匹配查找.返回值:找到的最后匹配位置,或0未找到"""
+        for pos in range(addr_size, begin + min_size, -1):
+            # 先倒着查询最长匹配串
+            if addr[begin:pos] in map_area_ids:
+                return pos
+
         end = 0
         for pos in range(begin + min_size, addr_size + 1):
+            # 再正向逐步试探增量匹配
             if addr[begin:pos] in map_area_ids:
                 end = pos  # 当前文本段是一个标准的区划名称,记录结束位置
             elif end != 0:
