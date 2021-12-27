@@ -735,6 +735,17 @@ def query_re(cnt_str, cc_re, idx=None):
         return [], es(e)
 
 
+def query_str(cnt_str, cc_str):
+    """在cnt_str中查找cc_str出现的位置数组"""
+    rst = []
+    pos = cnt_str.find(cc_str)
+    while pos != -1:
+        rst.append(pos)
+        begin = pos + len(cc_str)
+        pos = cnt_str.find(cc_str, begin)
+    return rst
+
+
 # 查询指定捕获组的内容并转为数字.不成功时返回默认值
 def query_re_num(cnt_str, cc_re, defval=1):
     rs, msg = query_re(cnt_str, cc_re)

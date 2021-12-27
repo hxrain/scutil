@@ -278,7 +278,7 @@ class Tab(object):
         self._data_requestWillBeSent[url].append((request, requestId))  # 记录请求信息和请求id
         self._data_requestIDs[requestId] = [request]  # 记录requestid对应的请求信息
 
-    def _on_responseReceived(self, requestId, loaderId, timestamp, type, response, frameId):
+    def _on_responseReceived(self, requestId, loaderId, timestamp, type, response, **args):
         """记录请求对应的应答信息"""
         if requestId not in self._data_requestIDs:
             return
@@ -1157,6 +1157,11 @@ class spd_chrome:
                 else:
                     xhtml = html
                     r, msg = spd_base.query_re(html, cond)
+                    if msg:
+                        # 针对re条件中包含未转义元字符导致re查询失败的情况,尝试进行退化的串包含匹配
+                        r = spd_base.query_str(html, cond)
+                        if len(r):
+                            msg = ''  # 如果有串包含的结果,也认为匹配成功了.
 
                 if msg != '':
                     logger.warn('wait (%s) query error <%s> :\n%s' % (cond, msg, html))
