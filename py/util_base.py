@@ -119,14 +119,14 @@ def json_default(obj):
 
 # -----------------------------------------------------------------------------
 # 从json文件装载字典
-def dict_load(fname, encoding=None):
+def dict_load(fname, encoding=None,defval=None):
     try:
         fp = open(fname, 'r', encoding=encoding)
         ret = json.load(fp)
         fp.close()
         return ret
     except Exception as e:
-        return None
+        return defval
 
 
 # 保存词典到文件
