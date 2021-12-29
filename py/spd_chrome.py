@@ -376,6 +376,24 @@ class Tab(object):
         self.clear_request_historys()
         return True
 
+    def goto(self, url, proto_timeout=10):
+        """控制tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
+        try:
+            self.clear_request_historys()  # 每次发起新导航的时候,都清空之前记录的请求信息
+            self.last_url = url
+            rst = self.call_method('Page.navigate', url=url, _timeout=proto_timeout)
+            return rst, ''
+        except Exception as e:
+            return None, spd_base.es(e)
+
+    def stop(self, proto_timeout=10):
+        """控制指定的tab页停止浏览.返回值:错误消息,空正常"""
+        try:
+            rst = self.call_method('Page.stopLoading', _timeout=proto_timeout)
+            return ''
+        except Exception as e:
+            return None, spd_base.es(e)
+
 
 # Chrome浏览器管理对象
 class Browser(object):
@@ -965,32 +983,19 @@ class spd_chrome:
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def _goto(self, tab, url):
-        """控制指定的tab页浏览指定的url.返回值({'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
-        try:
-            t = self._tab(tab)
-            t.clear_request_historys()  # 每次发起新导航的时候,都清空之前记录的请求信息
-            rst = t.call_method('Page.navigate', url=url, _timeout=self.proto_timeout)
-            return rst, ''
-        except Exception as e:
-            return None, spd_base.es(e)
-
     def stop(self, tab):
         """控制指定的tab页停止浏览.返回值:错误消息,空正常"""
-        try:
-            t = self._tab(tab)
-            rst = t.call_method('Page.stopLoading', _timeout=self.proto_timeout)
-            return ''
-        except Exception as e:
-            return None, spd_base.es(e)
+        t = self._tab(tab)
+        return t.stop(self.proto_timeout)
 
     def goto(self, tab, url, retry=3):
         """控制指定的tab页浏览指定的url.返回值(是否完成,{'frameId': 主框架id, 'loaderId': 装载器id}, 错误消息)"""
         ok = False  # 是否完成
         r = None  # tab信息
         m = ''  # 返回的消息
+        t = self._tab(tab)
         for i in range(retry):
-            r, m = self._goto(tab, url)
+            r, m = t.goto(url, self.proto_timeout)
             if r and 'errorText' not in r:
                 ok = True
                 break
@@ -1164,7 +1169,7 @@ class spd_chrome:
                             msg = ''  # 如果有串包含的结果,也认为匹配成功了.
 
                 if msg != '':
-                    logger.warn('wait (%s) query error <%s> :\n%s' % (cond, msg, html))
+                    logger.warn('%s wait (%s) query error <%s> :\n%s' % (t.last_url, cond, msg, html))
                 elif check_cond(isnot, r):
                     break  # 如果条件满足,则停止循环
                 else:
