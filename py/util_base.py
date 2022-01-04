@@ -119,7 +119,7 @@ def json_default(obj):
 
 # -----------------------------------------------------------------------------
 # 从json文件装载字典
-def dict_load(fname, encoding=None,defval=None):
+def dict_load(fname, encoding=None, defval=None):
     try:
         fp = open(fname, 'r', encoding=encoding)
         ret = json.load(fp)
@@ -606,7 +606,7 @@ def json2dict(jstr):
 
 def dict2json(obj, indent=True):
     try:
-        jstr = json.dumps(obj, ensure_ascii=False, indent=4 if indent else None)
+        jstr = json.dumps(obj, ensure_ascii=False, indent=4 if indent else None, default=json_default)
         return jstr, ''
     except Exception as e:
         return None, 'dict2json: ' + es(e)
