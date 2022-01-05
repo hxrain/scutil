@@ -2,6 +2,7 @@ from functools import wraps
 from threading import Lock
 from threading import RLock
 from threading import Thread
+from threading import Semaphore
 import time
 
 """
@@ -30,18 +31,46 @@ class lock_t:
         else:
             self.locker = Lock()
 
-    def lock(self):
+    def lock(self, timeout=-1):
         if not self.inited():
-            return
-        self.locker.acquire()
+            return False
+        return self.locker.acquire(timeout=timeout)
 
     def unlock(self):
         if not self.inited():
-            return
+            return False
         self.locker.release()
+        return True
 
     def inited(self):
         return self.locker is not None
+
+
+class sem_t:
+    """信号量功能封装"""
+
+    def __init__(self, maxval=None):
+        self.sem = None
+        if maxval:
+            self.init(maxval)
+
+    def init(self, maxval):
+        assert (self.sem is None)
+        self.sem = Semaphore(maxval)
+
+    def inited(self):
+        return self.sem is not None
+
+    def lock(self, timeout=-1):
+        if not self.inited():
+            return False
+        return self.sem.acquire(timeout=timeout)
+
+    def unlock(self):
+        if not self.inited():
+            return False
+        self.sem.release()
+        return True
 
 
 # 给指定函数绑定锁保护的装饰器函数
@@ -144,3 +173,41 @@ class obj_pool_t:
             print('obj_pool memory overflow for put: %s' % self.obj_type.__name__)
         self.locker.unlock()
         return ret
+
+
+class obj_cache_t:
+    """阻塞的对象缓存管理器"""
+
+    def __init__(self, vals=None, is_ref=True):
+        self.objs = []
+        self.id_pool = None
+        self.sem = None
+        if vals:
+            self.init(vals, is_ref)
+
+    def init(self, vals, is_ref=True):
+        """初始化,告知可用对象列表"""
+        assert (self.id_pool is None)
+        if is_ref:
+            self.objs = vals
+        else:
+            self.objs.extend(vals)
+        self.sem = sem_t(len(vals))
+        self.id_pool = obj_pool_t(int)
+        for i in range(len(vals)):
+            self.id_pool.put(i)
+
+    def get(self, timeout=None):
+        """获取对象索引,若全部对象都已被分配则进行阻塞等待;返回None失败"""
+        if not self.sem.lock(timeout):
+            return None
+        return self.id_pool.get()
+
+    def put(self, idx):
+        """归还对象索引"""
+        self.id_pool.put(idx)
+        self.sem.unlock()
+
+    def __getitem__(self, item):
+        """根据索引获取对象的值"""
+        return self.objs[item]
