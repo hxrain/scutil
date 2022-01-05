@@ -136,7 +136,7 @@ class SSHClient:
         return self.ssh is not None
 
     def exec(self, cmd):
-        """运行指定服务器上的指定路径文件.返回值:(输出内容,错误消息),错误消息为空正常."""
+        """在指定服务器运行命令列表.返回值:(输出内容,错误消息),错误消息为空正常."""
         dat = None
         msg = ''
         try:
@@ -151,15 +151,17 @@ class SSHClient:
 class ssh_exec_t:
     """在指定服务器上运行指定的命令"""
 
-    def __init__(self):
+    def __init__(self, user=None, pwd=None):
         self.clts = {}
+        self.user = user
+        self.pwd = pwd
 
-    def exec(self, host, cmd, user=None, pwd=None):
+    def exec(self, host, cmd):
         """下载指定服务器上的指定路径文件.返回值:(文件内容,错误消息),错误消息为空正常."""
         if host not in self.clts:
             self.clts[host] = SSHClient(host)
-            if user or pwd:
-                self.clts[host].init(host, user, pwd)
+            if self.user or self.pwd:
+                self.clts[host].init(host, self.user, self.pwd)
 
         clt = self.clts[host]
         if not clt.opend():
@@ -173,4 +175,3 @@ class ssh_exec_t:
             return None, msg
 
         return dat, msg
-
