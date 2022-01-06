@@ -126,6 +126,7 @@ def dict_load(fname, encoding=None, defval=None):
         fp.close()
         return ret
     except Exception as e:
+        print(e)
         return defval
 
 

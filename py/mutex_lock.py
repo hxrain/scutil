@@ -144,13 +144,13 @@ class obj_pool_t:
         self.locker = lock_t(True)
         self.objs = []
 
-    def get(self):
+    def get(self, frmpos=0):
         """获取对象.返回值:None失败;其他为指定类型的对象"""
         obj = None
         self.locker.lock()
         try:
             if len(self.objs):
-                obj = self.objs.pop(0)
+                obj = self.objs.pop(frmpos)
             else:
                 obj = self.obj_type()
         except Exception as e:
@@ -182,6 +182,7 @@ class obj_cache_t:
         self.objs = []
         self.id_pool = None
         self.sem = None
+        self.frmpos = 0
         if vals:
             self.init(vals, is_ref)
 
@@ -197,11 +198,14 @@ class obj_cache_t:
         for i in range(len(vals)):
             self.id_pool.put(i)
 
+    def inited(self):
+        return self.id_pool is not None
+
     def get(self, timeout=None):
         """获取对象索引,若全部对象都已被分配则进行阻塞等待;返回None失败"""
         if not self.sem.lock(timeout):
             return None
-        return self.id_pool.get()
+        return self.id_pool.get(self.frmpos)
 
     def put(self, idx):
         """归还对象索引"""
