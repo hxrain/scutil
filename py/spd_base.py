@@ -785,7 +785,10 @@ class spd_base:
 
         def match_proxy(url):  # 匹配域名对应的代理服务器
             if isinstance(proxy_files, str):
-                proxy_table = dict_load(proxy_files, 'utf-8')
+                if os.path.exists(proxy_files):
+                    proxy_table = dict_load(proxy_files, 'utf-8')
+                else:
+                    proxy_table = None
             else:
                 proxy_table = proxy_files
 
