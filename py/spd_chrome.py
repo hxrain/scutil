@@ -10,6 +10,7 @@ import spd_base
 import socket
 import traceback
 import py_util
+import sys
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
@@ -83,6 +84,7 @@ class Tab(object):
         self.last_act = None
         self._websocket_url = kwargs.get("webSocketDebuggerUrl")  # 操纵tab的websocket地址
         self._cur_id = 1000  # 交互消息的初始流水序号
+        self.downpath = None  # 控制浏览器的下载路径
 
         # 根据环境变量的设定进行功能开关的处理
         self.debug = os.getenv("SPD_CHROME_DEBUG", False)  # 是否显示收发内容
@@ -348,11 +350,11 @@ class Tab(object):
             self._websocket.close()
             self._websocket = None
 
-    def init(self, req_event_filter=None):
+    def init(self, req_event_filter=None, downpath=None):
         """启动tab交互象,建立websocket连接"""
         if self._websocket:
             return True
-
+        self.downpath = downpath
         self.req_event_filter_re = req_event_filter
         self.reopen()
         return True
@@ -363,6 +365,8 @@ class Tab(object):
             self._close_websock()
             self._open_websock()
             self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
+            if self.downpath:
+                self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=1)
             return True
         except websocket.WebSocketBadStatusException as e:
             logger.warn('reopen error: %s :: %d' % (self._websocket_url, e.status_code))
@@ -401,6 +405,7 @@ class Browser(object):
     def __init__(self, url="http://127.0.0.1:9222"):
         self.dev_url = url
         self._tabs = {}  # 记录被管理的tab页
+        self.downpath = sys.path[0] + '\\tmpdown' + spd_base.query_re_str(url, r'://.*:(\d+)', 'tmpdown') + '\\'
 
     def new_tab(self, url=None, timeout=None, start=True, req_event_filter=None):
         """打开新tab页,并浏览指定的网址"""
@@ -409,7 +414,7 @@ class Browser(object):
         tab = Tab(**self._load_json(rp))
         self._tabs[tab.id] = tab
         if start:
-            tab.init(req_event_filter)
+            tab.init(req_event_filter, downpath=self.downpath)
         return tab
 
     def _load_json(self, rp):
@@ -810,13 +815,13 @@ class spd_chrome:
             for i in range(loop):
                 r = t.get_response(reqid)
                 if r:
-                    return True
+                    return r
                 if wait.timeout():
                     break
                 time.sleep(0.45)
-            return False
+            return None
 
-        def call(reqid):
+        def call_getResponseBody(reqid):
             try:
                 rst = t.call_method('Network.getResponseBody', requestId=reqid, _timeout=self.proto_timeout)
                 body = rst['body']
@@ -827,6 +832,26 @@ class spd_chrome:
             except Exception as e:
                 return None, py_util.get_trace_stack()
 
+        def get_downtmp(rrinfo, downpath):
+            """在回应获取失败的时候,尝试查找下载文件"""
+            if len(rrinfo) != 2:
+                return None
+            rsp_heads = rrinfo[1].get('headers', None)
+            if rsp_heads is None:
+                return None
+            Content_disposition = rsp_heads.get('Content-disposition', None)
+            if Content_disposition is None:
+                return None
+            # attachment; filename="五河县农村供水保障项目双忠庙供水区群众喝上更好水工程施工补遗说明BB2022WHGCZ004.pdf"
+            filename = spd_base.query_re_str(Content_disposition, r'filename\s*=\s*"?([^"]*)[";]?', None)
+            if filename is None:
+                return None
+            filepath = downpath + filename
+            filedata = spd_base.load_from_file(filepath, None, 'rb')
+            if filedata:
+                os.remove(filepath)  # 下载并读取成功了,则删除当前的文件
+            return filedata
+
         req_lst, msg = self.get_request_info(tab, url, url_is_re)
         if msg:
             return None, msg
@@ -834,10 +859,16 @@ class spd_chrome:
             return None, ''
 
         req, reqid = req_lst[-1]
-        if not wait(reqid):
+        rrinfo = wait(reqid)
+        if not rrinfo:
             return None, ''
 
-        rst, msg = call(reqid)
+        rst, msg = call_getResponseBody(reqid)
+        if rst is None or msg and t.downpath:
+            # 回应提取不成功的时候,还需要尝试判断是否有下载文件
+            rst = get_downtmp(rrinfo, t.downpath)
+            if rst is not None:
+                msg = ''
         return rst, msg
 
     def clear_cookies(self, tab):
