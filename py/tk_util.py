@@ -82,6 +82,16 @@ def tabs_current_idx(tabs):
     return tabs.index(idx)
 
 
+def window_show(win, show):
+    """控制窗口win显示或隐藏"""
+    if show:
+        win.update()
+        win.deiconify()
+    else:
+        win.withdraw()
+    return show
+
+
 class ToolTip(object):
     def __init__(self, widget, msg, evt_pos=False):
         self.widget = widget  # 父容器控件
@@ -129,14 +139,11 @@ class ToolTip(object):
         # 调整窗口位置
         self.tipwindow.geometry("+%d+%d" % (nx, ny))
         # 让tip窗口可见
-        self.tipwindow.update()
-        self.tipwindow.deiconify()
-        self.showing = True
+        self.showing = window_show(self.tipwindow, True)
 
     def hide(self, *args):
         """隐藏tip窗口"""
-        self.tipwindow.withdraw()
-        self.showing = False
+        self.showing = window_show(self.tipwindow, False)
 
 
 def event_handle_warp(fun, dat):
@@ -178,19 +185,49 @@ def text_next_idx(ui_txt, idx):
     return ui_txt.index('%s +1 chars' % idx)
 
 
-def tag_search_color(ui_txt, begin, cnt, color=None):
-    """给文本框搜索结果着色,color为None则清除"""
+def text_tag_attrib(ui_txt, tagname, att, defval=None):
+    """获取text控件中指定tag的att属性的值"""
+    try:
+        return ui_txt.tag_cget(tagname, att)
+    except Exception as e:
+        return defval
+
+
+def text_tag_coloring(ui_txt, begin, cnt, fgcolor=None, bgcolor=None, pre='search'):
+    """给文本框ui_txt的内容(begin开始,cnt个字符)着色,color为None则清除"""
     if not begin:
         return
     if isinstance(cnt, IntVar):
         cnt = cnt.get()
     end = ui_txt.index('%s +%d chars' % (begin, cnt))
-    tagname = '_search_txttag_%s_%s' % (begin, end)
-    if color is None:
+    tagname = '_%s_txttag_%s_%s' % (pre, begin, end)
+    if fgcolor is None and bgcolor is None:
         ui_txt.tag_delete(tagname)
     else:
-        ui_txt.tag_add(tagname, begin, end)
-        tag_color(ui_txt, tagname, color)
+        ov = text_tag_attrib(ui_txt, tagname, 'foreground', -1)
+        if ov == -1:
+            ui_txt.tag_add(tagname, begin, end)
+        tag_color(ui_txt, tagname, fgcolor, bgcolor)
+
+
+def text_search_re_all(ui_txt, rxexp, offset='1.0', exact=True):
+    """在text控件中进行re搜索,得到所有的结果位置列表[(位置idx,字符数cnt)]"""
+    rxcnt = IntVar(ui_txt)
+    rst = []
+    pos = ui_txt.search(rxexp, offset, exact=exact, regexp=True, count=rxcnt)
+    while pos:
+        rst.append((pos, rxcnt.get()))
+        offset = text_next_idx(ui_txt, pos)
+        pos = ui_txt.search(rxexp, offset, forwards=True, exact=exact, regexp=True, count=rxcnt)
+        if rst[0][0] == pos:
+            break  # 查找一圈了,结束
+    return rst
+
+
+def text_search_coloring(ui_txt, searchs, color=None):
+    """对文本搜索结果列表进行整体着色"""
+    for s in searchs:
+        text_tag_coloring(ui_txt, s[0], s[1], color)
 
 
 class TextTagTooltip_t:
@@ -311,6 +348,8 @@ def ui_value_set(w, v):
         w.insert(0, v)
     elif isinstance(w, ttk.Combobox):
         w.set(v)
+    elif isinstance(w, Label):
+        w['text'] = v
     elif isinstance(w, memo_t):
         onlyrd = False
         if w.ui_txt['state'] == DISABLED:
@@ -328,6 +367,8 @@ def ui_value_get(w):
     """取出控件的显示内容"""
     if isinstance(w, Entry):
         return w.get()
+    elif isinstance(w, Label):
+        return w['text']
     elif isinstance(w, Text):
         return w.get('1.0', END)
     elif isinstance(w, ttk.Combobox):
