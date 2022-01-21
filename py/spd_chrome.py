@@ -10,7 +10,6 @@ import spd_base
 import socket
 import traceback
 import py_util
-import sys
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
@@ -405,7 +404,7 @@ class Browser(object):
     def __init__(self, url="http://127.0.0.1:9222"):
         self.dev_url = url
         self._tabs = {}  # 记录被管理的tab页
-        self.downpath = sys.path[0] + '\\tmpdown' + spd_base.query_re_str(url, r'://.*:(\d+)', 'tmpdown') + '\\'
+        self.downpath = os.getcwd() + '\\tmpdown' + spd_base.query_re_str(url, r'://.*:(\d+)', 'tmpdown') + '\\'
 
     def new_tab(self, url=None, timeout=None, start=True, req_event_filter=None):
         """打开新tab页,并浏览指定的网址"""
