@@ -1,9 +1,109 @@
 from util_base import *
 
 
+# 查询指定的sql,返回元组列表,每个元组对应一行数据.
+def query(q, sql, dat=None, ext=False):
+    st, rst, cols = q.query(sql, dat, ext)
+    if not st:
+        q.open()
+        st, rst, cols = q.query(sql, dat, ext)
+    if ext:
+        return rst, cols
+    else:
+        return rst
+
+
+def exec(q, sql, dat=None, ext=False):
+    """在指定的conn上执行sql语句,得到结果.
+        返回值:(bool,result)
+        对于select语句,result为结果集对象;否则为最后影响记录的rowid
+    """
+
+    def do(is_sel):
+        if is_sel:
+            st, res, cols = q.query(sql, dat, ext)
+        else:
+            st, res = q.exec(sql, dat)
+        return st, res
+
+    is_sel = sql.lower().strip().startswith('select')  # 判断是否为select语句
+    st, res = do(is_sel)
+    if not st:
+        q.open()  # 查询或执行失败的时候,则尝试重新连接后再试一次.
+        st, res = do(is_sel)
+
+    return st, res
+
+
+def norm_field_value(v):
+    if isinstance(v, str) or isinstance(v, float) or isinstance(v, int):
+        return v
+    return str(v)
+
+
+def make_kvs(q, sql, dct):
+    """从数据库查询结果中构建key/value词典.返回值:(数量,消息),数量为-1时失败,消息告知错误原因"""
+    rst = query(q, sql)
+    if isinstance(rst, Exception):
+        return -1, str(rst)
+    for row in rst:
+        dct[row[0]] = row[1].strip()
+    return len(rst), ''
+
+
+def make_objs(q, sql, objs, dat=None):
+    """从数据库查询结果中构建obj列表.返回值:(数量,消息),数量为-1时失败,消息告知错误原因"""
+    rst, cols = query(q, sql, dat, ext=True)
+    if isinstance(rst, Exception):
+        return -1, str(rst)
+
+    class obj_t:
+        def __init__(self):
+            pass
+
+        def __repr__(self):
+            rst = []
+            for k in self.__dict__:
+                rst.append('%s:%s' % (k, self.__dict__[k]))
+            return '{%s}' % (','.join(rst))
+
+        def __getitem__(self, item):
+            return self.__dict__[item.upper()]
+
+    colcnt = len(cols)
+    for row in rst:
+        obj = obj_t()
+        for i in range(colcnt):
+            name = cols[i]['name']
+            obj.__dict__[name] = norm_field_value(row[i])
+        objs.append(obj)
+    return len(rst), ''
+
+
+def make_dcts(q, sql, dcts, keyidx=0, dat=None):
+    """从数据库查询结果中构建obj词典.返回值:(数量,消息),数量为-1时失败,消息告知错误原因"""
+    rst, cols = query(q, sql, dat, ext=True)
+    if isinstance(rst, Exception):
+        return -1, str(rst)
+    colcnt = len(cols)
+
+    if isinstance(keyidx, str):
+        for i, c in enumerate(cols):
+            if c['name'] == keyidx:
+                keyidx = i
+                break
+
+    for row in rst:
+        dct = {}
+        for i in range(colcnt):
+            dct[cols[i]['name']] = norm_field_value(row[i])
+        dcts[row[keyidx]] = dct
+    return len(rst), ''
+
+
 class db_fetch_t:
-    def __init__(self, fname, conn, logger):
-        self.conn = conn
+    def __init__(self, fname, db, logger):
+        self.db = db
         self.logger = logger
 
         # 装载保存过的信息存根
@@ -49,7 +149,7 @@ class db_fetch_t:
     def query(self, exparam=None, auto_skip=False):
         """执行预设查询,得到期待的结果信息列表.返回值:(信息列表,原始数据列表)"""
         sql, param = self.on_make_sql(exparam)
-        st, res = self.on_exec(self.conn, sql, param, exparam)
+        st, res = self.on_exec(self.db, sql, param, exparam)
         if not st:
             self.logger.warn('db query error: %s' % (res))
             return None, None
@@ -76,7 +176,7 @@ class db_fetch_t:
     def on_make_sql(self, exparam):
         """构造查询sql,以及对应的查询参数"""
 
-    def on_exec(self, conn, sql, param, exparam):
+    def on_exec(self, db, sql, param, exparam):
         """基于conn执行sql查询,param是查询参数,exparam是外部给出的扩展参数.返回值:(bool状态,结果集)"""
 
     def on_make_unique(self, info, exparam):
