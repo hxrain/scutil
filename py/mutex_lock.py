@@ -136,6 +136,12 @@ def wait_threads(thds, timeout=None):
     return rst
 
 
+def wait_threads_less(thds, less):
+    """等待thds的线程数量小于less"""
+    while len(thds) >= less:
+        wait_threads(thds, 1)
+
+
 class obj_pool_t:
     """简单的对象池,线程安全"""
 

@@ -913,3 +913,20 @@ def dict_path(dct, path, dv=None):
             else:
                 dct = dct.get(seg, None)
     return dv
+
+
+def jacard_sim(s1, s2):
+    """对于集合或链表s1和s2,计算杰卡德相似度;返回值:(相同元素数,元素总数)"""
+    s1 = set(s1)
+    s2 = set(s2)
+    il = len(s1.intersection(s2))
+    ul = len(s1.union(s2))
+    return il, ul
+
+
+def jacard_ratio(s1, s2):
+    """计算两个链表或集合的杰卡德相似度:0~1"""
+    sc, tc = jacard_sim(s1, s2)
+    if tc == 0:
+        return 0
+    return sc / tc

@@ -121,15 +121,15 @@ class query_t:
         except Exception as e:
             return False, e, None
 
-    def exec(self, sql, dat=None,commit=True):
+    def exec(self, sql, dat=None, commit=True):
         try:
             if isinstance(dat, list):
-                self.cur.executemany(sql, dat)
+                r = self.cur.executemany(sql, dat)
             else:
-                self.cur.execute(sql, dat)
+                r = self.cur.execute(sql, dat)
             if commit:
                 self.cur.connection.commit()
-            return True, self.cur.lastrowid
+            return True, self.cur.lastrowid or r
         except Exception as e:
             self.cur.connection.rollback()
             return False, e
