@@ -823,6 +823,8 @@ class spd_chrome:
         def call_getResponseBody(reqid):
             try:
                 rst = t.call_method('Network.getResponseBody', requestId=reqid, _timeout=self.proto_timeout)
+                if rst is None:
+                    return None,'Network.getResponseBody call fail.'
                 body = rst['body']
                 en = rst['base64Encoded']
                 if en:
