@@ -56,9 +56,13 @@ class mysql_conn_t:
         self.port = port
 
     def close(self):
-        if self.handle:
+        if self.handle is None:
+            return
+        try:
             self.handle.close()
-            self.handle = None
+        except:
+            pass
+        self.handle = None
 
 
 # 打开mysql的连接
@@ -93,12 +97,13 @@ class query_t:
         return ''
 
     def close(self):
-        if self.cur:
-            try:
-                self.cur.close()
-            except:
-                pass
-            self.cur = None
+        if self.cur is None:
+            return
+        try:
+            self.cur.close()
+        except:
+            pass
+        self.cur = None
 
     def query(self, sql, dat=None, ext=False):
 
