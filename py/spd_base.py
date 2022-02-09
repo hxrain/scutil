@@ -643,6 +643,8 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         rst['BODY']             记录回应内容,解压缩转码后的内容
     '''
     # 准备请求参数
+    if req is None:
+        req = {}
     method = req.get('METHOD', 'get').lower()
     SSL_VERIFY = req.get('SSL_VERIFY')
     proxy = req.get('PROXY')
