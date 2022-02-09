@@ -402,8 +402,7 @@ def pair_extract(xml, xpaths, removeTags=None):
                 if isinstance(x, etree._Element):
                     if removeTags:
                         etree.strip_tags(x, removeTags)
-                    x = etree.tostring(x, encoding='unicode')
-                    x = '<?xml version="1.0"?>\n' + x
+                    x = '<?xml version="1.0"?>\n' + etree.tostring(x, encoding='unicode')
                 t = t + (x.strip(),)
             rst.append(t)
         return rst, ''
@@ -413,9 +412,9 @@ def pair_extract(xml, xpaths, removeTags=None):
 
 
 # 将xpath规则结果对列表转换为字典
-def make_pairs_dict(lst, trsxml=False):
+def make_pairs_dict(lst, xml2txt=False):
     dct = {}
-    if trsxml:
+    if xml2txt:
         for d in lst:
             k = extract_xml_text(d[0])
             v = extract_xml_text(d[1])
@@ -424,6 +423,14 @@ def make_pairs_dict(lst, trsxml=False):
         for d in lst:
             dct[d[0]] = d[1]
     return dct
+
+
+def pair_extract_dict(xml, xpaths, removeTags=None, xml2txt=False):
+    """将xml内容按xpaths对抽取拼装为dict"""
+    rst, msg = pair_extract(xml, xpaths, removeTags)
+    if msg:
+        return [], msg
+    return make_pairs_dict(rst, xml2txt), ''
 
 
 # 获取字典dct中的指定key对应的值,不存在时返回默认值
@@ -581,7 +588,7 @@ def is_text_content(heads):
 
 # -----------------------------------------------------------------------------
 # 生成HTTP默认头
-def default_headers(url, Head):
+def default_headers(url, Head, body=None):
     ur = up.urlparse(url)
     host = ur[1]
 
@@ -593,6 +600,30 @@ def default_headers(url, Head):
     make('Accept', 'text/html,application/xhtml+xml,application/json,application/xml;q=0.9,*/*;q=0.8')
     make('Host', host)
     make('Connection', 'keep-alive')
+
+    if body is None or 'Content-Type' in Head:
+        return
+
+    body = body.strip()
+    if len(body) == 0:
+        return
+
+    if isinstance(body, bytes):
+        Head['Content-Type'] = 'application/octet-stream'  # 内容是二进制数据
+        return
+
+    if body[0] in {'{', '['}:
+        Head['Content-Type'] = 'application/json; charset=utf-8'  # 内容是json
+    elif body[0] == '<':
+        Head['Content-Type'] = 'text/xml; charset=utf-8'  # 内容是xml
+    else:
+        m = re.search(r'^[0-9a-zA-Z_\-.*]{1,64}\s*?=\s*?.*', body)
+        if m is None:
+            # 内容不是key=val那就当作文本了
+            Head['Content-Type'] = 'text/plain; charset=utf-8'
+        else:
+            # key=val值为URL编码格式
+            Head['Content-Type'] = 'application/x-www-form-urlencoded'
 
 
 # -----------------------------------------------------------------------------
@@ -612,16 +643,16 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         rst['BODY']             记录回应内容,解压缩转码后的内容
     '''
     # 准备请求参数
-    method = req['METHOD'] if req and 'METHOD' in req else 'get'
-    SSL_VERIFY = req['SSL_VERIFY'] if req and 'SSL_VERIFY' in req else None
-    proxy = req['PROXY'] if req and 'PROXY' in req else None
-    HEAD = req['HEAD'] if req and 'HEAD' in req else {}
-    BODY = req['BODY'] if req and 'BODY' in req else None
+    method = req.get('METHOD', 'get').lower()
+    SSL_VERIFY = req.get('SSL_VERIFY')
+    proxy = req.get('PROXY')
+    HEAD = req.get('HEAD', {})
+    BODY = req.get('BODY')
 
     if proxy is not None:
         proxy = {'http': proxy, 'https': proxy}
 
-    COOKIE = req['COOKIE'] if req and 'COOKIE' in req else None
+    COOKIE = req.get('COOKIE')
     # 进行cookie管理与合并
     if cookieMgr is None:
         # 没有cookie管理器对象,直接使用给定的cookie字典
@@ -639,7 +670,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         if session is None:
             session = requests.sessions.Session()
         # 尝试给出默认头域
-        default_headers(url, HEAD)
+        default_headers(url, HEAD, BODY)
 
         # 发起请求
         rsp = session.request(method, url, proxies=proxy, headers=HEAD, data=BODY, cookies=CKM,
