@@ -909,7 +909,10 @@ def dict_path(dct, path, dv=None):
                 return dv
         else:
             if i == len(segs) - 1:
-                return dct.get(seg, dv)
+                if isinstance(dct, dict):
+                    return dct.get(seg, dv)
+                else:
+                    return dv
             else:
                 dct = dct.get(seg, None)
     return dv

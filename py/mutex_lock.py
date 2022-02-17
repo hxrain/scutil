@@ -136,9 +136,11 @@ def wait_threads(thds, timeout=None):
     return rst
 
 
-def wait_threads_count(thds, max):
+def wait_threads_count(thds, max_thds):
     """等待thds的线程数量小于max"""
-    while len(thds) >= max:
+    if max_thds <= 0:
+        max_thds = 1
+    while len(thds) >= max_thds:
         wait_threads(thds, 1)
 
 

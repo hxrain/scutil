@@ -92,6 +92,15 @@ def window_show(win, show):
     return show
 
 
+def get_widget_size(w, force=False):
+    """获取控件的宽高尺寸"""
+    if force:
+        w.update()
+    if isinstance(w, ttk.Frame) or isinstance(w, Toplevel) or isinstance(w, Tk):
+        return w.winfo_width(), w.winfo_height()
+    return w.winfo_reqwidth(), w.winfo_reqheight()
+
+
 class ToolTip(object):
     def __init__(self, widget, msg, evt_pos=False):
         self.widget = widget  # 父容器控件
@@ -302,7 +311,8 @@ class memo_t:
     def __init__(self, parent, scrx=False, onlyrd=False, fontsize=12, fontfamily='Consolas'):
         # 背景容器
         self.ui_frame = ttk.Frame(parent)
-        self.ui_frame.pack()
+        self.ui_frame.pack(fill=BOTH, expand=True)
+
         # 文本框,最后布局,优先计算滚动条的布局
         self.ui_txt = Text(self.ui_frame, wrap=NONE if scrx else None, relief=GROOVE, state=DISABLED if onlyrd else None)
         self.set_font(fontsize, fontfamily)
@@ -339,6 +349,47 @@ class memo_t:
     def root(self):
         """根容器"""
         return self.ui_frame
+
+
+class checkbox_t:
+    """复选按钮组"""
+
+    def __init__(self, parent, values):
+        # 背景容器
+        self.ui_frame = ttk.Frame(parent, relief=GROOVE)
+        self.ui_frame.pack(fill=BOTH, expand=True)
+        self.value_lst = []
+
+        for i, v in enumerate(values):
+            var = IntVar()
+            btn = ttk.Checkbutton(self.ui_frame, text=v, variable=var)
+            self.value_lst.append((v, var, btn))
+        self.update()
+
+    def update(self):
+        bkwidth = get_widget_size(self.ui_frame, True)[0]
+        col = 0
+        row = 0
+        w = 3
+        for i, v in enumerate(self.value_lst):
+            btn = self.value_lst[i][2]
+            btnw = get_widget_size(btn)[0]
+            if w + btnw >= bkwidth:
+                row += 1
+                col = 0
+                w = btnw + 3
+            else:
+                w += btnw + 2
+            btn.grid(row=row, column=col, padx=1, pady=2)
+            col += 1
+
+    def values(self):
+        """获取复选按钮的状态."""
+        rst = []
+        for v in self.value_lst:
+            if v[1].get():
+                rst.append(v[0])
+        return rst
 
 
 def ui_value_set(w, v):
