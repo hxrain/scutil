@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from nlp_idf_dict import *
+import os
 
 
 class BM25_Core:
@@ -122,13 +123,16 @@ class BM25_Query(BM25_Core):
             rec_top_result(scores, score, dtf[2], top_limit)
         return scores
 
+
 class bm25_calc():
     """演示bm25相似度计算的集成用法"""
+
     def __init__(self, isquery=False, idf_dict_file='title_ss_rc'):
         self.tf_dct = TDF_IDF_Core()
         if tdf_idf_load(self.tf_dct, idf_dict_file)[0] is None:  # 先装载预先统计好的词频词典
-            print('IDF DICT load fail: '+idf_dict_file)
-            exit(-2)
+            print('IDF DICT load fail: ' + idf_dict_file)
+            os._exit(-2)
+            return
 
         self.tf_dct.adjust_digital(1)
 
