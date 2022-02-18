@@ -354,7 +354,7 @@ class memo_t:
 class checkbox_t:
     """复选按钮组"""
 
-    def __init__(self, parent, values):
+    def __init__(self, parent, values, defidx=None):
         # 背景容器
         self.ui_frame = ttk.Frame(parent, relief=GROOVE)
         self.ui_frame.pack(fill=BOTH, expand=True)
@@ -365,8 +365,10 @@ class checkbox_t:
             btn = ttk.Checkbutton(self.ui_frame, text=v, variable=var)
             self.value_lst.append((v, var, btn))
         self.update()
+        self.select(defidx)
 
     def update(self):
+        """动态更新布局"""
         bkwidth = get_widget_size(self.ui_frame, True)[0]
         col = 0
         row = 0
@@ -390,6 +392,100 @@ class checkbox_t:
             if v[1].get():
                 rst.append(v[0])
         return rst
+
+    def find(self, vd):
+        """根据值或索引,查找对应的checkbutton对象"""
+        if isinstance(vd, str):
+            for i, v in enumerate(self.value_lst):
+                if v[0] == vd:
+                    return v[2]
+        elif isinstance(vd, int):
+            return self.value_lst[vd][2]
+        return None
+
+    def select(self, vds=None):
+        """选取指定的复选框.为空时则清空全部选取状态"""
+        if vds is None:
+            for i, v in enumerate(self.value_lst):
+                v[1].set(0)
+            return 0
+        elif vds == 'all':
+            for i, v in enumerate(self.value_lst):
+                v[1].set(1)
+            return len(self.value_lst)
+
+        def set(d):
+            for i, v in enumerate(self.value_lst):
+                if v[0] == d:
+                    v[1].set(1)
+                    return True
+            return False
+
+        rc = 0
+        for vd in vds:
+            btn = self.find(vd)
+            if btn is None:
+                continue
+            rc += 1
+            btn.invoke()
+        return rc
+
+
+class radiobox_t:
+    """单选按钮组"""
+
+    def __init__(self, parent, values, defidx=0):
+        # 背景容器
+        self.ui_frame = ttk.Frame(parent, relief=GROOVE)
+        self.ui_frame.pack(fill=BOTH, expand=True)
+        self.value_lst = []
+        self.var = StringVar()
+
+        for i, vd in enumerate(values):
+            if isinstance(vd, tuple):
+                v = vd[0]
+                d = vd[1]
+            else:
+                v = vd
+                d = i
+            btn = ttk.Radiobutton(self.ui_frame, text=v, variable=self.var, value=d)
+            self.value_lst.append((v, btn))
+        self.update()
+        self.select(defidx)
+
+    def update(self):
+        """动态更新布局"""
+        bkwidth = get_widget_size(self.ui_frame, True)[0]
+        col = 0
+        row = 0
+        w = 3
+        for i, v in enumerate(self.value_lst):
+            btn = self.value_lst[i][1]
+            btnw = get_widget_size(btn)[0]
+            if w + btnw >= bkwidth:
+                row += 1
+                col = 0
+                w = btnw + 3
+            else:
+                w += btnw + 2
+            btn.grid(row=row, column=col, padx=1, pady=2)
+            col += 1
+
+    def values(self):
+        """获取单选按钮的状态."""
+        return self.var.get()
+
+    def select(self, vd):
+        """选取指定值或索引的按钮"""
+        if isinstance(vd, str):
+            for i, vl in enumerate(self.value_lst):
+                if vl[0] == vd:
+                    vl[1].invoke()
+                    return True
+        elif isinstance(vd, int):
+            self.value_lst[vd][1].invoke()
+            return True
+        return False
 
 
 def ui_value_set(w, v):
