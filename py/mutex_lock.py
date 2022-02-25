@@ -3,6 +3,7 @@ from threading import Lock
 from threading import RLock
 from threading import Thread
 from threading import Semaphore
+from threading import currentThread
 import time
 
 """
@@ -14,6 +15,12 @@ def tst():
 
 tst()
 """
+
+
+def get_thread_id():
+    """获取线程标识"""
+    t = currentThread()
+    return (t.ident, t.name)
 
 
 # 定义互斥锁功能封装
@@ -125,23 +132,50 @@ def wait_thread(thd, timeout=None):
         return -1
 
 
-def wait_threads(thds, timeout=None):
-    """逐一判断,等待线程列表中的线程结束.返回值:从thds中被移除的线程对象"""
+def stop_thread(thd, exc=InterruptedError):
+    """强制线程停止"""
+    def _async_raise(tid, exctype):
+        """raises the exception, performs cleanup if needed"""
+        tid = ctypes.c_long(tid)
+        if not inspect.isclass(exctype):
+            exctype = type(exctype)
+            res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
+        if res == 0:
+            raise ValueError("invalid thread id")
+        elif res != 1:
+            # """if it returns a number greater than one, you're in trouble,
+            # and you should call it again with exc=NULL to revert the effect"""
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
+            raise SystemError("PyThreadState_SetAsyncExc failed")
+
+    _async_raise(thd.ident, exc)
+
+
+def wait_threads(thds, timeout=None, idle_cb=None):
+    """逐一判断,等待线程列表中的线程结束.返回值:(已结束线程[],是否要求停止)"""
     rst = []
+    stop = False
     for t in thds:
         if wait_thread(t, timeout) > 0:
             rst.append(t)
+        if idle_cb:
+            stop = idle_cb()
+            if stop:
+                break
     for t in rst:
         thds.remove(t)
-    return rst
+    return rst, stop
 
 
-def wait_threads_count(thds, max_thds):
-    """等待thds的线程数量小于max"""
+def wait_threads_count(thds, max_thds, timeout=0.1, idle_cb=None):
+    """等待thds的线程数量小于max,返回值:外部idle回调是否要求停止"""
     if max_thds <= 0:
         max_thds = 1
     while len(thds) >= max_thds:
-        wait_threads(thds, 1)
+        ends, stop = wait_threads(thds, timeout, idle_cb)
+        if stop:
+            return True
+    return False
 
 
 class obj_pool_t:

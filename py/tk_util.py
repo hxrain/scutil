@@ -350,6 +350,15 @@ class memo_t:
         """根容器"""
         return self.ui_frame
 
+    def append(self, msg, pos=END):
+        onlyrd = False
+        if self.ui_txt['state'] == DISABLED:
+            self.ui_txt['state'] = NORMAL
+            onlyrd = True
+        self.ui_txt.insert(pos, msg)
+        if onlyrd:
+            self.ui_txt['state'] = DISABLED
+
 
 class checkbox_t:
     """复选按钮组"""
@@ -358,6 +367,7 @@ class checkbox_t:
         # 背景容器
         self.ui_frame = ttk.Frame(parent, relief=GROOVE)
         self.ui_frame.pack(fill=BOTH, expand=True)
+        self.ui_frame.bind('<Double-Button-1>', self.on_dblclick_callback)
         self.value_lst = []
 
         for i, v in enumerate(values):
@@ -366,6 +376,12 @@ class checkbox_t:
             self.value_lst.append((v, var, btn))
         self.update()
         self.select(defidx)
+
+    def on_dblclick_callback(self, event):
+        if len(self.values(True)):
+            self.select(None)
+        else:
+            self.select('all')
 
     def update(self):
         """动态更新布局"""
@@ -385,10 +401,12 @@ class checkbox_t:
             btn.grid(row=row, column=col, padx=1, pady=2)
             col += 1
 
-    def values(self):
-        """获取复选按钮的状态."""
+    def values(self, normal_only=False):
+        """获取复选按钮的状态.返回值:选中的值列表"""
         rst = []
         for v in self.value_lst:
+            if normal_only and str(v[2]['state']) == DISABLED:
+                continue
             if v[1].get():
                 rst.append(v[0])
         return rst
@@ -407,10 +425,14 @@ class checkbox_t:
         """选取指定的复选框.为空时则清空全部选取状态"""
         if vds is None:
             for i, v in enumerate(self.value_lst):
+                if v[2]['state'] == DISABLED:
+                    continue
                 v[1].set(0)
             return 0
         elif vds == 'all':
             for i, v in enumerate(self.value_lst):
+                if v[2]['state'] == DISABLED:
+                    continue
                 v[1].set(1)
             return len(self.value_lst)
 

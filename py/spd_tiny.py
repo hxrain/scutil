@@ -166,7 +166,7 @@ class source_base:
         self.spider = None  # 运行时绑定的爬虫功能对象
         self.order_level = 0  # 运行优先级,高优先级的先执行,比如需要人工交互的
         self.interval = 1000 * 60 * 30  # 采集源任务运行间隔
-        self.id = -1  # 采集源注册后得到的唯一标识
+        self.id = None  # 采集源注册后得到的唯一标识
         self.name = None  # 采集源的唯一名称,注册后不要改动,否则需要同时改库
         self.url = None  # 采集源对应的站点url
         self.info_upd_mode = False  # 是否开启该信息源的更新模式
@@ -745,7 +745,7 @@ class db_base:
     def opened(self):
         return self.db.opened()
 
-    def register(self, name, site_url):
+    def register(self, name, site_url, id=None):
         """根据名字进行采集源在数据库中的注册,返回值:-1失败,成功为采集源ID"""
         rows, msg = self.dbq.query("select id,reg_time,site_url from tbl_sources where name=?", (name,))
         # 先查询指定的采集源是否存在
@@ -755,13 +755,22 @@ class db_base:
 
         if len(rows) == 0:
             # 采集源不存在,则插入
-            ret, msg = self.dbq.exec("insert into tbl_sources(name,site_url,reg_time) values(?,?,?)",
-                                     (name, site_url, self.stime))
-            if not ret:
-                _logger.error('source <%s : %s> register INSERT fail. DB error <%s>', name, site_url, msg)
-                return -1
+            if id is None:
+                ret, msg = self.dbq.exec("insert into tbl_sources(name,site_url,reg_time) values(?,?,?)",
+                                         (name, site_url, self.stime))
+                if not ret:
+                    _logger.error('source <%s : %s> register INSERT fail. DB error <%s>', name, site_url, msg)
+                    return -1
 
-            rows = [(self.dbq.cur.lastrowid, self.stime, site_url)]  # 记录最后的插入id,作为采集源id
+                rows = [(self.dbq.cur.lastrowid, self.stime, site_url)]  # 记录最后的插入id,作为采集源id
+            else:
+                ret, msg = self.dbq.exec("insert into tbl_sources(id,name,site_url,reg_time) values(?,?,?,?)",
+                                         (id, name, site_url, self.stime))
+                if not ret:
+                    _logger.error('source <%s : %s> register INSERT fail. DB error <%s>', name, site_url, msg)
+                    return -1
+
+                rows = [(id, self.stime, site_url)]  # 记录最后的插入id,作为采集源id
         else:
             if rows[0][1] != self.stime:
                 # 采集源已经存在,但需要更新注册时间
@@ -881,6 +890,7 @@ class collect_manager:
     def __init__(self, dbs, threads=0):
         self.dbs = dbs
         self.spiders = []
+        self.on_idle = self._on_idle
         if threads:
             self.threads = threads + 8
             locker.init()
@@ -888,7 +898,10 @@ class collect_manager:
             self.threads = 0
 
         _logger.info('tiny spider collect manager is starting ...')
-        pass
+
+    def _on_idle(self):
+        """默认的空闲函数,返回值为True,则停止抓取流程"""
+        return False
 
     def register(self, source_t, spider_t=spider_base):
         """注册采集源与对应的爬虫类,准备后续的遍历调用"""
@@ -914,7 +927,7 @@ class collect_manager:
                 _logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
                 return False
 
-        src.id = self.dbs.register(src.name, src.url)
+        src.id = self.dbs.register(src.name, src.url, src.id)
         if src.id == -1:
             return False
 
@@ -939,15 +952,20 @@ class collect_manager:
         _logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
 
     def run(self):
-        """对全部爬虫逐一进行调用"""
+        """对全部爬虫逐一进行调用.返回值:是否要求停止"""
         self.infos = 0
+        stop = False
         total_spiders = len(self.spiders)
         _logger.info("total sources <%3d>", total_spiders)
         if self.threads:  # 使用多线程并发运行全部的爬虫
             task_ids = [i - 1 for i in range(len(self.spiders), 0, -1)]  # 待处理任务索引列表,倒序,便于后面pop使用
             workers = []  # 工作线程对象列表
             while len(task_ids) or len(workers):
-                wait_threads(workers, 0.1)  # 在批量线程中等待任意线程结束
+                ends, stop = wait_threads(workers, 0.1, idle_cb=self.on_idle)  # 在批量线程中等待任意线程结束
+                if stop:
+                    for t in workers:
+                        stop_thread(t)
+                    break
                 tc = self.threads - len(workers)
                 for i in range(tc):  # 循环补充新的工作线程
                     if len(task_ids) == 0:
@@ -957,6 +975,9 @@ class collect_manager:
         else:
             idx = 1
             for spd in self.spiders:  # 在主线程中顺序执行全部的爬虫
+                if self.on_idle and self.on_idle():
+                    stop = True
+                    break
                 _logger.info("progress <%3d/%d>", idx, total_spiders)
                 self._run_one(spd)
                 idx += 1
@@ -967,11 +988,7 @@ class collect_manager:
                 continue
             _logger.info("<%s> | source <%s {%d}> | stat <%s> | %s", spd.source.module_name, spd.source.name, spd.source.id, spd.source.stat, spd.source.url)
 
-    def loop(self):
-        """进行持续循环运行"""
-        while True:
-            self.run()
-            time.sleep(1)
+        return stop
 
     def close(self):
         self.spiders.clear()
@@ -986,8 +1003,11 @@ def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', 
         返回值:None失败.其他为采集系统管理器对象
     """
     global _logger
-    _logger = make_logger(log_path, log_file_lvl)
-    bind_logger_console(_logger, log_con_lvl)
+    if isinstance(log_path, str):
+        _logger = make_logger(log_path, log_file_lvl)
+        bind_logger_console(_logger, log_con_lvl)
+    else:
+        _logger = make_logger2(log_path, log_file_lvl)
 
     dbs = db_base(db_path)  # 打开数据库
     if not dbs.opened():
@@ -1004,7 +1024,7 @@ def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', 
     return cm
 
 
-def run_collect_sys(dbg_src=None):
+def run_collect_sys(srcs=None, params=None):
     # 定义并处理命令行参数
     def get_params():
         parser = argparse.ArgumentParser()
@@ -1026,10 +1046,20 @@ def run_collect_sys(dbg_src=None):
     sys.path.append(curdir + '/src')
 
     # 获取运行文件名称作为标记
+    if params and 'tag' in params:
+        args.tagname = params.get('tag')
     tag = args.tagname if args.tagname != '' else re.split('[\\\\/]', sys.argv[0])[-1].split('.')[0]
 
+    if params and 'dbname' in params:
+        args.dbname = params.get('dbname')
     dbname = args.dbname if args.dbname != '' else './%s.sqlite3' % tag
+
+    if params and 'logname' in params:
+        args.logname = params.get('logname')
     logname = args.logname if args.logname != '' else './%s.log' % tag
+
+    if params and 'thread' in params:
+        args.thread = params.get('thread')
 
     # 获取采集系统对象并打开数据库与日志
     cm = make_collect_mgr(logname, dbname, args.thread,
@@ -1038,13 +1068,21 @@ def run_collect_sys(dbg_src=None):
         print('SDP INIT FAIL!')
         exit(-1)
 
+    if params and 'idle_cb' in params:
+        idle_cb = params.get('idle_cb')
+        if idle_cb:
+            cm.on_idle = idle_cb
+
     # 注册采集源
-    if dbg_src:
-        if isinstance(dbg_src, str):
-            cm.register('src.%s' % dbg_src)
-        if isinstance(dbg_src, list):
-            for s in dbg_src:
-                cm.register('src.%s' % s)
+    if srcs:
+        if isinstance(srcs, str):
+            cm.register('src.%s' % srcs)
+        if isinstance(srcs, list):
+            for s in srcs:
+                if isinstance(s, str):
+                    cm.register('src.%s' % s)
+                else:
+                    cm.register(s)
     else:
         # 装载采集源列表
         srcs = os.listdir(curdir + '/src')

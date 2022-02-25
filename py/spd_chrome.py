@@ -824,7 +824,7 @@ class spd_chrome:
             try:
                 rst = t.call_method('Network.getResponseBody', requestId=reqid, _timeout=self.proto_timeout)
                 if rst is None:
-                    return None,'Network.getResponseBody call fail.'
+                    return None, 'Network.getResponseBody call fail.'
                 body = rst['body']
                 en = rst['base64Encoded']
                 if en:
@@ -986,6 +986,8 @@ class spd_chrome:
             id = lst[tab]['id']
         elif isinstance(tab, Tab):
             return tab
+        elif tab is None:
+            return None
         else:
             id = tab
         return self.browser._tabs[id]

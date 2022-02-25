@@ -13,7 +13,7 @@ from hash_calc import calc_key
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
-    """根据给定的日志输出文件路径,生成日志输出器;
+    """根据给定的日志输出文件路径,生成日志记录器;
         lvl:告知允许输出的日志级别
         max_baks:告知是否允许生成循环备份的日志文件
             None:使用单日志文件模式
@@ -52,6 +52,27 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
 
     # 日志记录器绑定文件处理器
     ps_logger.addHandler(filehandler)
+    return ps_logger
+
+def make_logger2(outer, lvl=logging.DEBUG, tag=None):
+    """根据给定的日志输出器,生成日志记录器;
+        lvl:告知允许输出的日志级别
+        tag为不同日志记录器的标识名字
+    """
+
+    # 调整日志输出的级别名称.
+    logging._levelToName[logging.ERROR] = 'ERR!'
+    logging._levelToName[logging.WARNING] = 'WRN!'
+    logging._levelToName[logging.DEBUG] = 'DBG.'
+
+    # 生成指定名字标识的日志记录器
+    ps_logger = logging.getLogger(tag)
+    ps_logger.setLevel(logging.DEBUG)
+
+    #给记录器绑定输出器
+    outer.setLevel(lvl)
+    outer.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
+    ps_logger.addHandler(outer)
     return ps_logger
 
 
