@@ -858,6 +858,11 @@ class spd_base:
     def cookies_save(self):
         save_cookie_storage(self.cookieMgr, self.ckm_filename)
 
+    # 清理持有的cookies
+    def cookies_clear(self):
+        self.cookieMgr.clear()
+        self.sessionMgr.cookies.clear()
+
     # 获取过程中出现的错误
     def get_error(self):
         return self.rst.get('error', '')

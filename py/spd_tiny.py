@@ -114,7 +114,7 @@ sql_tbl = ['''
            ''']
 
 _logger = None  # 全局日志输出对象
-proxy = None  # 全局代理地址信息
+_proxy = None  # 全局代理地址信息
 lists_rate = 1  # 全局概览翻页倍率
 info_upd_mode = False  # 是否开启采集源全局更新模式(根据排重条件查询得到主键id,之后更新此信息)
 locker = lock_t()  # 全局多线程保护锁
@@ -122,8 +122,8 @@ locker = lock_t()  # 全局多线程保护锁
 
 # 绑定全局默认代理地址
 def bing_global_proxy(str):
-    global proxy
-    proxy = str
+    global _proxy
+    _proxy = str
 
 
 # 设置全局概览翻页倍率
@@ -159,6 +159,7 @@ __EMPTY_PAGE__ = '__EMPTY__'
 
 class source_base:
     """概细览采集源基类,提供概细览采集所需功能的核心接口与数据结构定义"""
+    proxy = None
 
     def __init__(self):
         """记录采集源动作信息"""
@@ -468,10 +469,12 @@ class spider_base:
     # 统一生成默认请求参数
     def _make_req_param(self, source):
         req = {}
-        if source.proxy_addr:
-            req['PROXY'] = source.proxy_addr  # 先尝试绑定采集源特定代理服务器
-        elif proxy:
-            req['PROXY'] = proxy  # 再尝试绑定全局代理服务器
+        if source.proxy:
+            req['PROXY'] = source.proxy  # 尝试绑定采集源静态代理
+        elif source.proxy_addr:
+            req['PROXY'] = source.proxy_addr  # 尝试绑定采集源动态代理
+        elif _proxy:
+            req['PROXY'] = _proxy  # 再尝试绑定全局代理服务器
         return req
 
     def _do_page_take(self, info, list_url, page_url, req_param):

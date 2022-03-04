@@ -342,7 +342,12 @@ class Tab(object):
         if self._websocket:
             return
         opt = [(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 64)]
-        self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True, sockopt=opt, skip_utf8_validation=True)
+        try:
+            self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True, sockopt=opt, skip_utf8_validation=True)
+        except websocket.WebSocketBadStatusException as e:
+            raise CallMethodException('tab ws open fail: %s' % self._websocket_url)
+        except Exception as e:
+            raise e
 
     def _close_websock(self):
         if self._websocket:
