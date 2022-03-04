@@ -3365,6 +3365,8 @@ def check_depen(aids, bids):
 
 def split(areaid):
     """根据给定的区划id,得到行政区划层级关系id列表"""
+    if areaid is None:
+        return None
     if isinstance(areaid, int):
         areaid = str(areaid)
     if len(areaid) != 6:
@@ -3402,22 +3404,29 @@ def split_ex(areaid):
     return rst, ids
 
 
-def query_area_id(addr, min_size=2):
-    """查询addr地址串对应的具体的行政区划代码.返回值:(首部结果,疑似结果)
-       首部结果为None未找到;疑似结果不为None,说明地址串包含两个以上的区划名称.
+def show_repeats_area_name(area_ids=map_area_ids):
+    """显示重复的区县名称"""
+    for n in area_ids:
+        ids = area_ids[n]
+        if len(ids) > 1:
+            print(n, ['/'.join(split_ex(id)[0]) for id in ids])
+
+
+def query_area_ids(addr, min_words=2):
+    """查询addr地址串对应的具体的行政区划代码.返回值:[区划id集合]
     """
     addr_size = len(addr)
     begin = 0
 
     def take():
         """从当前begin位置开始对addr进行最大化匹配查找.返回值:找到的最后匹配位置,或0未找到"""
-        for pos in range(addr_size, begin + min_size, -1):
+        for pos in range(addr_size, begin + min_words, -1):
             # 先倒着查询最长匹配串
             if addr[begin:pos] in map_area_ids:
                 return pos
 
         end = 0
-        for pos in range(begin + min_size, addr_size + 1):
+        for pos in range(begin + min_words, addr_size + 1):
             # 再正向逐步试探增量匹配
             if addr[begin:pos] in map_area_ids:
                 end = pos  # 当前文本段是一个标准的区划名称,记录结束位置
@@ -3434,17 +3443,72 @@ def query_area_id(addr, min_size=2):
             ids.append(map_area_ids[addr[begin:end]])  # 找到了匹配的区划名称,记录对应的区划代码集合
             begin = end
 
+    return ids
+
+
+def query_area_id(addr, min_words=2):
+    """查询addr地址串对应的具体的行政区划代码.返回值:(优先结果,疑似结果)
+       优先结果为None未找到;疑似结果不为[],说明地址串包含多个区划名称.
+    """
+    ids = query_area_ids(addr, min_words)
     if len(ids) == 0:
         return None, None
 
-    # 对匹配的区划代码集列表进行前后叠加,取最终结果
-    rst = ids[0]
-    bad = None
-    for i in range(1, len(ids)):
-        res = check_depen(rst, ids[i])
-        if res is None:
-            bad = max(ids[i])
-            break
-        else:
-            rst = res
-    return max(rst), bad
+    def merage(ids):
+        # 对匹配的区划代码集列表进行前后叠加检查合并
+        rst = ids.pop(0)
+        while len(ids):
+            res = check_depen(rst, ids[0])
+            if res is None:
+                # 前后不依赖
+                break
+            else:
+                # 前后依赖,以当前位置继续
+                rst = ids.pop(0)
+        return rst
+
+    lst = []
+    while (len(ids)):
+        lst.append(max(merage(ids)))
+    return lst.pop(0), lst
+
+
+def analyse_area_id(txt):
+    """分析猜测txt文本中出现次数最多的行政区划id.不存在时返回None"""
+    """分析猜测txt文本中出现次数最多的行政区划id.不存在时返回None"""
+    lines = txt.split('\n')
+    main_dcts = {}
+    othr_dcts = {}
+
+    def rec(key, dcts):
+        # 累计key的出现次数
+        if key not in dcts:
+            dcts[key] = 0
+        dcts[key] += 1
+
+    for line in lines:
+        # 逐行分析文本中出现的区域代码
+        mr, olst = query_area_id(line)
+        if mr is None:
+            continue
+
+        rec(mr, main_dcts)  # 累计主结果
+        for sr in olst:
+            rec(sr, othr_dcts)  # 累计副结果
+
+    # 按累计数量进行主副结果的倒序排列
+    mains = sorted(main_dcts.items(), key=lambda x: (x[1], x[0]), reverse=True)
+    othrs = sorted(othr_dcts.items(), key=lambda x: (x[1], x[0]), reverse=True)
+
+    if len(mains) == 0 and len(othrs) == 0:
+        return None  # 主副结果均为空
+    if len(othrs) == 0:  # 副结果为空,使用主结果
+        return mains[0][0]
+    if len(mains) == 0:  # 主结果为空,使用副结果
+        return othrs[0][0]
+
+    # 主副结果都不为空,则选择出现数量多的结果值
+    if mains[0][1] >= othrs[0][1]:
+        return mains[0][0]
+    else:
+        return othrs[0][0]
