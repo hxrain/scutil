@@ -8,13 +8,14 @@ import logging.handlers
 import os
 import re
 import time
+import magic
 import base64
+import requests
 import urllib.parse as up
 from xml.dom import minidom
 from hash_calc import *
 from util_base import *
 
-import requests
 from lxml import etree
 from lxml import html
 from lxml.html.clean import Cleaner
@@ -22,6 +23,23 @@ from lxml.html.clean import Cleaner
 # 调整requests模块的默认日志级别,避免无用调试信息的输出
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+
+def enable_cros(req, rsp):
+    """尝试根据req中的cros请求开启rsp中的cros回应"""
+    Origin = req.headers.get('Origin', '*')
+    rsp.headers['Access-Control-Allow-Origin'] = Origin
+    rsp.headers['Access-Control-Allow-Credentials'] = 'true'
+
+
+def guess_mime(data):
+    """按内容猜测得到mime类型"""
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+    t = magic.from_buffer(data, mime=True)
+    if not t:
+        return 'text/plain'
+    return t
 
 
 # 挑选出指定串中的unicode转义序列，并转换为标准串

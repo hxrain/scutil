@@ -432,6 +432,7 @@ class Browser(object):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控"""
         dst_url = "%s/json" % self.dev_url
         rp = requests.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
+
         tabs_map = {}
         _tabs_list = []
 
@@ -744,6 +745,8 @@ class spd_chrome:
         try:
             rst = self.browser.list_tab(self.proto_timeout, backinit, excludes=excludes)
             return rst, ''
+        except requests.exceptions.ConnectionError:
+            return '', 'connect fail: %s' % self.browser.dev_url
         except Exception as e:
             return '', py_util.get_trace_stack()
 
