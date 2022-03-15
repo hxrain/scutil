@@ -3251,6 +3251,31 @@ def make_map_area_ids(tails={'省', '市', '区', '县', '州'}):
     return rst
 
 
+def make_citys_names(alias=None, tails={'市', '区', '县', '州'}):
+    """生成城市的名字和别名.alias=True优先输出简称;alias=False不输出简称;alias=None全部输出"""
+    rst = []
+    for aid in map_id_areas:
+        if aid % 100 != 0:
+            continue  # 屏蔽区县
+
+        if aid % 1000 == 0 and map_id_areas[aid][0][-1] != '市':
+            if aid not in {810000, 820000}:
+                continue  # 屏蔽省,保留直辖市和特区
+
+        names = map_id_areas[aid]
+        if alias is None:  # 输出标准名与简称
+            for name in names:
+                rst.append(drop_area_tail(name, tails))
+        elif alias:  # 简称优先(有别名则不输出标准名)
+            if len(names) > 1:
+                names = names[1:]
+            for name in names:
+                rst.append(drop_area_tail(name, tails))
+        else:  # 不输出简称(只输出标准名)
+            rst.append(drop_area_tail(names[0], tails))
+    return rst
+
+
 # 生成区域名称对应的区划id集合
 map_area_ids = make_map_area_ids()
 
@@ -3415,6 +3440,9 @@ def show_repeats_area_name(area_ids=map_area_ids):
 def query_area_ids(addr, min_words=2):
     """查询addr地址串对应的具体的行政区划代码.返回值:[区划id集合]
     """
+    if not addr:
+        return []
+
     addr_size = len(addr)
     begin = 0
 
