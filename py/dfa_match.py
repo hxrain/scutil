@@ -98,7 +98,7 @@ class dfa_match_t():
                         rst.append(m[2])
         return ''.join(rst)
 
-    # 对给定的消息进行关键词匹配,得到结果链[(begin,end,val),(begin,end,val),...],val为None说明是原内容部分
+    # 对给定的消息进行关键词匹配,得到补全过的结果链[(begin,end,val),(begin,end,val),...],val为None说明是原内容部分
     def do_match(self, message, msg_len=None, max_match=True, isall=True):
         """max_match:告知是否进行最长匹配
            isall:告知是否记录全部匹配结果(最长匹配时,也包含匹配的短串)
@@ -152,7 +152,7 @@ class dfa_match_t():
         return rst
 
     def do_check(self, message, msg_len=None, offset=0, max_match=True, isall=True, skip_match=False):
-        """对给定的消息进行关键词匹配测试,返回值:匹配结果,[三元组(begin,end,val)列表]"""
+        """对给定的消息进行关键词匹配测试,返回值:匹配结果[三元组(begin,end,val)]列表"""
         rst = []
 
         def cb(b, e, v):
@@ -162,7 +162,7 @@ class dfa_match_t():
         return rst
 
     def do_loop(self, cb, message, msg_len=None, offset=0, max_match=True, isall=True, skip_match=False):
-        """对给定的消息进行关键词匹配循环,返回值:匹配结果,[三元组(begin,end,val)列表]"""
+        """基础方法,对给定的消息进行关键词匹配循环,返回值:匹配次数"""
         if msg_len is None:
             msg_len = len(message)
         start = offset  # 记录当前正处理的字符位置
