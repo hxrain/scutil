@@ -622,7 +622,14 @@ def default_headers(url, Head, body=None):
     if body is None or 'Content-Type' in Head:
         return
 
-    body = body.strip()
+    # 根据body内容猜测head中的Content-Type
+    if isinstance(body, dict):
+        # key=val值为URL编码格式
+        Head['Content-Type'] = 'application/x-www-form-urlencoded'
+        return
+
+    if isinstance(body, str):
+        body = body.strip()
     if len(body) == 0:
         return
 
