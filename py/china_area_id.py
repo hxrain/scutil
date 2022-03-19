@@ -3492,12 +3492,14 @@ def query_area_id(addr, min_words=2):
                 break
             else:
                 # 前后依赖,以当前位置继续
-                rst = ids.pop(0)
+                rst = set(res)  # 有依赖的后项为结果
+                ids.pop(0)
         return rst
 
     lst = []
     while (len(ids)):
-        lst.append(max(merage(ids)))
+        aids = merage(ids)  # 前后迭代判断,得到一个行政区划代码集
+        lst.append(max(aids))  # 每个区划集中都选取最大值,落实到区县
     return lst.pop(0), lst
 
 
