@@ -745,9 +745,23 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         if chs == '':
             chs = 'utf-8'
 
+    def dc(cnt, chs):
+        try:
+            return cnt.decode(chs, errors='ignore')
+        except Exception as e:
+            print('STR DECODE WARN :: %s :: %s :: %s' % (rsp.headers, es(e), rsp_cnt))
+
+        try:
+            chs2 = 'utf-8'
+            return cnt.decode(chs2, errors='ignore')
+        except Exception as e:
+            print('STR DECODE ERR :: %s :: %s :: %s :: %s' % (chs, chs2, es(e), rsp_cnt))
+
+        return cnt
+
     # 记录最终的结果
     if chs != '':
-        rst['BODY'] = rsp_cnt.decode(chs, errors='ignore')
+        rst['BODY'] = dc(rsp_cnt, chs)
     else:
         rst['BODY'] = rsp_cnt
 
