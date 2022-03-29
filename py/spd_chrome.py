@@ -84,6 +84,7 @@ class Tab(object):
         self._websocket_url = kwargs.get("webSocketDebuggerUrl")  # 操纵tab的websocket地址
         self._cur_id = 1000  # 交互消息的初始流水序号
         self.downpath = None  # 控制浏览器的下载路径
+        self.timeout = 3  # 默认的交互超时时间
 
         # 根据环境变量的设定进行功能开关的处理
         self.debug = os.getenv("SPD_CHROME_DEBUG", False)  # 是否显示收发内容
@@ -188,8 +189,11 @@ class Tab(object):
         """在指定的时间范围内进行接收处理.可告知是否必须等到结果或超时才结束;
            返回值:(None,None)通信错误;(0,0)超时;其他为(结果数,事件数)"""
         one_timeout = 0.01
-        loop = int(timeout // one_timeout)
-        for i in range(loop):
+        loop = int(timeout // one_timeout) + 1
+        bt = time.time()
+        i = 0
+        while i < loop or time.time() < bt + timeout:  # 真正按照总的最大超时时间进行循环
+            i += 1
             rst = self._recv(one_timeout)  # 尝试进行一次接收处理
             if rst[0] is None:
                 break
@@ -217,7 +221,7 @@ class Tab(object):
             self.reopen()  # 进行ws的重连
 
         # 不允许使用普通参数传递,必须为key/value型参数
-        timeout = kwargs.pop("_timeout", None)  # 额外摘取超时控制参数
+        timeout = kwargs.pop("_timeout", self.timeout)  # 额外摘取超时控制参数
 
         result = self._call({"method": _method, "params": kwargs}, timeout=timeout)  # 发起调用请求
         if result is None:
@@ -265,6 +269,64 @@ class Tab(object):
         res = self.DOM.querySelectorAll(nodeId=nodeid, selector=selector)
         return res["nodeIds"]
 
+    def getViewport(self):
+        """获取页面布局视口信息.返回值:(布局信息对象,msg),msg为空正常,否则信息对象为None
+        {'offsetX': 0 相对于布局视窗的水平偏移量,
+         'offsetY': 0 相对于布局视窗的垂直偏移量,
+         'pageX': 视口左侧的内容坐标, 'pageY': 视口顶部的内容坐标,
+         'clientWidth': 视口宽度, 'clientHeight': 视口高度,
+         'scale': 1 视口缩放比例,
+         'zoom': 1 页面缩放因子,
+         'width': 内容宽度,
+         'height': 内容高度}
+        """
+        try:
+            res = self.Page.getLayoutMetrics()
+            if res is None:
+                return None, 'Page.getLayoutMetrics fail.'
+            Viewport = None
+            if 'cssVisualViewport' in res:
+                Viewport = res['cssVisualViewport']
+            elif 'visualViewport' in res:
+                Viewport = res['visualViewport']
+            else:
+                return None, 'visualViewport not found.'
+
+            Box = None
+            if 'cssContentSize' in res:
+                Box = res['cssContentSize']
+            elif 'contentSize' in res:
+                Box = res['contentSize']
+            else:
+                return None, 'contentSize not found.'
+
+            Viewport['width'] = Box['width']
+            Viewport['height'] = Box['height']
+            return Viewport, ''
+        except Exception as e:
+            return None, e.__repr__()
+
+    def getScreenshot(self, timeout=10, width=None, height=None, x=0, y=0, scale=1):
+        """获取页面图像快照,可指定视口范围.返回值:(base64图像数据,msg),msg为空正常"""
+        if width and height:
+            vp = {'x': x, 'y': y, 'width': width, 'height': height, 'scale': scale}
+        else:
+            vp = None
+
+        if timeout is None:
+            timeout = self.timeout
+
+        try:
+            if vp:
+                img = self.Page.captureScreenshot(clip=vp, _timeout=timeout)
+            else:
+                img = self.Page.captureScreenshot(_timeout=timeout)
+            if img is None or 'data' not in img:
+                return None, 'Page.captureScreenshot fail.'
+            return img['data'], ''
+        except Exception as e:
+            return None, e.__repr__()
+
     def _on_requestWillBeSent(self, requestId, loaderId, documentURL, request, timestamp, wallTime, initiator, **param):
         """记录发送的请求信息"""
         url = request['url']
@@ -288,6 +350,7 @@ class Tab(object):
         r.append(response)
 
     def recv_loop(self, loops=50):
+        """驱动接收循环,处理各类事件与消息应答"""
         for i in range(loops):
             rc, mc = self._recv_loop(timeout=0.2)
             if rc is None:
