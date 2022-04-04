@@ -596,6 +596,42 @@ def find(txt, dst, pre, begin=0):
     return -1
 
 
+def find_bracket(restr, bpos, echr, relen=-1):
+    """查找restr中从bpos之后,嵌套适配的括号echr.返回值:(匹配点,深度),匹配点-1未找到"""
+    if relen == -1:
+        relen = len(restr)
+    if bpos >= relen or bpos < 0:
+        return -1, 0
+
+    bchr = restr[bpos]
+    i = bpos + 1
+    deep = 0
+    max_deep = 0
+
+    def next():
+        if i + 1 >= relen:
+            return None
+        return restr[i + 1]
+
+    while i < relen:
+        c = restr[i]
+        if c == '\\':
+            nc = next()  # 遇到转义字符了,尝试获取下一个字符
+            if nc is None:
+                return -1, max_deep  # 没有下一个字符了,查找结束
+            elif nc in {bchr, echr}:
+                i += 1  # 如果下一个字符是匹配符号则多跳一步
+        elif c == bchr:
+            deep += 1  # 遇到匹配开始符号了,增加深度记录
+            max_deep = max(deep, max_deep)
+        elif c == echr:
+            if deep == 0:
+                return i, max_deep  # 遇到匹配结束符号了,如果深度持平则作为结果返回
+            deep -= 1  # 否则减少深度等待后续字符
+        i += 1  # 正常跳过当前字符
+    return -1, max_deep
+
+
 _G_NUMMAP_ZH = {'零': '0', '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9'}
 
 
@@ -620,7 +656,7 @@ def zhnum_to_arabics(NS):
 
 def norm_date_str(txt):
     """日期串txt进行归一化"""
-    m = re.search(r'([零一二三四五六七八九\d]{2,4})\s*[年\-\.]?\s*([零一二三四五六七八九十\d]{1,2})?\s*[月\-\.]?\s*([零一二三四五六七八九十\d]{1,2})?\s*[日号]?', txt)
+    m = re.search(r'([零一二三四五六七八九\d]{2,4})\s*[年\-\./]?\s*([零一二三四五六七八九十\d]{1,2})?\s*[月\-\./]?\s*([零一二三四五六七八九十\d]{1,2})?\s*[日号]?', txt)
     if not m:
         return txt
 
@@ -701,7 +737,6 @@ assert (norm_time_str('17:00') == '17:00')
 assert (norm_time_str('上午九点三十分') == '09:30')
 assert (norm_time_str('上午九点三十五分') == '09:35')
 
-
 # 标点符号与停用词
 PUNCTUATIONS = {'“', '”', '、', '！', '!', '|', '：', '，', '；', '。', ':', ',', ' ', '\\', '#', '&', '/', '<', '>', '+', '°',
                 ';', '·', '×', '—', '‘', '’', '…', '《', '》', '『', '』', '【', '】', '（', '）', '(', ')', '[', ']', '{', '}',
@@ -735,4 +770,3 @@ def split_text(txt, drop_crlf=True, drop_punc=True, puns=PUNCTUATIONS):
             continue
         ret.append(c)
     return ret
-

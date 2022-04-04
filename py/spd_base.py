@@ -655,7 +655,7 @@ def default_headers(url, Head, body=None):
 def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None, cookieMgr=None):
     '''根据给定的req内容进行http请求,得到rst回应.返回值告知是否有错误出现.
         req['METHOD']='get'     可告知http请求的方法类型,get/post/put/...
-        req['PROXY']=''         可告知请求使用的代理服务器,如'http://ip:port'
+        req['PROXY']=None       可告知请求使用的代理服务器,如'http://ip:port'
         req['HEAD']={}          可告知http请求头域信息
         req['BODY']={}          可告知http请求的body信息,注意需要同时给出正确的Content-Type
         req['COOKIE']={}        可告知http请求的cookie信息
@@ -831,6 +831,23 @@ def save_cookie_storage(CM, filename):
     requests.cookies.merge_cookies(CJ, CM)
     CJ.save()
 
+# 匹配域名对应的代理服务器
+def match_proxy(url,proxy_files='./proxy_host.json'):
+    if isinstance(proxy_files, str):
+        if os.path.exists(proxy_files):
+            proxy_table = dict_load(proxy_files, 'utf-8')
+        else:
+            proxy_table = None
+    else:
+        proxy_table = proxy_files
+
+    if proxy_table is None:
+        return None
+
+    for m in proxy_table:
+        if url.find(m) != -1:
+            return proxy_table[m]
+    return None
 
 # -----------------------------------------------------------------------------
 class spd_base:
@@ -854,26 +871,8 @@ class spd_base:
 
     # 抓取指定的url,通过req可以传递灵活的控制参数
     def take(self, url, req=None, proxy_files='./proxy_host.json'):
-
-        def match_proxy(url):  # 匹配域名对应的代理服务器
-            if isinstance(proxy_files, str):
-                if os.path.exists(proxy_files):
-                    proxy_table = dict_load(proxy_files, 'utf-8')
-                else:
-                    proxy_table = None
-            else:
-                proxy_table = proxy_files
-
-            if proxy_table is None:
-                return None
-
-            for m in proxy_table:
-                if url.find(m) != -1:
-                    return proxy_table[m]
-            return None
-
         if req is None or 'PROXY' not in req:
-            prx = match_proxy(url)  # 尝试使用配置文件进行代理服务器的修正
+            prx = match_proxy(url,proxy_files)  # 尝试使用配置文件进行代理服务器的修正
             if prx:
                 if not req:
                     req = {}
