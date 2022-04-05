@@ -444,6 +444,37 @@ def rreplace(self, old, new, max=None):
     return new.join(tmp)
 
 
+def re_replace(patt, rep, src):
+    """进行反向引用的时候仍能替换全部匹配内容的re功能封装"""
+    rst = re.sub(patt, rep, src)
+    while rst != src:
+        src = rst
+        rst = re.sub(patt, rep, src)
+    return rst
+
+
+def split_ex(src, chr='|', lvls='()'):
+    """对src进行chr分隔,但保持lvls[0]和lvls[1]的平滑对称.返回值:[分段子串],没有任何分隔符的时候子串为自身"""
+    if not src:
+        return ['']
+    deep = pos = bpos = 0
+    rlen = len(src)
+    rst = []
+    while pos < rlen:
+        c = src[pos]
+        if c == lvls[0]:
+            deep += 1
+        elif c == lvls[1]:
+            deep -= 1
+        elif c == chr and deep == 0:
+            rst.append(src[bpos:pos])
+            bpos = pos + 1
+        pos += 1
+    if pos != bpos:
+        rst.append(src[bpos:pos])
+    return rst
+
+
 def eat_rep_substr(txt, sublen_zh=3, sublen_en=8, one_zh=True):
     """从txt中消除重复的子串内容;one_zh告知对于汉字串,是否使用单字判断模式"""
 
@@ -596,11 +627,26 @@ def find(txt, dst, pre, begin=0):
     return -1
 
 
-def find_bracket(restr, bpos, echr, relen=-1):
-    """查找restr中从bpos之后,嵌套适配的括号echr.返回值:(匹配点,深度),匹配点-1未找到"""
-    if relen == -1:
-        relen = len(restr)
-    if bpos >= relen or bpos < 0:
+def find_bracket_begin(restr, chr, bpos, epos):
+    """在rs的指定范围[bpos:epos]内搜索没有转义前导符的chr字符的位置.不存在则返回-1"""
+    pos = bpos
+    while pos < epos:
+        c = restr[pos]
+        if c != chr:
+            pos += 1
+            continue
+        if pos == bpos:
+            return pos
+        elif restr[pos - 1] != '\\':
+            return pos
+    return -1
+
+
+def find_bracket_end(restr, bpos, echr, epos=-1):
+    """查找restr中指定范围[bpos:epos]内同级适配的字符echr.返回值:(匹配点,最大深度),匹配点-1未找到"""
+    if epos == -1:
+        epos = len(restr)
+    if bpos >= epos or bpos < 0:
         return -1, 0
 
     bchr = restr[bpos]
@@ -609,11 +655,11 @@ def find_bracket(restr, bpos, echr, relen=-1):
     max_deep = 0
 
     def next():
-        if i + 1 >= relen:
+        if i + 1 >= epos:
             return None
         return restr[i + 1]
 
-    while i < relen:
+    while i < epos:
         c = restr[i]
         if c == '\\':
             nc = next()  # 遇到转义字符了,尝试获取下一个字符
@@ -630,6 +676,17 @@ def find_bracket(restr, bpos, echr, relen=-1):
             deep -= 1  # 否则减少深度等待后续字符
         i += 1  # 正常跳过当前字符
     return -1, max_deep
+
+
+def find_brackets(restr, chrs, bpos, epos):
+    """在restr的指定范围[bpos:epos]内,查找chrs[0]和同级配对的chrs[1]的位置.返回值:(b,e,最大深度),或者(None,None,None)"""
+    b = find_bracket_begin(restr, chrs[0], bpos, epos)
+    if b < 0:
+        return (None, None, None)
+    e, d = find_bracket_end(restr, b, chrs[1], )
+    if e < 0:
+        return (None, None, None)
+    return (b, e, d)
 
 
 _G_NUMMAP_ZH = {'零': '0', '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9'}
