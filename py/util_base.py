@@ -44,7 +44,8 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
         elif isinstance(max_baks, tuple):
             max_bytes = max_baks[1] * 1024 * 1024
             max_baks = max_baks[0]
-        filehandler = logging.handlers.RotatingFileHandler(pspath, encoding='utf-8', maxBytes=max_bytes, backupCount=max_baks)
+        filehandler = logging.handlers.RotatingFileHandler(pspath, encoding='utf-8', maxBytes=max_bytes,
+                                                           backupCount=max_baks)
     else:
         filehandler = logging.handlers.WatchedFileHandler(pspath, encoding='utf-8')
     filehandler.setLevel(lvl)
@@ -53,6 +54,7 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
     # 日志记录器绑定文件处理器
     ps_logger.addHandler(filehandler)
     return ps_logger
+
 
 def make_logger2(outer, lvl=logging.DEBUG, tag=None):
     """根据给定的日志输出器,生成日志记录器;
@@ -69,7 +71,7 @@ def make_logger2(outer, lvl=logging.DEBUG, tag=None):
     ps_logger = logging.getLogger(tag)
     ps_logger.setLevel(logging.DEBUG)
 
-    #给记录器绑定输出器
+    # 给记录器绑定输出器
     outer.setLevel(lvl)
     outer.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
     ps_logger.addHandler(outer)
@@ -149,6 +151,16 @@ def dict_load(fname, encoding=None, defval=None):
     except Exception as e:
         print(e)
         return defval
+
+
+def dict_load2(fname, encoding=None, defval=None):
+    try:
+        fp = open(fname, 'r', encoding=encoding)
+        ret = json.load(fp)
+        fp.close()
+        return ret, ''
+    except Exception as e:
+        return defval, str(e)
 
 
 # 保存词典到文件
@@ -769,7 +781,7 @@ def query_str(cnt_str, cc_str):
 
 
 # 查询指定捕获组的内容并转为数字.不成功时返回默认值
-def query_re_num(cnt_str, cc_re, defval=1,numtype=int):
+def query_re_num(cnt_str, cc_re, defval=1, numtype=int):
     rs, msg = query_re(cnt_str, cc_re)
     if len(rs) != 0 and rs[0] != '':
         return numtype(rs[0])
