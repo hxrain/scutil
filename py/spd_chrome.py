@@ -965,6 +965,21 @@ class spd_chrome:
         except Exception as e:
             return False, py_util.get_trace_stack()
 
+    def clear_storage(self, tab, url=None, types='all'):
+        """删除浏览器指定域名下的storage数据;types可以为以下值逗号分隔串:
+            appcache, cookies, file_systems, indexeddb, local_storage, shader_cache, websql, service_workers, cache_storage, interest_groups, all, other
+            返回值: (bool,msg)
+                    msg=''为正常,否则为错误信息"""
+        try:
+            t = self._tab(tab)
+            if url is None:
+                url = t.last_url
+            origin = spd_base.query_re_str(url, '^.*?://.*?/')
+            t.call_method('Storage.clearDataForOrigin', origin=origin, storageTypes=types, _timeout=self.proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, py_util.get_trace_stack()
+
     def miss_cache(self, tab, is_disable=True):
         """是否屏蔽缓存内容的使用;
             返回值: (bool,msg)
@@ -1108,11 +1123,6 @@ class spd_chrome:
 
         return ok, r, m
 
-    def dhtml_clear(self, tab):
-        """清空指定tab页当前的动态渲染后的html内容.返回值:错误消息,空为正常."""
-        rst, msg = self.exec(tab, "document.documentElement.innerHTML='';")
-        return msg
-
     def dhtml(self, tab, body_only=False, frmSel=None):
         """获取指定tab页当前的动态渲染后的html内容(给定iframe选择器时,是获取iframe的内容).返回值(内容串,错误消息)"""
         if frmSel is None:
@@ -1179,6 +1189,11 @@ class spd_chrome:
         if msg:
             time.sleep(1)
             txt, msg = self.exec(tab, "document.documentElement.innerHTML='';")
+        return msg
+
+    def dhtml_clear(self, tab):
+        """清空指定tab页当前的动态渲染后的html内容.返回值:错误消息,空为正常."""
+        rst, msg = self.exec(tab, "document.documentElement.innerHTML='';")
         return msg
 
     def exec(self, tab, js):
