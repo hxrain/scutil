@@ -32,6 +32,8 @@ class sasl_plain:
 
 
 class sender:
+    """kafka消息生产者客户端,发送消息到服务器"""
+
     def __init__(self, host, topic, auth=None):
         self.mq = None
         self.host = host
@@ -110,6 +112,8 @@ class sender:
 
 
 class receiver:
+    """kafka消费者客户端,从服务器接收消息"""
+
     def __init__(self, Host, topic, GroupID=None, auth=None):
         self.mq = None
         self.host = Host
@@ -132,21 +136,32 @@ class receiver:
                 self.mq = KafkaConsumer(self.topic, bootstrap_servers=self.host, group_id=self.groupid, sasl_mechanism="PLAIN", security_protocol='SASL_PLAINTEXT',
                                         sasl_plain_username=self.auth.user, sasl_plain_password=self.auth.pwd)
             else:
-                self.mq = KafkaConsumer(self.topic, bootstrap_servers=self.host, group_id=groupid)
+                self.mq = KafkaConsumer(self.topic, bootstrap_servers=self.host, group_id=self.groupid)
         except Exception as e:
             return str(e)
         return ''
 
-    def get(self, timeout=0.1, ack=True):
+    @staticmethod
+    def conv_info(rcvdata):
+        rst = []
+        for key in rcvdata:
+            lst = rcvdata[key]
+            for d in lst:
+                info = {'topic': key.topic, 'partition': key.partition, 'offset': d.offset, 'timestamp': d.timestamp, 'key': d.key, 'value': d.value}
+                rst.append(info)
+        return rst
+
+    def get(self, timeout=0.5, ack=True):
         """从服务器拉取消息,在指定的超时时间内.返回值:字典为结果;字符串为错误信息"""
         msg = self.open()
         if msg:
-            return msg
+            return None, msg
 
         try:
-            return self.mq.poll(timeout_ms=timeout * 1000, update_offsets=ack)
+            dat = self.mq.poll(timeout_ms=timeout * 1000, update_offsets=ack)
+            return self.conv_info(dat), ''
         except Exception as e:
-            return str(e)
+            return None, str(e)
 
     def commit(self, offsets=None):
         """如果get方法没有给出ack=True,则需要调用本方法手动提交本次消费的偏移量;返回值:空串正常;否则为错误消息."""
