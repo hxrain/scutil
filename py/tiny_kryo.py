@@ -1,5 +1,5 @@
 class tiny_kryo_t:
-    """超轻量级kryo解析器"""
+    """超轻量级kryo解析器.写不会出错;读取出错表现为下标越界异常."""
 
     def __init__(self):
         self.buffer = []
@@ -210,3 +210,55 @@ class tiny_kryo_t:
                         self.position += 1
                         result |= (b & 0x7F) << 27
         return result if optimizePositive else ((result >> 1) ^ -(result & 1)) & 0xffffffff, self.position - pos
+
+    def readString(self):
+        """读取字符串"""
+        rst = []
+        b = self.buffer[self.position]
+        if b & 0x80 == 0:  # 是ascii字符串
+            while b & 0x80 == 0:
+                rst.append(b)
+                self.position += 1
+                b = self.buffer[self.position]
+            rst.append(b & 0x7f)
+            self.position += 1
+            return ''.join(rst)
+        else:  # 是utf8串或特殊模式
+            chars = self.readVarIntFlag()
+            if chars == 0:
+                return None
+            elif chars == 1:
+                return ''
+            elif chars == 2:
+                rst = self.buffer[self.position]
+                self.position += 1
+                return '%s' % rst
+            else:
+                for i in range(chars - 1):
+                    b = self.buffer[self.position]
+                    self.position += 1
+                    h = b >> 4
+                    if h <= 7:
+                        rst.append(char(b))
+                    elif h <= 13:
+                        b1 = self.buffer[self.position]
+                        self.position += 1
+                        c = (b & 0x1F) << 6 | b1 & 0x3F
+                        rst.append(c)
+                    elif h == 14:
+                        b1 = self.buffer[self.position]
+                        self.position += 1
+                        b2 = self.buffer[self.position]
+                        self.position += 1
+                        c = chr(((b & 0x0F) << 12 | b1 & 0x3F) << 6 | b2 & 0x3F)
+                        rst.append(c)
+                return ''.join(rst)
+
+    def readTimestamp(self):
+        """读取指定类别时间戳.返回值:(类别名称,int时间戳)"""
+        v = self.readByte()
+        assert (v == 1)
+        v = self.readVarInt()
+        name = self.readString()
+        val = self.readInt()
+        return name, val
