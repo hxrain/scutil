@@ -1,9 +1,11 @@
 class tiny_kryo_t:
     """超轻量级kryo解析器.写不会出错;读取出错表现为下标越界异常."""
 
-    def __init__(self):
+    def __init__(self, datas=None):
         self.buffer = []
         self.position = 0
+        if datas is not None:
+            self.bindBuffer(datas)
 
     def bufferBytes(self):
         """获取写入的字节数组数据"""
@@ -132,7 +134,7 @@ class tiny_kryo_t:
         assert (charIndex <= charCount - 1)
 
         # 再写入剩下的字符
-        remain = value[charIndex + 1:].encode('utf-8')
+        remain = value[charIndex:].encode('utf-8')
         for b in remain:
             self.buffer.append(b)
         return charIndex + len(remain)
@@ -150,7 +152,7 @@ class tiny_kryo_t:
         """读取一个字节"""
         b = self.buffer[self.position]
         self.position += 1
-        return b
+        return b, 1
 
     def readInt(self):
         """读取原始整数"""
@@ -160,7 +162,7 @@ class tiny_kryo_t:
         b2 = self.buffer[p + 2]
         b3 = self.buffer[p + 3]
         self.position = p + 4
-        return b0 & 0xFF | (b1 & 0xFF) << 8 | (b2 & 0xFF) << 16 | (b3 & 0xFF) << 24
+        return b0 & 0xFF | (b1 & 0xFF) << 8 | (b2 & 0xFF) << 16 | (b3 & 0xFF) << 24, 4
 
     def readVarInt(self, optimizePositive=True):
         """读取可变整数.返回值:(整数,消耗的字节数)"""
@@ -214,51 +216,100 @@ class tiny_kryo_t:
     def readString(self):
         """读取字符串"""
         rst = []
+        pos = self.position
         b = self.buffer[self.position]
         if b & 0x80 == 0:  # 是ascii字符串
             while b & 0x80 == 0:
-                rst.append(b)
+                rst.append(chr(b))
                 self.position += 1
                 b = self.buffer[self.position]
-            rst.append(b & 0x7f)
+            rst.append(chr(b & 0x7f))
             self.position += 1
-            return ''.join(rst)
+            return ''.join(rst), self.position - pos
         else:  # 是utf8串或特殊模式
-            chars = self.readVarIntFlag()
+            chars, _ = self.readVarIntFlag()
             if chars == 0:
-                return None
+                return None, 1
             elif chars == 1:
-                return ''
+                return '', 1
             elif chars == 2:
                 rst = self.buffer[self.position]
                 self.position += 1
-                return '%s' % rst
+                return '%s' % chr(rst), self.position - pos
             else:
                 for i in range(chars - 1):
                     b = self.buffer[self.position]
                     self.position += 1
                     h = b >> 4
                     if h <= 7:
-                        rst.append(char(b))
+                        rst.append(chr(b))
                     elif h <= 13:
-                        b1 = self.buffer[self.position]
+                        b0 = (b & 0x1F) << 6
+                        b1 = self.buffer[self.position] & 0x3F
                         self.position += 1
-                        c = (b & 0x1F) << 6 | b1 & 0x3F
-                        rst.append(c)
+                        rst.append(chr(b0 | b1))
                     elif h == 14:
-                        b1 = self.buffer[self.position]
+                        b0 = (b & 0x0F) << 12
+                        b1 = (self.buffer[self.position] & 0x3F) << 6
                         self.position += 1
-                        b2 = self.buffer[self.position]
+                        b2 = self.buffer[self.position] & 0x3F
                         self.position += 1
-                        c = chr(((b & 0x0F) << 12 | b1 & 0x3F) << 6 | b2 & 0x3F)
-                        rst.append(c)
-                return ''.join(rst)
+                        rst.append(chr(b0 | b1 | b2))
+                return ''.join(rst), self.position - pos
+
+    def writeTimestamp(self, val, type='java.sql.Timestamp', id=0):
+        """写时间戳类型的值.返回值:占用字节空间数"""
+        pos = len(self.buffer)
+        self.writeByte(1)
+        self.writeVarInt(id)
+        self.writeString(type)
+        self.writeInt(val)
+        return len(self.buffer) - pos
 
     def readTimestamp(self):
-        """读取指定类别时间戳.返回值:(类别名称,int时间戳)"""
-        v = self.readByte()
-        assert (v == 1)
-        v = self.readVarInt()
-        name = self.readString()
-        val = self.readInt()
-        return name, val
+        """读取指定类别时间戳.返回值:(int时间戳,占用字节数,类别名称)"""
+        pos = self.position
+        tag, _ = self.readByte()
+        assert (tag == 1)
+        id, _ = self.readVarInt()
+        name, _ = self.readString()
+        val, _ = self.readInt()
+        return val, self.position - pos, name
+
+
+def parse(rules, datas):
+    """根据给定的规则列表rules解析给定的数据datas.返回值:([val],msg),msg为空正常
+        规则就是读取顺序明确的,tiny_kryo_t的数据类型,如['VarInt','Byte','Int','VarIntFlag','String','Timestamp']
+    """
+    tk = tiny_kryo_t(datas)
+    rst = []
+    try:
+        for r in rules:
+            n = 'read%s' % r
+            m = getattr(tk, n)
+            rst.append(m()[0])
+        return rst, ''
+    except Exception as e:
+        return rst, str(e)
+
+
+def make(rules, infos):
+    """按照规则rules,拼装数据infos,得到kryo报文结果"""
+    tk = tiny_kryo_t()
+    for i, r in enumerate(rules):
+        n = 'write%s' % r
+        m = getattr(tk, n)
+        if r == 'VarIntFlag':
+            m(True, infos[i])
+        else:
+            m(infos[i])
+    return tk.bufferBytes()
+
+
+if __name__ == '__main__':
+    datas = b'\x817442c638-bb9f-11ec-aa4f-af6fb8e48d5\xe6\x00\xfd\x02\xe8\xa2\xab\xe6\x8e\x92\xe9\x87\x8d\xe5\xa4\x84\xe7\x90\x86![{"freshFlag":0,"repeatFlag":1,"repeatPosType":"LIST","sourceFieldNames":["SOURCE_URL"]},{"freshFlag":0,"repeatFlag":1,"repeatPosType":"LIST","sourceFieldNames":["TITLE","PUBDATE"]}]\x80T2018060413240218\xb57328a3cd-bb9f-11ec-aa4f-af6fb8e48d5\xe6\x01\x00java.sql.Timestam\xf0\xad\xa5\x9a\xb0\x820http://yinzhou.nbggzy.cn/gcjszbjggs/8874127.jhtm\xec\xa6\xe5\xae\x81\xe6\xb3\xa2\xe9\x84\x9e\xe5\xb7\x9e\xe5\x8c\xba\xe5\x86\x9c\xe6\x9d\x91\xe9\xa5\xae\xe7\x94\xa8\xe6\xb0\xb4\xe8\xbe\xbe\xe6\xa0\x87\xe5\xb7\xa5\xe7\xa8\x8b\xe5\xa1\x98\xe6\xba\xaa\xe9\x95\x87\xe5\x8d\x8e\xe5\xb1\xb1\xe6\x9d\x91\xe6\x9d\x91\xe7\xba\xa7\xe7\xae\xa1\xe7\xbd\x91\xe6\x94\xb9\xe9\x80\xa0\xe5\xb7\xa5\xe7\xa8\x8b\xe6\x96\xbd\xe5\xb7\xa5\xe7\x9a\x84\xe4\xb8\xad\xe6\xa0\x87\xe7\xbb\x93\xe6\x9e\x9c\xe5\x85\xac\xe5\x91\x8aDETAI\xcc'
+    rules = ['VarIntFlag', 'String', 'VarInt', 'String', 'String', 'String','String', 'Timestamp', 'String', 'String', 'String', 'String']
+    infos, msg = parse(rules, datas)
+    assert (msg == '')
+    datas2 = make(rules, infos)
+    assert (datas2 == datas)
