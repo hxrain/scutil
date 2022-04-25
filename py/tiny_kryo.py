@@ -1,5 +1,5 @@
 class tiny_kryo_t:
-    """超轻量级kryo解析器.写不会出错;读取出错表现为下标越界异常."""
+    """超轻量级kryo解析器.写不会出错读取出错表现为下标越界异常."""
 
     def __init__(self, datas=None):
         self.buffer = []
@@ -33,7 +33,7 @@ class tiny_kryo_t:
         return 4
 
     def writeVarInt(self, value, optimizePositive=True):
-        """写入可变整数"""
+        """写入变长整数"""
         if not optimizePositive:
             value = (value << 1) ^ (value >> 31)
         if value >> 7 == 0:
@@ -66,7 +66,7 @@ class tiny_kryo_t:
         return 5
 
     def writeVarIntFlag(self, flag, value, optimizePositive=True):
-        """写入可变整数并带有额外bool标记返回值:占用字节数量"""
+        """写入变长整数并带有额外bool标记返回值:占用字节数量"""
         if not optimizePositive:
             value = (value << 1) ^ (value >> 31)
         first = (value & 0x3F) | (0x80 if flag else 0)  # Mask first 6 bits, bit 8 is the flag.
@@ -98,6 +98,81 @@ class tiny_kryo_t:
         self.buffer.append(((value >> 20) | 0x80) & 0xff)  # Set bit 8.
         self.buffer.append((value >> 27) & 0xff)
         return 5
+
+    def writeVarLong(self, value, optimizePositive=True):
+        """写入变长大整数"""
+        if not optimizePositive:
+            value = (value << 1) ^ (value >> 63)
+        if value >> 7 == 0:
+            self.buffer.append(value & 0xff)
+            return 1
+
+        if value >> 14 == 0:
+            self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+            self.buffer.append((value >> 7) & 0xff)
+            return 2
+
+        if value >> 21 == 0:
+            self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+            self.buffer.append((value >> 7 | 0x80) & 0xff)
+            self.buffer.append((value >> 14) & 0xff)
+            return 3
+
+        if value >> 28 == 0:
+            self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+            self.buffer.append((value >> 7 | 0x80) & 0xff)
+            self.buffer.append((value >> 14 | 0x80) & 0xff)
+            self.buffer.append((value >> 21) & 0xff)
+            return 4
+
+        if value >> 35 == 0:
+            self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+            self.buffer.append((value >> 7 | 0x80) & 0xff)
+            self.buffer.append((value >> 14 | 0x80) & 0xff)
+            self.buffer.append((value >> 21 | 0x80) & 0xff)
+            self.buffer.append((value >> 28) & 0xff)
+            return 5
+
+        if value >> 42 == 0:
+            self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+            self.buffer.append((value >> 7 | 0x80) & 0xff)
+            self.buffer.append((value >> 14 | 0x80) & 0xff)
+            self.buffer.append((value >> 21 | 0x80) & 0xff)
+            self.buffer.append((value >> 28 | 0x80) & 0xff)
+            self.buffer.append((value >> 35) & 0xff)
+            return 6
+
+        if value >> 49 == 0:
+            self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+            self.buffer.append((value >> 7 | 0x80) & 0xff)
+            self.buffer.append((value >> 14 | 0x80) & 0xff)
+            self.buffer.append((value >> 21 | 0x80) & 0xff)
+            self.buffer.append((value >> 28 | 0x80) & 0xff)
+            self.buffer.append((value >> 35 | 0x80) & 0xff)
+            self.buffer.append((value >> 42) & 0xff)
+            return 7
+
+        if value >> 56 == 0:
+            self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+            self.buffer.append((value >> 7 | 0x80) & 0xff)
+            self.buffer.append((value >> 14 | 0x80) & 0xff)
+            self.buffer.append((value >> 21 | 0x80) & 0xff)
+            self.buffer.append((value >> 28 | 0x80) & 0xff)
+            self.buffer.append((value >> 35 | 0x80) & 0xff)
+            self.buffer.append((value >> 42 | 0x80) & 0xff)
+            self.buffer.append((value >> 49) & 0xff)
+            return 8
+
+        self.buffer.append(((value & 0x7F) | 0x80) & 0xff)
+        self.buffer.append((value >> 7 | 0x80) & 0xff)
+        self.buffer.append((value >> 14 | 0x80) & 0xff)
+        self.buffer.append((value >> 21 | 0x80) & 0xff)
+        self.buffer.append((value >> 28 | 0x80) & 0xff)
+        self.buffer.append((value >> 35 | 0x80) & 0xff)
+        self.buffer.append((value >> 42 | 0x80) & 0xff)
+        self.buffer.append((value >> 49 | 0x80) & 0xff)
+        self.buffer.append((value >> 56) & 0xff)
+        return 9
 
     def writeString(self, value):
         """写入一个字符串"""
@@ -131,7 +206,8 @@ class tiny_kryo_t:
             self.buffer.append(c)
             charIndex += 1
 
-        assert (charIndex <= charCount - 1)
+        if charIndex > charCount - 1:
+            raise ('ascii string length error')
 
         # 再写入剩下的字符
         remain = value[charIndex:].encode('utf-8')
@@ -213,6 +289,47 @@ class tiny_kryo_t:
                         result |= (b & 0x7F) << 27
         return result if optimizePositive else ((result >> 1) ^ -(result & 1)) & 0xffffffff, self.position - pos
 
+    def readVarLong(self, optimizePositive=True):
+        b = self.buffer[self.position]
+        pos = self.position
+        self.position += 1
+        result = b & 0x3F
+
+        if ((b & 0x80) != 0):
+            b = self.buffer[self.position]
+            self.position += 1
+            result |= (b & 0x7F) << 7;
+            if ((b & 0x80) != 0):
+                b = self.buffer[self.position]
+                self.position += 1
+                result |= (b & 0x7F) << 14;
+                if ((b & 0x80) != 0):
+                    b = self.buffer[self.position]
+                    self.position += 1
+                    result |= (b & 0x7F) << 21;
+                    if ((b & 0x80) != 0):
+                        b = self.buffer[self.position]
+                        self.position += 1
+                        result |= (b & 0x7F) << 28;
+                        if ((b & 0x80) != 0):
+                            b = self.buffer[self.position]
+                            self.position += 1
+                            result |= (b & 0x7F) << 35;
+                            if ((b & 0x80) != 0):
+                                b = self.buffer[self.position]
+                                self.position += 1
+                                result |= (b & 0x7F) << 42;
+                                if ((b & 0x80) != 0):
+                                    b = self.buffer[self.position]
+                                    self.position += 1
+                                    result |= (b & 0x7F) << 49;
+                                    if ((b & 0x80) != 0):
+                                        b = self.buffer[self.position]
+                                        self.position += 1
+                                        result |= b << 56;
+
+        return result if optimizePositive else ((result >> 1) ^ -(result & 1)), self.position - pos
+
     def readString(self):
         """读取字符串"""
         rst = []
@@ -263,17 +380,18 @@ class tiny_kryo_t:
         self.writeByte(1)
         self.writeVarInt(id)
         self.writeString(type)
-        self.writeInt(val)
+        self.writeVarLong(val)
         return len(self.buffer) - pos
 
     def readTimestamp(self):
         """读取指定类别时间戳.返回值:(int时间戳,占用字节数,类别名称)"""
         pos = self.position
         tag, _ = self.readByte()
-        assert (tag == 1)
+        if tag != 1:
+            raise ('timestamp format error')
         id, _ = self.readVarInt()
         name, _ = self.readString()
-        val, _ = self.readInt()
+        val, _ = self.readVarLong()
         return val, self.position - pos, name
 
 
@@ -285,12 +403,36 @@ def parse(rules, datas):
     rst = []
     try:
         for r in rules:
+            if isinstance(r, tuple):
+                r = r[0]
             n = 'read%s' % r
             m = getattr(tk, n)
             rst.append(m()[0])
+        if tk.position != len(tk.buffer):
+            return rst, 'more'
         return rst, ''
     except Exception as e:
         return rst, str(e)
+
+
+def parse2(rulesLst, datas):
+    """对多个规则配置进行多轮解析尝试,直到成功为止.返回值:(命中的规则序号,解析结果,错误消息),错误消息为空则正常并返回结果词典,否则返回已解析数据列表"""
+    rst = None
+    msg = 'empty rules.'
+    for idx, rules in enumerate(rulesLst):
+        rst, msg = parse(rules, datas)
+        if msg != '':
+            continue
+        dct = {'_RULEIDX': idx}
+        for i, r in enumerate(rules):
+            if isinstance(r, tuple):
+                name = r[1]
+            else:
+                name = '[%d]%s' % (i + 1, r)
+            if name is not None:
+                dct[name] = rst[i]
+        return idx, dct, ''
+    return -1, rst, msg
 
 
 def make(rules, infos):
@@ -308,8 +450,10 @@ def make(rules, infos):
 
 if __name__ == '__main__':
     datas = b'\x817442c638-bb9f-11ec-aa4f-af6fb8e48d5\xe6\x00\xfd\x02\xe8\xa2\xab\xe6\x8e\x92\xe9\x87\x8d\xe5\xa4\x84\xe7\x90\x86![{"freshFlag":0,"repeatFlag":1,"repeatPosType":"LIST","sourceFieldNames":["SOURCE_URL"]},{"freshFlag":0,"repeatFlag":1,"repeatPosType":"LIST","sourceFieldNames":["TITLE","PUBDATE"]}]\x80T2018060413240218\xb57328a3cd-bb9f-11ec-aa4f-af6fb8e48d5\xe6\x01\x00java.sql.Timestam\xf0\xad\xa5\x9a\xb0\x820http://yinzhou.nbggzy.cn/gcjszbjggs/8874127.jhtm\xec\xa6\xe5\xae\x81\xe6\xb3\xa2\xe9\x84\x9e\xe5\xb7\x9e\xe5\x8c\xba\xe5\x86\x9c\xe6\x9d\x91\xe9\xa5\xae\xe7\x94\xa8\xe6\xb0\xb4\xe8\xbe\xbe\xe6\xa0\x87\xe5\xb7\xa5\xe7\xa8\x8b\xe5\xa1\x98\xe6\xba\xaa\xe9\x95\x87\xe5\x8d\x8e\xe5\xb1\xb1\xe6\x9d\x91\xe6\x9d\x91\xe7\xba\xa7\xe7\xae\xa1\xe7\xbd\x91\xe6\x94\xb9\xe9\x80\xa0\xe5\xb7\xa5\xe7\xa8\x8b\xe6\x96\xbd\xe5\xb7\xa5\xe7\x9a\x84\xe4\xb8\xad\xe6\xa0\x87\xe7\xbb\x93\xe6\x9e\x9c\xe5\x85\xac\xe5\x91\x8aDETAI\xcc'
-    rules = ['VarIntFlag', 'String', 'VarInt', 'String', 'String', 'String','String', 'Timestamp', 'String', 'String', 'String', 'String']
-    infos, msg = parse(rules, datas)
+    rules = ['VarIntFlag', 'String', 'VarInt', 'String', 'String', 'String', 'String', 'Timestamp', 'String', 'String', 'String']
+    info, msg = parse(rules, datas)
+    if msg:
+        print(msg, info)
     assert (msg == '')
-    datas2 = make(rules, infos)
+    datas2 = make(rules, info)
     assert (datas2 == datas)
