@@ -8,6 +8,19 @@ import time
 from xml.dom import minidom
 import zipfile
 from hash_calc import calc_key
+import traceback
+
+
+# -----------------------------------------------------------------------------
+def es(e: Exception):
+    """格式化简短异常信息"""
+    return '%s:%s' % (e.__class__.__name__, e)
+
+
+def ei(e: Exception):
+    """格式化完整异常信息"""
+    es = ''.join(traceback.format_tb(e.__traceback__))
+    return '%s:\n%s' % (e.__class__.__name__, es)
 
 
 # -----------------------------------------------------------------------------
@@ -746,10 +759,6 @@ class time_meter:
         ut = end - self._begin
         self._begin = end
         return ut
-
-
-def es(e: Exception):
-    return '%s:%s' % (e.__class__.__name__, e)
 
 
 # -----------------------------------------------------------------------------
