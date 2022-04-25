@@ -233,7 +233,7 @@ def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None):
 
 # 使用xpath查询指定节点的内容并转为数字.不成功时返回默认值
 def query_xpath_num(cnt_str, cc_xpath, defval=1):
-    rs, msg = query_xpath(cnt_str, cc_xpath)
+    rs, msg = query_xpath_x(cnt_str, cc_xpath)
     if len(rs) != 0:
         return int(rs[0])
     return defval
@@ -241,7 +241,7 @@ def query_xpath_num(cnt_str, cc_xpath, defval=1):
 
 # 使用xpath查询指定节点的内容串.不成功时返回默认值
 def query_xpath_str(cnt_str, cc_xpath, defval=None):
-    rs, msg = query_xpath(cnt_str, cc_xpath)
+    rs, msg = query_xpath_x(cnt_str, cc_xpath)
     if len(rs) != 0:
         return rs[0].strip()
     return defval
@@ -831,8 +831,9 @@ def save_cookie_storage(CM, filename):
     requests.cookies.merge_cookies(CJ, CM)
     CJ.save()
 
+
 # 匹配域名对应的代理服务器
-def match_proxy(url,proxy_files='./proxy_host.json'):
+def match_proxy(url, proxy_files='./proxy_host.json'):
     if isinstance(proxy_files, str):
         if os.path.exists(proxy_files):
             proxy_table = dict_load(proxy_files, 'utf-8')
@@ -848,6 +849,7 @@ def match_proxy(url,proxy_files='./proxy_host.json'):
         if url.find(m) != -1:
             return proxy_table[m]
     return None
+
 
 # -----------------------------------------------------------------------------
 class spd_base:
@@ -872,7 +874,7 @@ class spd_base:
     # 抓取指定的url,通过req可以传递灵活的控制参数
     def take(self, url, req=None, proxy_files='./proxy_host.json'):
         if req is None or 'PROXY' not in req:
-            prx = match_proxy(url,proxy_files)  # 尝试使用配置文件进行代理服务器的修正
+            prx = match_proxy(url, proxy_files)  # 尝试使用配置文件进行代理服务器的修正
             if prx:
                 if not req:
                     req = {}
