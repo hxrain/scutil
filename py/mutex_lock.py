@@ -134,6 +134,7 @@ def wait_thread(thd, timeout=None):
 
 def stop_thread(thd, exc=InterruptedError):
     """强制线程停止"""
+
     def _async_raise(tid, exctype):
         """raises the exception, performs cleanup if needed"""
         tid = ctypes.c_long(tid)
@@ -257,3 +258,37 @@ class obj_cache_t:
     def __getitem__(self, item):
         """根据索引获取对象的值"""
         return self.objs[item]
+
+
+class fixed_pool_t:
+    """固定缓存池功能封装"""
+
+    def __init__(self, obj_type=None, size=0, obj_data=None):
+        self.objs = []
+        self.pool = obj_cache_t()
+        if size and obj_type:
+            self.init(obj_type, size)
+
+    def init(self, obj_type, size, obj_data=None):
+        """进行指定类型的对象池初始化"""
+        for i in range(size):
+            if obj_data is None:
+                self.objs.append(obj_type())
+            else:
+                self.objs.append(obj_type(obj_data))
+        self.pool.init(self.objs)
+
+    def call(self, func, *args):
+        """运行指定的功能函数func(obj,*args),在obj不能获取时进行等待
+           返回值:(func的返回值,err)
+           err正常为空,否则为异常对象
+        """
+        err = ''
+        idx = self.pool.get()
+        try:
+            ret = func(self.objs[idx], *args)
+        except Exception as e:
+            ret = None
+            err = e
+        self.pool.put(idx)
+        return ret, err
