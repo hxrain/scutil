@@ -114,7 +114,7 @@ class sender:
 class receiver:
     """kafka消费者客户端,从服务器接收消息"""
 
-    def __init__(self, Host, topic, GroupID=None, auth=None):
+    def __init__(self, Host, topic, GroupID=None, auth=None, logger=None):
         self.mq = None
         self.host = Host
         self.topic = topic
@@ -122,7 +122,10 @@ class receiver:
         self.auth = auth
         msg = self.open()
         if msg:
-            print(msg)
+            if logger:
+                logger.warning('%s kafka connect fail: %s' % (Host, msg))
+            else:
+                print(msg)
 
     def is_valid(self):
         return self.mq is not None
