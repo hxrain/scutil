@@ -1,3 +1,11 @@
+"""
+\x00 VarInt(0)
+\x80 None|VarIntFlag(0)
+\x81 ''|VarIntFlag(1)
+\x82 单字符串|VarIntFlag(2)
+"""
+
+
 class tiny_kryo_t:
     """超轻量级kryo解析器.写不会出错读取出错表现为下标越界异常."""
 
@@ -23,6 +31,12 @@ class tiny_kryo_t:
         """写入一个字节,返回值:占用的空间"""
         self.buffer.append(value & 0xff)
         return 1
+
+    def writeShort(self, value):
+        """写入双字节定长整数"""
+        self.buffer.append(value & 0xff)
+        self.buffer.append((value >> 8) & 0xff)
+        return 2
 
     def writeInt(self, value):
         """写入原始整数"""
@@ -98,6 +112,18 @@ class tiny_kryo_t:
         self.buffer.append(((value >> 20) | 0x80) & 0xff)  # Set bit 8.
         self.buffer.append((value >> 27) & 0xff)
         return 5
+
+    def writeLong(self, value):
+        """写入定长Long整数"""
+        self.buffer.append(value & 0xff)
+        self.buffer.append((value >> 8) & 0xff)
+        self.buffer.append((value >> 16) & 0xff)
+        self.buffer.append((value >> 24) & 0xff)
+        self.buffer.append((value >> 32) & 0xff)
+        self.buffer.append((value >> 40) & 0xff)
+        self.buffer.append((value >> 48) & 0xff)
+        self.buffer.append((value >> 56) & 0xff)
+        return 8
 
     def writeVarLong(self, value, optimizePositive=True):
         """写入变长大整数"""
@@ -230,14 +256,20 @@ class tiny_kryo_t:
         self.position += 1
         return b, 1
 
+    def readShort(self):
+        """读取定长Short整数"""
+        b0 = self.buffer[self.position]
+        b1 = self.buffer[self.position + 1]
+        self.position += 2
+        return b0 & 0xFF | (b1 & 0xFF) << 8, 2
+
     def readInt(self):
-        """读取原始整数"""
-        p = self.position
-        b0 = self.buffer[p]
-        b1 = self.buffer[p + 1]
-        b2 = self.buffer[p + 2]
-        b3 = self.buffer[p + 3]
-        self.position = p + 4
+        """读取定长Int整数"""
+        b0 = self.buffer[self.position]
+        b1 = self.buffer[self.position + 1]
+        b2 = self.buffer[self.position + 2]
+        b3 = self.buffer[self.position + 3]
+        self.position += 4
         return b0 & 0xFF | (b1 & 0xFF) << 8 | (b2 & 0xFF) << 16 | (b3 & 0xFF) << 24, 4
 
     def readVarInt(self, optimizePositive=True):
@@ -289,7 +321,21 @@ class tiny_kryo_t:
                         result |= (b & 0x7F) << 27
         return result if optimizePositive else ((result >> 1) ^ -(result & 1)) & 0xffffffff, self.position - pos
 
+    def readLong(self):
+        """读取定长Long数字"""
+        result = self.buffer[self.position] & 0xff
+        result |= (self.buffer[self.position + 1] & 0xff) << 8
+        result |= (self.buffer[self.position + 2] & 0xff) << 16
+        result |= (self.buffer[self.position + 3] & 0xff) << 24
+        result |= (self.buffer[self.position + 4] & 0xff) << 32
+        result |= (self.buffer[self.position + 5] & 0xff) << 40
+        result |= (self.buffer[self.position + 6] & 0xff) << 48
+        result |= (self.buffer[self.position + 7] & 0xff) << 56
+        self.position += 8
+        return result, 8
+
     def readVarLong(self, optimizePositive=True):
+        """读取变长Long数字"""
         b = self.buffer[self.position]
         pos = self.position
         self.position += 1
@@ -405,9 +451,23 @@ def parse(rules, datas):
         for r in rules:
             if isinstance(r, tuple):
                 r = r[0]
-            n = 'read%s' % r
+            if r[-1] == '!':
+                t = r[:-1]
+                opt = False  # 类型名字带有尾缀!,则读取optimizePositive=False模式的值
+            else:
+                t = r
+                if t.find('Var') != -1:
+                    opt = True  # 类型名没有尾缀!,但是含有Var记号,则读取optimizePositive=True模式的值
+                else:
+                    opt = None
+
+            n = 'read%s' % t
             m = getattr(tk, n)
-            rst.append(m()[0])
+            if opt is None:
+                v = m()[0]
+            else:
+                v = m(opt)[0]
+            rst.append(v)
         if tk.position != len(tk.buffer):
             return rst, 'more'
         return rst, ''
@@ -435,16 +495,34 @@ def parse2(rulesLst, datas):
     return -1, rst, msg
 
 
-def make(rules, infos):
+def make(rules, infos, Flag=True):
     """按照规则rules,拼装数据infos,得到kryo报文结果"""
     tk = tiny_kryo_t()
     for i, r in enumerate(rules):
-        n = 'write%s' % r
-        m = getattr(tk, n)
-        if r == 'VarIntFlag':
-            m(True, infos[i])
+        if isinstance(r, tuple):
+            r = r[0]
+        if r[-1] == '!':
+            t = r[:-1]
+            opt = False  # 类型名字带有尾缀!,则读取optimizePositive=False模式的值
         else:
-            m(infos[i])
+            t = r
+            if t.find('Var') != -1:
+                opt = True  # 类型名没有尾缀!,但是含有Var记号,则读取optimizePositive=True模式的值
+            else:
+                opt = None
+
+        n = 'write%s' % t
+        m = getattr(tk, n)
+        if t.find('Flag') != -1:
+            if opt is None:
+                m(Flag, infos[i])
+            else:
+                m(Flag, infos[i], opt)
+        else:
+            if opt is None:
+                m(infos[i])
+            else:
+                m(infos[i], opt)
     return tk.bufferBytes()
 
 

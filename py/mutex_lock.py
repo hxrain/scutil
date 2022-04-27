@@ -286,7 +286,7 @@ class fixed_pool_t:
         err = ''
         idx = self.pool.get()
         try:
-            ret = func(self.objs[idx], *args)
+            ret,err = func(self.objs[idx], *args)
         except Exception as e:
             ret = None
             err = e
