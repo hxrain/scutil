@@ -5,7 +5,7 @@ from util_base import *
 def query(q, sql, dat=None, ext=False):
     st, rst, cols = q.query(sql, dat, ext)
     if not st:
-        q.open()
+        q.open(force=True)
         st, rst, cols = q.query(sql, dat, ext)
     if ext:
         return rst, cols
