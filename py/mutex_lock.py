@@ -38,6 +38,9 @@ class lock_t:
         else:
             self.locker = Lock()
 
+    def uninit(self):
+        self.locker = None
+
     def lock(self, timeout=-1):
         if not self.inited():
             return False
@@ -263,9 +266,10 @@ class obj_cache_t:
 class fixed_pool_t:
     """固定缓存池功能封装"""
 
-    def __init__(self, obj_type=None, size=0, obj_data=None):
+    def __init__(self, obj_type=None, size=0, obj_data=None, on_free=None):
         self.objs = []
         self.pool = obj_cache_t()
+        self.on_free = on_free
         if size and obj_type:
             self.init(obj_type, size)
 
@@ -286,9 +290,12 @@ class fixed_pool_t:
         err = ''
         idx = self.pool.get()
         try:
-            ret,err = func(self.objs[idx], *args)
+            ret, err = func(self.objs[idx], *args)
         except Exception as e:
             ret = None
             err = e
+
+        if self.on_free:
+            self.on_free(self.objs[idx])
         self.pool.put(idx)
         return ret, err
