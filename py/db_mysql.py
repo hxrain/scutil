@@ -38,12 +38,13 @@ class mysql_conn_t:
         self.db = None
         self.init(host, db, user, pwd, port)
 
-    def open(self):
+    def open(self, autocommit=False):
         """打开或重新打开数据库连接.返回值:msg,告知错误信息,空串为正常"""
         self.close()
         try:
             self.handle = pymysql.connect(host=self.host, port=self.port,
-                                          user=self.user, password=self.pwd, database=self.db)
+                                          user=self.user, password=self.pwd,
+                                          database=self.db, autocommit=autocommit)
             return ''
         except Exception as e:
             return str(e)
@@ -82,12 +83,12 @@ class query_t:
         self.conn = conn
         self.open()
 
-    def open(self, conn=None):
+    def open(self, conn=None, force=False):
         self.close()
         if conn is None:
             conn = self.conn
 
-        if conn.handle is None:
+        if conn.handle is None or force:
             msg = conn.open()
             if msg: return msg
         try:
@@ -121,7 +122,8 @@ class query_t:
                 s = self.cur.execute(sql, dat)
             else:
                 s = self.cur.execute(sql)
-
+            if not self.conn.handle.get_autocommit():
+                self.cur.connection.commit()  # 在非自动提交模式下,查询也需要提交才能得到其他连接上的最新结果
             return True, self.cur.fetchall(), _make_cols_info(self.cur.description)
         except Exception as e:
             return False, e, None
