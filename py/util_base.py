@@ -732,6 +732,14 @@ def printf(fmt, *arg):
     print(fmt % (dt, *arg))
 
 
+def find_dcts(lst, value, key='name'):
+    """在字典列表lst中查找指定key匹配value的条目索引"""
+    for i in range(len(lst)):
+        if lst[i][key] == value:
+            return i
+    return -1
+
+
 class tick_meter:
     '毫秒间隔计时器'
 
