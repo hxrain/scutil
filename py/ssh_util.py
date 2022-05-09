@@ -3,13 +3,14 @@ from io import BytesIO
 
 
 class SFTPClient:
+    """SFPT客户端功能封装"""
 
-    def __init__(self, ip=None, username='root', password='123456,', port=22):
+    def __init__(self, ip=None, username=None, password=None, port=22):
         self.sftp = None
         self.transport = None
         self.init(ip, username, password, port)
 
-    def init(self, ip, username='root', password='123456,', port=22):
+    def init(self, ip, username, password, port=22):
         self.ip = ip
         self.port = port
         self.username = username
@@ -83,9 +84,7 @@ class ssh_take_t:
     def take(self, host, rmtfile, user=None, pwd=None):
         """下载指定服务器上的指定路径文件.返回值:(文件内容,错误消息),错误消息为空正常."""
         if host not in self.clts:
-            self.clts[host] = SFTPClient(host)
-            if user or pwd:
-                self.clts[host].init(host, user, pwd)
+            self.clts[host] = SFTPClient(host, user, pwd)
 
         clt = self.clts[host]
         if not clt.opend():
@@ -104,12 +103,12 @@ class ssh_take_t:
 class SSHClient:
     """SSH客户端功能对象"""
 
-    def __init__(self, ip=None, username='root', password='123456,', port=22):
+    def __init__(self, ip=None, username=None, password=None, port=22):
         self.clts = {}
         self.ssh = None
         self.init(ip, username, password, port)
 
-    def init(self, ip, username='root', password='123456,', port=22):
+    def init(self, ip, username, password, port=22):
         self.ip = ip
         self.port = port
         self.username = username
@@ -153,15 +152,17 @@ class ssh_exec_t:
 
     def __init__(self, user=None, pwd=None):
         self.clts = {}
-        self.user = user
+        self.usr = user
         self.pwd = pwd
 
-    def exec(self, host, cmd):
+    def exec(self, host, cmd, usr=None, pwd=None):
         """下载指定服务器上的指定路径文件.返回值:(文件内容,错误消息),错误消息为空正常."""
         if host not in self.clts:
-            self.clts[host] = SSHClient(host)
-            if self.user or self.pwd:
-                self.clts[host].init(host, self.user, self.pwd)
+            if usr is None:
+                usr = self.usr
+            if pwd is None:
+                pwd = self.pwd
+            self.clts[host] = SSHClient(host, usr, pwd)
 
         clt = self.clts[host]
         if not clt.opend():
