@@ -11,6 +11,7 @@ import time
 import magic
 import base64
 import requests
+import mimetypes
 import urllib.parse as up
 from xml.dom import minidom
 from hash_calc import *
@@ -32,14 +33,47 @@ def enable_cros(req, rsp):
     rsp.headers['Access-Control-Allow-Credentials'] = 'true'
 
 
-def guess_mime(data):
-    """按内容猜测得到mime类型"""
-    if isinstance(data, str):
-        data = data.encode('utf-8')
+def magic_mime(data, to_extname=False):
+    """按data内容猜测对应的mime类型;to_extname告知是否转换为文件扩展名."""
     t = magic.from_buffer(data, mime=True)
     if not t:
-        return 'text/plain'
+        t = 'text/plain'
+    if to_extname:
+        t = mimetypes.guess_extension(t)
     return t
+
+
+def guess_mime(data, to_extname=False):
+    """按data内容扩展分析猜测对应的mime类型;to_extname告知是否转换为文件扩展名."""
+    # 调用magic库猜测数据的格式
+    if isinstance(data, str):
+        dat = data.encode('utf-8')
+    else:
+        dat = data
+    rt = magic_mime(dat, to_extname)
+    if rt not in {'.txt', 'text/plain'}:
+        return rt  # 如果结果不是文本,则直接返回
+
+    # 文本类型,进行后续增强判断
+    try:
+        json.loads(data)  # 先尝试装载json格式
+        return '.json' if to_extname else 'application/json'
+    except:
+        pass
+
+    try:
+        minidom.parseString(data)  # 尝试进行xml格式分析
+        return '.xml' if to_extname else 'application/xml'
+    except:
+        pass
+
+    try:
+        etree.HTML(data)  # 再尝试装载html格式
+        return '.html' if to_extname else 'text/html'
+    except:
+        pass
+
+    return rt
 
 
 # 挑选出指定串中的unicode转义序列，并转换为标准串
