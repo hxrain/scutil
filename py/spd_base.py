@@ -33,14 +33,25 @@ def enable_cros(req, rsp):
     rsp.headers['Access-Control-Allow-Credentials'] = 'true'
 
 
+# 补充MIME
+_G_EXT_MIME_NAMES = {'application/x-rar': '.rar',
+                     'image/vnd.dwg': '.dwg',
+                     'application/x-7z-compressed': '.7z',
+                     'text/rtf': '.rtf'}
+
+
 def magic_mime(data, to_extname=False):
     """按data内容猜测对应的mime类型;to_extname告知是否转换为文件扩展名."""
     t = magic.from_buffer(data, mime=True)
     if not t:
         t = 'text/plain'
     if to_extname:
-        t = mimetypes.guess_extension(t)
-    return t
+        r = mimetypes.guess_extension(t)
+        if r:
+            return r
+        return _G_EXT_MIME_NAMES.get(t)
+    else:
+        return t
 
 
 def guess_mime(data, to_extname=False):
@@ -75,13 +86,15 @@ def guess_mime(data, to_extname=False):
 
     if rt in {'.zip', 'application/zip'}:
         # 对误识别的zip文件进行额外的特征校正
-        if dat.startswith(b'\x50\x4B\x03\x04\x0A\x00\x00\x00\x00\x00\x87\x4E\xE2\x40'):  # .docx
-            return '.docx' if to_extname else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        if dat.startswith(b'\x50\x4B\x03\x04\x0A\x00\x00\x00\x00\x00\x87\x4E\xE2\x40'):  # TODO .xlsx
-            return '.xlsx' if to_extname else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        if dat.startswith(b'\x50\x4B\x03\x04\x0A\x00\x00\x00\x00\x00\x87\x4E\xE2\x40'):  # TODO .pptx
-            return '.pptx' if to_extname else 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-
+        if dat.startswith(b'\x50\x4B\x03\x04\x0A\x00\x00\x00\x00\x00\x87\x4E\xE2\x40'):
+            if dat.find(b'word/document.xml') != -1:  # .docx
+                return '.docx' if to_extname else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            elif dat.find(b'xl/worksheets') != -1:  # .xlsx
+                return '.xlsx' if to_extname else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            elif dat.startswith(b'ppt/presentation.xml'):  # .pptx
+                return '.pptx' if to_extname else 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            else:
+                return '.docx' if to_extname else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     return rt
 
 
@@ -258,8 +271,8 @@ def query_xpath(xstr, cc_xpath, fixNode='-'):
 
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath;可以删除removeTags元组列表指出的标签(保留元素内容)
 # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
-def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None):
-    rs, msg = query_xpath(cnt_str, cc_xpath)
+def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None, fixNode='-', rstmode='html'):
+    rs, msg = query_xpath(cnt_str, cc_xpath, fixNode)
     if msg != '':
         return rs, msg
 
@@ -269,33 +282,33 @@ def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None):
                 etree.strip_tags(rs[i], removeTags)
             if removeAtts:
                 etree.strip_attributes(rs[i], removeAtts)
-            rs[i] = etree.tostring(rs[i], encoding='unicode', method='html')
+            rs[i] = etree.tostring(rs[i], encoding='unicode', method=rstmode)
 
     return rs, msg
 
 
 # 使用xpath查询指定节点的内容并转为数字.不成功时返回默认值
-def query_xpath_num(cnt_str, cc_xpath, defval=1):
-    rs, msg = query_xpath_x(cnt_str, cc_xpath)
+def query_xpath_num(cnt_str, cc_xpath, defval=1, fixNode='-'):
+    rs, msg = query_xpath_x(cnt_str, cc_xpath, fixNode=fixNode)
     if len(rs) != 0:
         return int(rs[0])
     return defval
 
 
 # 使用xpath查询指定节点的内容串.不成功时返回默认值
-def query_xpath_str(cnt_str, cc_xpath, defval=None):
-    rs, msg = query_xpath_x(cnt_str, cc_xpath)
+def query_xpath_str(cnt_str, cc_xpath, defval=None, fixNode='-'):
+    rs, msg = query_xpath_x(cnt_str, cc_xpath, fixNode=fixNode)
     if len(rs) != 0:
         return rs[0].strip()
     return defval
 
 
-def xml_filter(xstr, xp_node, xp_field):
+def xml_filter(xstr, xp_node, xp_field, fixNode='-'):
     """对xstr记录的xml进行xpath过滤检查,如果xp_node指出的节点中没有xp_field,则删除该节点"""
-    xnodes = query_xpath_x(xstr, xp_node)[0]
+    xnodes = query_xpath_x(xstr, xp_node, fixNode=fixNode)[0]
     ret = xstr
     for n in xnodes:
-        f = query_xpath_x('<?xml version="1.0" ?>\n' + n, xp_field)[0]
+        f = query_xpath_x('<?xml version="1.0" ?>\n' + n, xp_field, fixNode=fixNode)[0]
         if len(f) == 0:
             ret = ret.replace(n, '')
     return ret
