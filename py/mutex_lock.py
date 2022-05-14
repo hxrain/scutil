@@ -271,15 +271,15 @@ class fixed_pool_t:
         self.pool = obj_cache_t()
         self.on_free = on_free
         if size and obj_type:
-            self.init(obj_type, size)
+            self.init(obj_type, size, obj_data)
 
-    def init(self, obj_type, size, obj_data=None):
+    def init(self, obj_type, size, **obj_data):
         """进行指定类型的对象池初始化"""
         for i in range(size):
             if obj_data is None:
                 self.objs.append(obj_type())
             else:
-                self.objs.append(obj_type(obj_data))
+                self.objs.append(obj_type(**obj_data))
         self.pool.init(self.objs)
 
     def call(self, func, *args):

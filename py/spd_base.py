@@ -967,8 +967,13 @@ class spd_base:
         return self.rst.get('COOKIE', {})
 
     # 获取回应内容,解压缩转码后的内容
-    def get_BODY(self):
-        return self.rst.get('BODY', None)
+    def get_BODY(self, dv=None):
+        rst = self.rst.get('BODY', dv)
+        if rst is None:
+            return None
+        if len(rst) == 0:
+            return dv
+        return rst
 
 
 """
