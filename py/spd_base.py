@@ -251,7 +251,7 @@ def extract_xml_text(xstr):
 # 对xstr进行xpath查询,查询表达式为cc_xpath
 # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
 # 元素可以进行etree高级访问
-def query_xpath(xstr, cc_xpath, fixNode='-'):
+def query_xpath(xstr, cc_xpath, fixNode=' '):
     try:
         if fixNode is not None:
             xstr = fix_xml_node(xstr, fixNode)
@@ -269,9 +269,37 @@ def query_xpath(xstr, cc_xpath, fixNode='-'):
         return [], es(e)
 
 
+def remove_xpath(xstr, cc_xpaths, fixNode=' '):
+    """根据xpath列表删除xml内容中的相应节点.返回值:删除后的结果"""
+    if isinstance(cc_xpaths, str):
+        cc_xpaths = [cc_xpaths]
+    try:
+        if fixNode is not None:
+            xstr = fix_xml_node(xstr, fixNode)
+        if xstr.startswith('<?xml') or xstr.startswith('<xml'):
+            mode = 'xml'
+            xroot = etree.XML(xstr)
+        else:
+            mode = 'html'
+            xroot = etree.HTML(xstr)
+        if xroot is None:
+            return xstr, 'xml parse error.'
+
+        for cc_xpath in cc_xpaths:  # 循环进行xpath的查找
+            nodes = xroot.xpath(cc_xpath)
+            for node in nodes:  # 对查找结果进行逐一遍历
+                pn = node.getparent()
+                if pn is None:
+                    pn = xroot
+                pn.remove(node)  # 调用目标节点的父节点,将目标节点删除
+        return etree.tostring(xroot, encoding='unicode', method=mode), ''
+    except Exception as e:
+        return xstr, str(e)
+
+
 # 对cnt_str进行xpath查询,查询表达式为cc_xpath;可以删除removeTags元组列表指出的标签(保留元素内容)
 # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
-def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None, fixNode='-', rstmode='html'):
+def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None, fixNode=' ', rstmode='html'):
     rs, msg = query_xpath(cnt_str, cc_xpath, fixNode)
     if msg != '':
         return rs, msg
@@ -288,7 +316,7 @@ def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None, fixNode='
 
 
 # 使用xpath查询指定节点的内容并转为数字.不成功时返回默认值
-def query_xpath_num(cnt_str, cc_xpath, defval=1, fixNode='-'):
+def query_xpath_num(cnt_str, cc_xpath, defval=1, fixNode=' '):
     rs, msg = query_xpath_x(cnt_str, cc_xpath, fixNode=fixNode)
     if len(rs) != 0:
         return int(rs[0])
@@ -296,14 +324,14 @@ def query_xpath_num(cnt_str, cc_xpath, defval=1, fixNode='-'):
 
 
 # 使用xpath查询指定节点的内容串.不成功时返回默认值
-def query_xpath_str(cnt_str, cc_xpath, defval=None, fixNode='-'):
+def query_xpath_str(cnt_str, cc_xpath, defval=None, fixNode=' '):
     rs, msg = query_xpath_x(cnt_str, cc_xpath, fixNode=fixNode)
     if len(rs) != 0:
         return rs[0].strip()
     return defval
 
 
-def xml_filter(xstr, xp_node, xp_field, fixNode='-'):
+def xml_filter(xstr, xp_node, xp_field, fixNode=' '):
     """对xstr记录的xml进行xpath过滤检查,如果xp_node指出的节点中没有xp_field,则删除该节点"""
     xnodes = query_xpath_x(xstr, xp_node, fixNode=fixNode)[0]
     ret = xstr
