@@ -37,7 +37,9 @@ def enable_cros(req, rsp):
 _G_EXT_MIME_NAMES = {'application/x-rar': '.rar',
                      'image/vnd.dwg': '.dwg',
                      'application/x-7z-compressed': '.7z',
-                     'text/rtf': '.rtf'}
+                     'text/rtf': '.rtf',
+                     'application/CDFV2': '.doc',
+                     'application/CDF': '.doc'}
 
 
 def magic_mime(data, to_extname=False):
@@ -56,13 +58,13 @@ def magic_mime(data, to_extname=False):
 
 def guess_mime(data, to_extname=False):
     """按data内容扩展分析猜测对应的mime类型;to_extname告知是否转换为文件扩展名.
-       返回值:结果MIME类型串或文件扩展名
+       返回值:结果MIME类型串或文件扩展名;失败为None
     """
     # 调用magic库猜测数据的格式
     if isinstance(data, str):
         dat = data.encode('utf-8')
     else:
-        dat = data
+        dat = data[:8192]
     rt = magic_mime(dat, to_extname)
     if rt in {'.txt', 'text/plain'}:
         # 文本类型,进行后续增强判断
@@ -197,7 +199,8 @@ def format_xhtml(html_soup):
 def clean_html(html_str):
     try:
         cleaner = Cleaner(style=True, scripts=True, page_structure=False, safe_attrs_only=False)
-        return cleaner.clean_html(html_str)
+        rst = cleaner.clean_html(html_str)
+        return clean_blank_line(rst)
     except Exception as e:
         return html_str
 
@@ -292,6 +295,48 @@ def remove_xpath(xstr, cc_xpaths, fixNode=' '):
                 if pn is None:
                     pn = xroot
                 pn.remove(node)  # 调用目标节点的父节点,将目标节点删除
+        return etree.tostring(xroot, encoding='unicode', method=mode), ''
+    except Exception as e:
+        return xstr, str(e)
+
+
+def remove_empty(xstr, cc_xpath, fixNode=' '):
+    """尝试删除xstr中cc_xpath对应节点,当其下所有子节点的text()都无效的时候.
+        返回值:(修正后的内容结果,错误消息) 正常时错误消息为空.
+    """
+    try:
+        if fixNode is not None:
+            xstr = fix_xml_node(xstr, fixNode)
+        if xstr.startswith('<?xml') or xstr.startswith('<xml'):
+            mode = 'xml'
+            xroot = etree.XML(xstr)
+        else:
+            mode = 'html'
+            xroot = etree.HTML(xstr)
+        if xroot is None:
+            return xstr, 'xml parse error.'
+
+        def rec(node):
+            if node.text is not None:
+                r = re.sub(r'[\r\n\t ]', '', node.text)
+                if r:
+                    return True  # 存在有效数据,直接返回.
+            childs = list(node)
+            for cnode in childs:
+                if rec(cnode):
+                    return True  # 遇到有效数据,直接返回.
+            return False  # 不存在有效数据.
+
+        nodes = xroot.xpath(cc_xpath)
+        for node in nodes:  # 对查找结果进行逐一遍历
+            if rec(node):
+                continue  # 当前节点存在有效数据,跳过
+            # 没有有效数据的节点,删除
+            pn = node.getparent()
+            if pn is None:
+                pn = xroot
+            pn.remove(node)  # 调用目标节点的父节点,将目标节点删除
+
         return etree.tostring(xroot, encoding='unicode', method=mode), ''
     except Exception as e:
         return xstr, str(e)

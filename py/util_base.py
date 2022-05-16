@@ -215,6 +215,49 @@ def clean_blank_line(txt):
     return re.sub(r'\n[\s\t]*\r?\n', '\n', txt)
 
 
+def cmp_file_extname(aname, bname, like=True):
+    """比较两个文件的扩展名是否相同"""
+    if aname is None:
+        aname = ''
+    if bname is None:
+        bname = ''
+
+    aes = aname.split('.')
+    if '' in aes:
+        aes.remove('')
+    bes = bname.split('.')
+    if '' in bes:
+        bes.remove('')
+
+    if len(aes) == 0 and len(bes) == 0:
+        return False
+    if len(aes) == 0 or len(bes) == 0:
+        return False
+
+    ae = aes[-1]
+    be = bes[-1]
+    if ae == be:
+        return True  # 扩展名完全相同
+
+    if not like:
+        return False  # 不要求近似判断,则告知不相同
+
+    def chk(a, b, exts):
+        return a in exts and b in exts
+
+    # 进行扩展名的近似判断
+    if chk(ae, be, {'doc', 'docx'}):
+        return True
+    if chk(ae, be, {'xls', 'xlsx'}):
+        return True
+    if chk(ae, be, {'ppt', 'pptx'}):
+        return True
+    if chk(ae, be, {'jpg', 'jpeg'}):
+        return True
+
+    return False  # 近似判断未通过,则告知不相同
+
+
 class waited_t:
     """简单的超时等待计时器"""
 
@@ -930,6 +973,9 @@ def kvcopy(src, dst):
 
 def dict_path(dct, path, dv=None):
     """根据/k1[i1]/k2这样的简单路径提取dct中对应的值"""
+    if not isinstance(dct, dict):
+        raise Exception('dict_path param dct need dict object.')
+
     segs = path.split('/')
     if segs[-1] == '':
         segs.pop(-1)
