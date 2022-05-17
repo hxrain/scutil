@@ -427,16 +427,18 @@ class xpath:
     # 进行xpath查询,查询表达式为cc_xpath
     # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
     # 元素可以访问text与attrib字典
-    def query(self, cc_xpath):
+    def query(self, cc_xpath, base=None):
         try:
-            r = self.rootNode.xpath(cc_xpath)
+            if base is None:
+                base = self.rootNode
+            r = base.xpath(cc_xpath)
             return r, ''
         except etree.XPathEvalError as e:
             return [], es(e)
         except Exception as e:
             return [], es(e)
 
-    # 进行xpath查询,查询表达式为cc_xpath
+    # 进行xpath查询,查询表达式为cc_xpath,可以指定获取全部结果,还是指定的idx结果
     # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
     def take(self, cc_xpath, idx=None):
         rst, msg = self.query(cc_xpath)
@@ -558,6 +560,50 @@ def pair_extract(xml, xpaths, removeTags=None):
         return [], es(e)
 
 
+def pair_extract2(xml, xpbase, xpaths, dv=None, removeTags=None):
+    """根据xpbase基础表达式和xpaths子节点相对表达式列表,从xml中抽取结果,拼装为元组列表.返回值:[(子节点)],errmsg
+        如:pair_extract2(tst, '//item', ['key/data/text()|key/text()', 'val/text()']),子节点的表达式不应有前缀根路径/或相对路径//
+        子查询过程中进行了容错处理,查询失败或为空时仍会继续进行,但记录错误消息.
+    """
+
+    if len(xpaths) == 0 or not xpbase:
+        return [], ''
+    try:
+        xp = xpath(xml)
+        rst = []
+        xbase, err = xp.query(xpbase)  # 先进行基础表达式的查询
+        if err:
+            return [], err
+
+        err = []
+        for node in xbase:  # 进行基础查询结果的遍历
+            row = []
+            for subpath in xpaths:  # 再进行当前基础节点的子查询
+                x, e = xp.query(subpath, node)
+                # 查询为空或出错时记录默认值和错误
+                if len(x) == 0:
+                    err.append(f"{etree.tostring(node, encoding='unicode')} sub query empty: {subpath}")
+                    row.append(dv)
+                    continue
+                if e:
+                    err.append(f"{etree.tostring(node, encoding='unicode')} sub query error: {e}")
+                    row.append(dv)
+                    continue
+                # 如果子查询结果为节点,则进行文本转换
+                x = x[0]
+                if isinstance(x, etree._Element):
+                    if removeTags:
+                        etree.strip_tags(x, removeTags)  # 移除特定tag但保留文本节点内容
+                    x = '<?xml version="1.0"?>\n' + etree.tostring(x, encoding='unicode')
+                # 记录当前节点的子查询结果
+                row.append(x.strip())
+            # 记录当前节点的全部子查询结果
+            rst.append(tuple(row))
+        return rst, ';'.join(err)
+    except Exception as e:
+        return [], es(e)
+
+
 # 将xpath规则结果对列表转换为字典
 def make_pairs_dict(lst, xml2txt=False):
     dct = {}
@@ -574,9 +620,9 @@ def make_pairs_dict(lst, xml2txt=False):
 
 def pair_extract_dict(xml, xpaths, removeTags=None, xml2txt=False):
     """将xml内容按xpaths对抽取拼装为dict"""
-    rst, msg = pair_extract(xml, xpaths, removeTags)
-    if msg:
-        return [], msg
+    rst, err = pair_extract(xml, xpaths, removeTags)
+    if err:
+        return {}, err
     return make_pairs_dict(rst, xml2txt), ''
 
 
