@@ -250,52 +250,151 @@ def extract_xml_text(xstr):
     return ret
 
 
+# 可进行多次xpath查询的功能对象
+class xpath:
+    def __init__(self, cntstr=None, is_xml=False, try_format=True, fixNode='-'):
+        self.cnt_str = None
+        self.rootNode = None
+        self.mode = None
+        if cntstr:
+            self.parse(cntstr, is_xml, try_format, fixNode)
+
+    def is_valid(self):
+        return self.rootNode and self.mode
+
+    def parse(self, cntstr, is_xml=False, try_format=True, fixNode='-'):
+        cnt_str = fix_xml_node(cntstr, fixNode)
+        self.cnt_str = None
+        self.rootNode = None
+        self.mode = None
+        errs = []
+        try:
+            if cnt_str.startswith('<?xml') or is_xml:
+                cnt_str = re.sub(r'<\?xml\s+version\s*=\s*"\d+.\d+"\s+encoding\s*=\s*".*?"\s*\?>', '', cnt_str)  # 剔除xml描述信息,避免字符集编码造成的干扰
+                self.rootNode = etree.XML(cnt_str)
+                self.mode = 'xml'
+            else:
+                self.rootNode = etree.HTML(cnt_str)
+                self.mode = 'html'
+            self.cnt_str = cnt_str
+            return True, ''
+        except Exception as e:
+            errs.append(es(e))
+
+        if not try_format:
+            return False, ';'.join(errs)  # 不要求进行格式化尝试,则直接返回
+
+        if self.cnt_str is None:
+            # 尝试进行xhtml格式化后再解析
+            try:
+                self.cnt_str = format_xhtml(cnt_str)
+                if self.cnt_str:
+                    self.rootNode = etree.HTML(self.cnt_str)
+                    self.mode = 'html'
+                    return True, ''
+            except Exception as e:
+                errs.append(es(e))
+
+        if self.cnt_str is None:
+            # 尝试进行html转换为xhtml后再解析
+            try:
+                self.cnt_str = html_to_xhtml(cnt_str)
+                if self.cnt_str:
+                    self.rootNode = etree.HTML(self.cnt_str)
+                    self.mode = 'html'
+                    return True, ''
+            except Exception as e:
+                errs.append(es(e))
+                self.cnt_str = None
+                pass
+
+        return False, ';'.join(errs)
+
+    def query(self, cc_xpath, base=None):
+        """查询cc_xpath表达式对应的结果(串或元素).可明确指定查询的基础节点base
+            返回值:([文本或元素列表],'错误说明')
+            如果'错误说明'不为空则代表发生了错误
+        """
+        try:
+            if base is None:
+                base = self.rootNode
+            return base.xpath(cc_xpath), ''
+        except etree.XPathEvalError as e:
+            return [], es(e)
+        except Exception as e:
+            return [], es(e)
+
+    def take(self, cc_xpath, idx=None, rstmode='xml'):
+        """查询cc_xpath表达式对应的结果串或串列表,错误串为空则正常.
+            idx=None,获取全部结果
+                返回值:([结果串],'错误')
+            idx=数字,得到指定的idx结果
+                返回值:(结果串,'错误')
+        """
+        rst, msg = self.query(cc_xpath)
+        if msg or len(rst) == 0:
+            if idx is None:
+                return [], msg
+            else:
+                return '', msg
+
+        if idx is None:
+            lst = []
+            for n in rst:
+                if isinstance(n, etree._Element):
+                    lst.append(etree.tostring(n, encoding='unicode', method=rstmode))
+                else:
+                    lst.append(n)
+            return lst, msg
+        else:
+            if isinstance(rst[idx], etree._Element):
+                return etree.tostring(rst[idx], encoding='unicode', method=rstmode), ''
+            else:
+                return rst[idx], ''
+
+    @staticmethod
+    def xmlnode(nodes, rstmode='xml'):
+        """将节点对象转为对应的xml节点文本"""
+        lst = []
+        for n in nodes:
+            if isinstance(n, etree._Element):
+                lst.append(etree.tostring(n, encoding='unicode', method=rstmode))
+            else:
+                lst.append(n)
+        return lst
+
+
 # -----------------------------------------------------------------------------
 # 对xstr进行xpath查询,查询表达式为cc_xpath
 # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
 # 元素可以进行etree高级访问
 def query_xpath(xstr, cc_xpath, fixNode=' '):
-    try:
-        if fixNode is not None:
-            xstr = fix_xml_node(xstr, fixNode)
-        if xstr.startswith('<?xml'):
-            HTMLRoot = etree.XML(xstr)
-        else:
-            HTMLRoot = etree.HTML(xstr)
-        if HTMLRoot is None:
-            return [], 'xpath xml/html load fail.'
-        r = HTMLRoot.xpath(cc_xpath)
-        return r, ''
-    except etree.XPathEvalError as e:
-        return [], es(e)
-    except Exception as e:
-        return [], es(e)
+    xp = xpath()
+    r, msg = xp.parse(xstr, True, False, fixNode)
+    if not r or msg:
+        return [], msg
+    return xp.query(cc_xpath)
 
 
 def remove_xpath(xstr, cc_xpaths, fixNode=' '):
-    """根据xpath列表删除xml内容中的相应节点.返回值:删除后的结果"""
+    """根据xpath列表删除xml内容中的相应节点.返回值:(删除后的结果,错误说明)"""
+    xp = xpath()
+    r, msg = xp.parse(xstr, True, False, fixNode)
+    if not r or msg:
+        return xstr, 'xml parse error.'
+
     if isinstance(cc_xpaths, str):
         cc_xpaths = [cc_xpaths]
-    try:
-        if fixNode is not None:
-            xstr = fix_xml_node(xstr, fixNode)
-        if xstr.startswith('<?xml') or xstr.startswith('<xml'):
-            mode = 'xml'
-            xroot = etree.XML(xstr)
-        else:
-            mode = 'html'
-            xroot = etree.HTML(xstr)
-        if xroot is None:
-            return xstr, 'xml parse error.'
 
+    try:
         for cc_xpath in cc_xpaths:  # 循环进行xpath的查找
-            nodes = xroot.xpath(cc_xpath)
+            nodes = xp.rootNode.xpath(cc_xpath)
             for node in nodes:  # 对查找结果进行逐一遍历
                 pn = node.getparent()
                 if pn is None:
-                    pn = xroot
+                    pn = xp.rootNode
                 pn.remove(node)  # 调用目标节点的父节点,将目标节点删除
-        return etree.tostring(xroot, encoding='unicode', method=mode), ''
+        return etree.tostring(xp.rootNode, encoding='unicode', method=xp.mode), ''
     except Exception as e:
         return xstr, str(e)
 
@@ -304,18 +403,12 @@ def remove_empty(xstr, cc_xpath, fixNode=' '):
     """尝试删除xstr中cc_xpath对应节点,当其下所有子节点的text()都无效的时候.
         返回值:(修正后的内容结果,错误消息) 正常时错误消息为空.
     """
-    try:
-        if fixNode is not None:
-            xstr = fix_xml_node(xstr, fixNode)
-        if xstr.startswith('<?xml') or xstr.startswith('<xml'):
-            mode = 'xml'
-            xroot = etree.XML(xstr)
-        else:
-            mode = 'html'
-            xroot = etree.HTML(xstr)
-        if xroot is None:
-            return xstr, 'xml parse error.'
+    xp = xpath()
+    r, msg = xp.parse(xstr, True, False, fixNode)
+    if not r or msg:
+        return xstr, 'xml parse error.'
 
+    try:
         def rec(node):
             if node.text is not None:
                 r = re.sub(r'[\r\n\t ]', '', node.text)
@@ -327,17 +420,17 @@ def remove_empty(xstr, cc_xpath, fixNode=' '):
                     return True  # 遇到有效数据,直接返回.
             return False  # 不存在有效数据.
 
-        nodes = xroot.xpath(cc_xpath)
+        nodes = xp.rootNode.xpath(cc_xpath)
         for node in nodes:  # 对查找结果进行逐一遍历
             if rec(node):
                 continue  # 当前节点存在有效数据,跳过
             # 没有有效数据的节点,删除
             pn = node.getparent()
             if pn is None:
-                pn = xroot
+                pn = xp.rootNode
             pn.remove(node)  # 调用目标节点的父节点,将目标节点删除
 
-        return etree.tostring(xroot, encoding='unicode', method=mode), ''
+        return etree.tostring(xp.rootNode, encoding='unicode', method=mode), ''
     except Exception as e:
         return xstr, str(e)
 
@@ -346,7 +439,7 @@ def remove_empty(xstr, cc_xpath, fixNode=' '):
 # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
 def query_xpath_x(cnt_str, cc_xpath, removeTags=None, removeAtts=None, fixNode=' ', rstmode='html'):
     rs, msg = query_xpath(cnt_str, cc_xpath, fixNode)
-    if msg != '':
+    if msg or len(rs) == 0:
         return rs, msg
 
     for i in range(len(rs)):
@@ -385,91 +478,6 @@ def xml_filter(xstr, xp_node, xp_field, fixNode=' '):
         if len(f) == 0:
             ret = ret.replace(n, '')
     return ret
-
-
-# 可进行多次xpath查询的功能对象
-class xpath:
-    def __init__(self, cntstr, is_xml=False):
-        cnt_str = fix_xml_node(cntstr)
-        self.cnt_str = None
-        self.rootNode = None
-        self.last_err = []
-        try:
-            if cnt_str.startswith('<?xml') or is_xml:
-                self.rootNode = etree.XML(cnt_str)
-            else:
-                self.rootNode = etree.HTML(cnt_str)
-            self.cnt_str = cnt_str
-        except Exception as e:
-            self.last_err.append(es(e))
-
-        if self.cnt_str is None:
-            try:
-                self.cnt_str = format_xhtml(cnt_str)
-                if self.cnt_str:
-                    self.rootNode = etree.HTML(self.cnt_str)
-            except Exception as e:
-                self.last_err.append(es(e))
-
-        if self.cnt_str is None:
-            try:
-                self.cnt_str = html_to_xhtml(cnt_str)
-                if self.cnt_str:
-                    self.rootNode = etree.HTML(self.cnt_str)
-            except Exception as e:
-                self.last_err.append(es(e))
-                self.cnt_str = None
-                pass
-
-        if self.cnt_str is None:
-            self.cnt_str = "ERROR"
-
-    # 进行xpath查询,查询表达式为cc_xpath
-    # 返回值为([文本或元素列表],'错误说明'),如果错误说明串不为空则代表发生了错误
-    # 元素可以访问text与attrib字典
-    def query(self, cc_xpath, base=None):
-        try:
-            if base is None:
-                base = self.rootNode
-            r = base.xpath(cc_xpath)
-            return r, ''
-        except etree.XPathEvalError as e:
-            return [], es(e)
-        except Exception as e:
-            return [], es(e)
-
-    # 进行xpath查询,查询表达式为cc_xpath,可以指定获取全部结果,还是指定的idx结果
-    # 返回值为([文本],'错误说明'),如果错误说明串不为空则代表发生了错误
-    def take(self, cc_xpath, idx=None):
-        rst, msg = self.query(cc_xpath)
-        if msg or len(rst) == 0:
-            if idx is None:
-                return [], msg
-            else:
-                return '', msg
-        if idx is None:
-            lst = []
-            for n in rst:
-                if isinstance(n, etree._Element):
-                    lst.append(etree.tostring(n, encoding='unicode', method='xml'))
-                else:
-                    lst.append(n)
-            return lst, msg
-        else:
-            if isinstance(rst[idx], etree._Element):
-                return etree.tostring(rst[idx], encoding='unicode', method='xml'), ''
-            else:
-                return rst[idx], ''
-
-    def xmlnode(self, nodes):
-        """将节点对象转为对应的xml节点文本"""
-        lst = []
-        for n in nodes:
-            if isinstance(n, etree._Element):
-                lst.append(etree.tostring(n, encoding='unicode', method='xml'))
-            else:
-                lst.append(n)
-        return lst
 
 
 # -----------------------------------------------------------------------------
