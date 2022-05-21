@@ -55,6 +55,12 @@ class lock_t:
     def inited(self):
         return self.locker is not None
 
+    def __enter__(self):
+        self.lock()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.unlock()
+
 
 class sem_t:
     """信号量功能封装"""
