@@ -215,7 +215,7 @@ def proc_fetch(anz_fun, fetcher, pusher=None, logger=None):
             return False, len(raws), 0
     except Exception as e:
         if logger:
-            logger.error(str(e))
+            logger.error(ei(e))
         return False, 0, 0
 
     # 将分析结果推送给mq
