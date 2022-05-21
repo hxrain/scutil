@@ -266,20 +266,17 @@ class obj_cache_t:
 class fixed_pool_t:
     """固定缓存池功能封装"""
 
-    def __init__(self, obj_type=None, size=0, obj_data=None, on_free=None):
+    def __init__(self, obj_type=None, size=0, on_free=None, *datas, **args):
         self.objs = []
         self.pool = obj_cache_t()
         self.on_free = on_free
         if size and obj_type:
-            self.init(obj_type, size, obj_data)
+            self.init(obj_type, size, *datas, **args)
 
-    def init(self, obj_type, size, **obj_data):
+    def init(self, obj_type, size, *datas, **args):
         """进行指定类型的对象池初始化"""
         for i in range(size):
-            if obj_data is None:
-                self.objs.append(obj_type())
-            else:
-                self.objs.append(obj_type(**obj_data))
+            self.objs.append(obj_type(*datas, **args))
         self.pool.init(self.objs)
 
     def call(self, func, *args):
