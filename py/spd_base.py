@@ -230,8 +230,9 @@ def format_xml(html_soup, desc, chs='utf-8'):
 def fix_xml_node(xstr, dst='-'):
     if xstr is None: return None
     ret = xstr.strip()  # 字符串两端净空
-    ret = re.sub('<([^>/\s]+)(\s*[^>/]*)/>', '<\\1\\2>%s</\\1>' % dst, ret)  # 修正自闭合节点
-    ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
+    if dst is not None:
+        ret = re.sub('<([^>/\s]+)(\s*[^>/]*)/>', '<\\1\\2>%s</\\1>' % dst, ret)  # 修正自闭合节点
+        ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
     ret = re.sub(r'[\u001f\u000b\u001e]', '', ret)  # 替换无效字符干扰
     ret = ret.replace('&#13;', '\n')  # 修正结果串
     return ret
@@ -271,7 +272,8 @@ class xpath:
         try:
             if cnt_str.startswith('<?xml') or is_xml:
                 cnt_str = re.sub(r'<\?xml\s+version\s*=\s*"\d+.\d+"\s+encoding\s*=\s*".*?"\s*\?>', '', cnt_str)  # 剔除xml描述信息,避免字符集编码造成的干扰
-                self.rootNode = etree.XML(cnt_str)
+                parser = etree.XMLParser(strip_cdata=False)  # 需要保留CDATA节点
+                self.rootNode = etree.XML(cnt_str, parser)
                 self.mode = 'xml'
             else:
                 self.rootNode = etree.HTML(cnt_str)
