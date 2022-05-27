@@ -4,7 +4,12 @@ import logging
 import os
 import time
 import requests
-import websocket
+
+try:
+    import websocket._core as websocket
+except:
+    import websocket
+
 import base64
 import spd_base
 import socket
@@ -1080,6 +1085,8 @@ class spd_chrome:
 
     def tab(self, tab):
         """根据tab标识或序号获取tab对象.返回值(tab对象,错误消息)"""
+        if tab is None:
+            return None, 'tab not exists.'
         try:
             return self._tab(tab), ''
         except Exception as e:

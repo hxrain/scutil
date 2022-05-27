@@ -599,9 +599,9 @@ class source_base:
                 continue
 
             # 根据当前附件的url和名字生成文件id,为了避免可能的重复,还可取用on_attach_make_url处理后的req中的参数_fileid_
-            id_a = hash_string(att_url)
-            id_b = hash_string(f'{att_name}_{req.get("_fileid_")}')
-            fileid = f'{id_a}_{id_b}'
+            id_a = '%x' % hash_string(att_url)
+            id_b = '%x' % hash_string(f'{att_name}_{req.get("_fileid_")}')
+            fileid = f'src{id_a}_{id_b}'
 
             # 抓取附件数据
             datalen, attdata = self.on_attach_take(dst_url, req, **param)
