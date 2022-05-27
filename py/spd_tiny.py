@@ -2,6 +2,7 @@ import argparse
 import importlib
 import sys
 
+import gui_dlg as gd
 from db_sqlite import *
 from mutex_lock import *
 from spd_base import *
@@ -438,7 +439,7 @@ class source_base:
             self.spider.http.rst['BODY']中保存了抓取结果;
             self.rst['status_code']记录http状态码;
             self.rst['error']记录错误原因.
-        返回值:是否抓取成功."""
+            返回值:是否抓取成功."""
         return self.spider.http.take(list_url, req)
 
     def on_info_filter(self, info):
@@ -454,12 +455,209 @@ class source_base:
             self.spider.http.rst['BODY'] 中保存了抓取结果;
             self.spider.http.rst['status_code'] 记录http状态码;
             self.spider.http.rst['error'] 记录错误原因.
-        返回值:是否抓取成功."""
+            返回值:是否抓取成功."""
         return self.spider.http.take(page_url, req)
 
     def on_page_info(self, info, list_url, page):
         """从page中提取必要的细览页信息放入info中.返回值告知是否处理成功"""
         return True
+
+    def do_vcode_calc(self, vdata, **param):
+        """进行验证码的识别计算
+            参数说明:
+                data为待识别的验证码数据
+                param为预留的扩展参数
+                    vcode_mode - 告知验证码类型,默认为'classic'
+                    vcode_svr_url -  告知验证码识别服务器地址
+            返回值:(识别结果,错误说明)
+        """
+        mode = param.get('vcode_mode', 'classic')
+        rec_svr_url = param.get('vcode_svr_url', 'http://jobs.spider.zb:9722/classic')
+        if mode == 'classic':
+            rc, vcode = self.http_take(rec_svr_url, vdata)
+            if rc != 200 or not vcode:
+                vcode = gd.input_validcode(vdata)  # 自动识别出错时进行手动处理
+            if not vcode:
+                return None, f'vcode calc error: {rc}'
+            return vcode, ''
+
+        return None, f'not impl vcode_mode: {mode}'
+
+    def on_attach_update(self, info, att_idx, att_url, att_name, file_path):
+        """更新当前附件信息在正文中的内容部分,确保再次浏览正文时可访问本地附件文件.返回空正常
+            参数说明:
+                info - 细览信息
+                att_idx - 当前附件在整体附件列表中的索引
+                att_url - 附件地址,来自于抽取规则的结果
+                att_name - 附件文件名,来自于抽取规则的结果
+                file_path - 附件在本地的路径,可直接用于正文中相关信息的更新
+            返回值: 错误信息
+        """
+        info.content.replace(att_url, file_path)
+        return ''
+
+    def on_attach_make_url(self, info, att_idx, att_url, att_name, req, retry, **param):
+        """构造抓取附件的请求和url地址
+            参数说明:
+                info - 细览信息
+                att_idx - 当前附件在整体附件列表中的索引
+                att_url - 附件地址,来自于抽取规则的结果
+                att_name - 附件文件名,来自于抽取规则的结果
+                req - http的请求信息
+                retry - 当前附件的重试请求次数,0为首次请求.
+                param - 附件抓取控制参数
+            返回值:(附件url地址,错误说明)
+        """
+        return att_url, ''
+
+    def on_attach_extract(self, info, **param):
+        """按附件抽取规则,在info.content中抽取待抓取的附件.
+            返回值:[(att_url,att_name)] 附件地址和名字的元组列表
+            参数说明:
+                info - 当前的细览信息
+                param - 扩展参数字典
+                    rule_url - 从正文中抽取附件url或标识的xpath
+                    rule_name - 从正文中抽取附件文件名的xpath
+                    rule_root - 从正文中抽取附件信息的根表达式xpath,有此参数时,rule_url和rule_name的路径必须对应其子节点
+        """
+        rst = []
+        rule_url = param.get('rule_url')
+        rule_name = param.get('rule_name')
+        rule_root = param.get('rule_root')
+        if rule_root:
+            # 进行父子模式的查询
+            xrst, err = pair_extract2(info.content, rule_root, [rule_url, rule_name] if rule_name else [rule_url])
+        else:
+            # 进行伙伴模式的查询
+            xrst, err = pair_extract(info.content, [rule_url, rule_name] if rule_name else [rule_url])
+
+        if err:
+            self.log_warn(f'on_attach_extract {param} error: {err}')
+
+        if rule_name:
+            rst = xrst
+        else:
+            for x in xrst:
+                rst.append((x[0], None))
+
+        return rst
+
+    def on_attach_take(self, att_url, req, **param):
+        """抓取指定附件.
+            返回值:(size,data)
+                size: -1下载错误;-2验证码错误;>=0数据长度
+                data: 下载的数据内容
+        """
+        # 根据给定的参数,抓取指定的附件
+        if not self.spider.http.take2(att_url, req):
+            return -1, None
+
+        # 从入参中获取"验证码错误"的提示检查字样
+        vcode_cc_re = param.get('vcode_cc_re')
+
+        # 尝试检查是否为验证码错误的应答
+        attdata = self.spider.http.get_BODY(b'')
+        if isinstance(attdata, str) and vcode_tip and query_re_str(attdata, vcode_cc_re):
+            return -2, None
+
+        return len(attdata), attdata
+
+    def do_attach(self, info, **param):
+        """根据当前的细览内容进行附件抓取处理.正常时错误信息列表为空.
+            返回值: [{附件信息}],[错误信息]
+                param - 扩展参数字典,参见on_attach_extract/do_vcode_calc函数说明
+                    rule_url - 从正文中抽取附件url或标识的xpath
+                    rule_name - 从正文中抽取附件文件名的xpath
+                    rule_root - 从正文中抽取附件信息的根表达式xpath,有此参数时,rule_url和rule_name的路径必须对应其子节点
+                    vcode_mode - 验证码模式,默认为'classic'经典验证码
+                    vcode_svr_url - 验证码识别服务器地址
+                    vcode_cc_re - 判断错误验证码下载内容的re表达式
+        """
+        errs = []
+        rsts = []
+        if info.content is None:
+            msg = f'ATTACH Content Empty: {info.title} | {info.url}'
+            self.log_warn(msg)
+            errs.append(msg)
+            return rsts, errs
+
+        # 先抽取查询待下载的附件列表
+        att_infos = self.on_attach_extract(info, **param)
+        for i in range(len(att_infos)):
+            # 处理具体的附件,得到附件地址和文件名
+            att_url = att_infos[i][0]
+            att_name = att_infos[i][1]
+
+            # 进行附件下载前的准备(可进行验证码的处理)
+            req = {}
+            dst_url, err = self.on_attach_make_url(info, i, att_url, att_name, req, 0, **param)
+            if err:
+                self.log_warn(err)
+                errs.append(err)
+                continue
+            if not dst_url:
+                continue
+
+            # 根据当前附件的url和名字生成文件id,为了避免可能的重复,还可取用on_attach_make_url处理后的req中的参数_fileid_
+            id_a = hash_string(att_url)
+            id_b = hash_string(f'{att_name}_{req.get("_fileid_")}')
+            fileid = f'{id_a}_{id_b}'
+
+            # 抓取附件数据
+            datalen, attdata = self.on_attach_take(dst_url, req, **param)
+            if datalen == -2:
+                # 验证码错误的时候,再进行一下重试
+                dst_url, err = self.on_attach_make_url(info, i, att_url, att_name, req, 1, **param)
+                if err:
+                    self.log_warn(err)
+                    errs.append(err)
+                    continue
+                if not dst_url:
+                    continue
+                datalen, attdata = self.on_attach_take(dst_url, req, **param)
+
+            # 处理抓取错误
+            if datalen < 0 or attdata is None:
+                msg = f'ATTACH TAKE FAIL: {info.title} | {dst_url}'
+                self.log_warn(msg)
+                errs.append(msg)
+                continue
+
+            # 尝试解析得到附件的扩展名
+            ename = None
+            if att_name:
+                names = os.path.splitext(att_name)
+                if len(names):
+                    ename = names[-1]
+
+            # 扩展名不能直接获取时则尝试根据数据内容进行猜测
+            if not ename or len(ename) >= 6:
+                ename = guess_mime(attdata, True)
+
+            # 生成落地后的多级路径,构造落地后的附件文件名
+            fpath = f'/files/{info.pub_time}/'
+            fname = f'{self.id}_{fileid}{ename}'
+            file_path = f'{fpath}/{fname}'
+
+            # 附件存盘落地
+            if not save_to_file2(f'.{fpath}', fname, attdata, encode=None, mode='wb'):
+                msg = f'ATTACH SAVE FAIL: .{file_path} => {info.title} | {info.url}'
+                self.log_warn(msg)
+                errs.append(msg)
+                continue
+
+            # 进行info.content正文更新
+            err = self.on_attach_update(info, i, att_url, att_name, file_path)
+            if err:
+                msg = f'ATTACH UPDATE FAIL: .{file_path} => {info.title} | {info.url} :: {err}'
+                self.log_warn(msg)
+                errs.append(msg)
+                continue
+
+            # 记录抓取结果信息
+            rsts.append({'att_url': att_url, 'att_name': att_name, 'file_path': file_path, 'att_size': datalen})
+
+        return rsts, errs
 
 
 def spd_sleep(sec):

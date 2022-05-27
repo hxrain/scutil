@@ -198,7 +198,7 @@ def format_xhtml(html_soup):
 # 清理html页面内容,移除style样式定义与script脚本段
 def clean_html(html_str):
     try:
-        cleaner = Cleaner(style=True, scripts=True, page_structure=False, safe_attrs_only=False)
+        cleaner = Cleaner(style=True, scripts=True, page_structure=False, safe_attrs_only=False, forms=False)
         rst = cleaner.clean_html(html_str)
         return clean_blank_line(rst)
     except Exception as e:
@@ -253,25 +253,26 @@ def extract_xml_text(xstr):
 
 # 可进行多次xpath查询的功能对象
 class xpath:
-    def __init__(self, cntstr=None, is_xml=False, try_format=True, fixNode='-'):
+    def __init__(self, cntstr=None, try_format=True, fixNode='-'):
         self.cnt_str = None
         self.rootNode = None
         self.mode = None
         if cntstr:
-            self.parse(cntstr, is_xml, try_format, fixNode)
+            self.parse(cntstr, try_format, fixNode)
 
     def is_valid(self):
         return self.rootNode and self.mode
 
-    def parse(self, cntstr, is_xml=False, try_format=True, fixNode='-'):
+    def parse(self, cntstr, try_format=True, fixNode='-'):
         cnt_str = fix_xml_node(cntstr, fixNode)
         self.cnt_str = None
         self.rootNode = None
         self.mode = None
         errs = []
+
         try:
-            if cnt_str.startswith('<?xml') or is_xml:
-                cnt_str = re.sub(r'<\?xml\s+version\s*=\s*"\d+.\d+"\s+encoding\s*=\s*".*?"\s*\?>', '', cnt_str)  # 剔除xml描述信息,避免字符集编码造成的干扰
+            if cnt_str.startswith('<?xml'):
+                cnt_str = re.sub(r'<\?xml\s+version\s*=\s*"\d+.\d+"\s+encoding\s*=\s*".*?"\s*\?\??>', '', cnt_str)  # 剔除xml描述信息,避免字符集编码造成的干扰
                 parser = etree.XMLParser(strip_cdata=False)  # 需要保留CDATA节点
                 self.rootNode = etree.XML(cnt_str, parser)
                 self.mode = 'xml'
@@ -372,7 +373,7 @@ class xpath:
 # 元素可以进行etree高级访问
 def query_xpath(xstr, cc_xpath, fixNode=' '):
     xp = xpath()
-    r, msg = xp.parse(xstr, True, False, fixNode)
+    r, msg = xp.parse(xstr, True, fixNode)
     if not r or msg:
         return [], msg
     return xp.query(cc_xpath)
@@ -381,7 +382,7 @@ def query_xpath(xstr, cc_xpath, fixNode=' '):
 def remove_xpath(xstr, cc_xpaths, fixNode=' '):
     """根据xpath列表删除xml内容中的相应节点.返回值:(删除后的结果,错误说明)"""
     xp = xpath()
-    r, msg = xp.parse(xstr, True, False, fixNode)
+    r, msg = xp.parse(xstr, True, fixNode)
     if not r or msg:
         return xstr, 'xml parse error.'
 
@@ -406,7 +407,7 @@ def remove_empty(xstr, cc_xpath, fixNode=' '):
         返回值:(修正后的内容结果,错误消息) 正常时错误消息为空.
     """
     xp = xpath()
-    r, msg = xp.parse(xstr, True, False, fixNode)
+    r, msg = xp.parse(xstr, True, fixNode)
     if not r or msg:
         return xstr, 'xml parse error.'
 
@@ -533,12 +534,15 @@ def pair_extract(xml, xpaths, removeTags=None):
     qr = {}
     if len(xpaths) == 0:
         return [], ''
+    last_err = []
     try:
         xp = xpath(xml)
         rows = 99999999999
         # 先根据给定的规则,查询得到各个分量的结果
         for p in xpaths:
-            qr[p] = xp.query(p)[0]
+            qr[p], err = xp.query(p)
+            if err:
+                last_err.append(err)
             siz = len(qr[p])
             rows = min(rows, siz)  # 获取最少的结果数量
 
@@ -549,8 +553,8 @@ def pair_extract(xml, xpaths, removeTags=None):
 
         if rows == 0:
             msg = ''
-            if len(xp.last_err):
-                msg = '; '.join(xp.last_err)
+            if len(last_err):
+                msg = '; '.join(last_err)
             return [], msg  # 没有匹配的结果
 
         rst = []
