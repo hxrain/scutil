@@ -506,9 +506,10 @@ class source_base:
                 req - http的请求信息
                 retry - 当前附件的重试请求次数,0为首次请求.
                 param - 附件抓取控制参数
-            返回值:(附件url地址,错误说明)
+            返回值:(附件目标地址,错误说明)
         """
-        return att_url, ''
+        dst_url = up.urljoin(info.url, att_url)
+        return dst_url, ''
 
     def on_attach_extract(self, info, **param):
         """按附件抽取规则,在info.content中抽取待抓取的附件.
