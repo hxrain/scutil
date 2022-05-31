@@ -106,8 +106,11 @@ class Tab(object):
         self._data_requestIDs = {}  # 记录请求ID对应的请求信息
         self.req_event_filter_re = None  # 过滤请求信息使用的url匹配re规则
         self._last_act(kwargs.get("act", False))
+
+        # 绑定监听器,记录必要的请求与应答信息
         self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
         self.set_listener('Network.responseReceived', self._on_responseReceived)
+        self.set_listener('Network.loadingFinished', self._on_loadingFinished)
 
     def _last_act(self, using):
         """记录该tab是否处于使用中,便于外部跟踪状态"""
@@ -344,7 +347,7 @@ class Tab(object):
         if len(self._data_requestWillBeSent[url]) > 100:
             self._data_requestWillBeSent[url].pop(0)  # 如果信息列表过长则清空最初的旧数据
         self._data_requestWillBeSent[url].append((request, requestId))  # 记录请求信息和请求id
-        self._data_requestIDs[requestId] = [request]  # 记录requestid对应的请求信息
+        self._data_requestIDs[requestId] = [request]  # 记录requestid对应的请求信息,回应阶段1
 
     def _on_responseReceived(self, requestId, loaderId, timestamp, type, response, **args):
         """记录请求对应的应答信息"""
@@ -352,7 +355,15 @@ class Tab(object):
             return
 
         r = self._data_requestIDs[requestId]
-        r.append(response)
+        r.append(response)  # 记录当前请求的应答头,回应阶段2
+
+    def _on_loadingFinished(self, requestId, timestamp, encodedDataLength, shouldReportCorbBlocking, **args):
+        """记录请求对应的完成信息"""
+        if requestId not in self._data_requestIDs:
+            return
+
+        r = self._data_requestIDs[requestId]
+        r.append(encodedDataLength)  # 记录当前请求的完整应答内容长度,回应阶段3
 
     def recv_loop(self, loops=50):
         """驱动接收循环,处理各类事件与消息应答"""
@@ -374,13 +385,13 @@ class Tab(object):
         else:
             return self._data_requestWillBeSent
 
-    def get_response(self, reqid):
-        """根据请求id获取对应的回应信息,返回值:None回应不存在;其他为回应对象."""
+    def get_response(self, reqid, stat=3):
+        """根据请求id获取对应的回应信息,要求回应阶段满足stat的数量要求,返回值:None回应不存在;其他为回应对象."""
         self.recv_loop()
         if reqid not in self._data_requestIDs:
             return None
         r = self._data_requestIDs[reqid]
-        if len(r) != 2:
+        if len(r) != stat:
             return None
         return r
 
