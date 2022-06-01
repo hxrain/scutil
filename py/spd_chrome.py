@@ -839,11 +839,10 @@ class spd_chrome:
 
     def wait_request_urls(self, tab, url, timeout=60, url_is_re=True):
         """尝试等待请求信息中出现指定的url.返回值:([请求信息列表],msg),msg为空正常."""
-        loop = timeout * 2
         try:
             t = self._tab(tab)
             wait = spd_base.waited_t(timeout)
-            for i in range(loop):
+            while True:
                 dst = t.get_request_urls(url, url_is_re)
                 if len(dst):
                     return dst, ''
@@ -896,9 +895,8 @@ class spd_chrome:
 
         def wait(reqid):
             """等待回应到达"""
-            loop = timeout * 2
             wait = spd_base.waited_t(timeout)
-            for i in range(loop):
+            while True:
                 r = t.get_response(reqid)
                 if r:
                     return r
@@ -947,7 +945,7 @@ class spd_chrome:
             return None, ''
 
         req, reqid = req_lst[-1]
-        rrinfo = wait(reqid)
+        rrinfo = wait(reqid) #内部循环等待请求的回应内容到达
         if not rrinfo:
             return None, ''
 
