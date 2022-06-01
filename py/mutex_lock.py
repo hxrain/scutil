@@ -99,6 +99,7 @@ def guard(locker):  # 顶层装饰函数,用来接收用户参数,返回外层�
                 ret = fun(*args, **kwargs)
             except Exception as e:
                 ret = e
+                print(e)
                 pass
             locker.unlock()
             return ret
