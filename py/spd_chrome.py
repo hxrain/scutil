@@ -90,6 +90,7 @@ class Tab(object):
         self._cur_id = 1000  # 交互消息的初始流水序号
         self.downpath = None  # 控制浏览器的下载路径
         self.timeout = 3  # 默认的交互超时时间
+        self.disable_alert_url_re = None  # 需要关闭alert对话框的页面url配置
 
         # 根据环境变量的设定进行功能开关的处理
         self.debug = os.getenv("SPD_CHROME_DEBUG", False)  # 是否显示收发内容
@@ -111,6 +112,7 @@ class Tab(object):
         self.set_listener('Network.requestWillBeSent', self._on_requestWillBeSent)
         self.set_listener('Network.responseReceived', self._on_responseReceived)
         self.set_listener('Network.loadingFinished', self._on_loadingFinished)
+        self.set_listener('Page.javascriptDialogOpening', self._on_Page_javascriptDialogOpening)
 
     def _last_act(self, using):
         """记录该tab是否处于使用中,便于外部跟踪状态"""
@@ -220,6 +222,19 @@ class Tab(object):
         attr = GenericAttr(item, self)
         setattr(self, item, attr)
         return attr
+
+    def _on_Page_javascriptDialogOpening(self, url, message, type, hasBrowserHandler, *args, **kwargs):
+        """拦截页面对话框"""
+        if type == 'alert' and self.disable_alert_url_re and spd_base.query_re_str(url, self.disable_alert_url_re):
+            self._handle_js_dialog(False)
+
+    def _handle_js_dialog(self, enable=False, proto_timeout=10):
+        """可在对话框事件回调中进行调用,禁用或启用页面上的js对话框"""
+        try:
+            rst = self.call_method('Page.handleJavaScriptDialog', accept=enable, _timeout=proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, spd_base.es(e)
 
     def call_method(self, _method, *args, **kwargs):
         """调用协议方法,核心功能.具体请求交互细节可参考协议描述. https://chromedevtools.github.io/devtools-protocol/
@@ -485,6 +500,7 @@ class Tab(object):
         try:
             self._close_websock()
             self._open_websock()
+            self.call_method('Page.enable', _timeout=1)
             self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
             if self.downpath:
                 self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=1)
