@@ -1255,6 +1255,7 @@ def run_collect_sys(srcs=None, params=None):
         parser.add_argument("--dbname", type=str, default='', help="sqlite3 db file name.")
         parser.add_argument("--logname", type=str, default='', help="spider log file name.")
         parser.add_argument("--prefix", type=str, default='src_', help="source file name prefix.")
+        parser.add_argument("--root", type=str, default='src', help="source file root path")
         parser.add_argument("--thread", type=int, default=0, help="enable thread mode.")
         parser.add_argument("--debug", type=int, default=0, help="enable debug info output.")
         return parser.parse_args()
@@ -1263,9 +1264,10 @@ def run_collect_sys(srcs=None, params=None):
 
     # 获取当前文件所在路径,添加到python搜索路径中
     curdir = args.workdir if args.workdir != '' else os.path.dirname(os.path.abspath(sys.argv[0]))
+    rootpath = args.root
     sys.path.append(curdir)
     sys.path.append(curdir + '/spd')
-    sys.path.append(curdir + '/src')
+    sys.path.append(curdir + f'/{rootpath}')
 
     # 获取运行文件名称作为标记
     if params and 'tag' in params:
@@ -1298,22 +1300,22 @@ def run_collect_sys(srcs=None, params=None):
     # 注册采集源
     if srcs:
         if isinstance(srcs, str):
-            cm.register('src.%s' % srcs)
+            cm.register('%s.%s' % (rootpath, srcs))
         if isinstance(srcs, list):
             for s in srcs:
                 if isinstance(s, str):
-                    cm.register('src.%s' % s)
+                    cm.register('%s.%s' % (rootpath, s))
                 else:
                     cm.register(s)
     else:
         # 装载采集源列表
-        srcs = os.listdir(curdir + '/src')
+        srcs = os.listdir(curdir + f'/{rootpath}')
         for s in srcs:
             if not s.startswith(args.prefix):
                 continue
             if not s.endswith('.py'):
                 continue
-            cm.register('src.%s' % s[:-3])
+            cm.register('%s.%s' % (rootpath, s[:-3]))
 
     # 运行全部采集爬虫
     cm.run()
