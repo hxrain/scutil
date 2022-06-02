@@ -237,7 +237,8 @@ class Tab(object):
 
         if 'result' not in result and 'error' in result:
             # logger.warn("%s error: %s" % (_method, result['error']['message']))
-            raise CallMethodException("calling method: %s error: %s" % (_method, result['error']['message']))
+            msg = result.get('error', {}).get('message', 'unknown')
+            raise CallMethodException("calling method: %s error: %s" % (_method, msg))
 
         return result['result']
 
@@ -374,34 +375,8 @@ class Tab(object):
             if rc + mc == 0:
                 break
 
-    def get_requests(self, url=None):
-        """获取已经发送的请求信息;如果给定了明确的url,则返回该url对应的最新请求列表;否则返回全部记录的请求字典."""
-        self.recv_loop()
-        if url:
-            if url in self._data_requestWillBeSent:
-                return self._data_requestWillBeSent[url]
-            else:
-                return None
-        else:
-            return self._data_requestWillBeSent
-
-    def get_response(self, reqid, stat=3):
-        """根据请求id获取对应的回应信息,要求回应阶段满足stat的数量要求,返回值:None回应不存在;其他为回应对象."""
-        self.recv_loop()
-        if reqid not in self._data_requestIDs:
-            return None
-        r = self._data_requestIDs[reqid]
-        if len(r) != stat:
-            return None
-        return r
-
-    def clear_request_historys(self):
-        """清理全部历史的请求信息"""
-        self._data_requestWillBeSent.clear()
-        self._data_requestIDs.clear()
-
     def get_request_urls(self, hold_url, url_is_re=True):
-        """获取记录过的请求信息的url列表"""
+        """获取记录过的请求url列表"""
         self.recv_loop()
         if hold_url is None:  # 没有明确告知拦截url的模式,则返回全部记录的请求url
             return list(self._data_requestWillBeSent.keys())
@@ -412,10 +387,73 @@ class Tab(object):
                 if spd_base.query_re_str(url, hold_url):  # 否则记录匹配的请求url
                     rst.append(url)
         else:
-            if self.get_requests(hold_url):
+            if self.get_request_info(hold_url):
                 rst.append(hold_url)
 
         return rst
+
+    def get_request_info(self, url=None):
+        """获取已经发送的请求信息;如果给定了明确的url,则返回该url对应的最新请求列表;否则返回全部记录的请求字典."""
+        self.recv_loop()
+        if url:
+            if url in self._data_requestWillBeSent:
+                return self._data_requestWillBeSent[url]
+            else:
+                return None
+        else:
+            return self._data_requestWillBeSent
+
+    def get_request_infos(self, url, url_is_re=False):
+        """获取指定url的请求信息
+            工作流程:1 打开tab页的时候,就需要告知url的匹配模式;2 等待页面装载完成,内部记录发送的请求信息; 3根据url查找发送的请求内容.
+            返回值: [(request,requestId)],msg
+                    msg为''则正常;request为请求内容;requestId为请求ID,可据此获取更多数据.
+        """
+        try:
+            if url_is_re:
+                urls = self.get_request_urls(url, url_is_re)
+                if len(urls) == 0:
+                    return None, ''
+                rst = []
+                for u in urls:
+                    rst.extend(self.get_request_info(u))
+                return rst, ''
+            else:
+                return self.get_request_info(url), ''
+
+        except Exception as e:
+            return None, spd_base.es(e)
+
+    def get_response_info(self, reqid, stat=3):
+        """根据请求id获取对应的回应信息,要求回应阶段满足stat的数量要求,返回值:None回应不存在;其他为回应对象."""
+        self.recv_loop()
+        if reqid not in self._data_requestIDs:
+            return None
+        r = self._data_requestIDs[reqid]
+        if len(r) != stat:
+            return None
+        return r
+
+    def get_response_body(self, reqid, proto_timeout=10):
+        """根据请求id获取回应body内容.需要先确保回应已经完成,否则出错.
+            返回值:(body,err) err为空则正常
+        """
+        try:
+            rst = self.call_method('Network.getResponseBody', requestId=reqid, _timeout=proto_timeout)
+            if rst is None:
+                return None, 'Network.getResponseBody call fail.'
+            body = rst['body']
+            en = rst['base64Encoded']
+            if en:
+                body = base64.decodebytes(body.encode('latin-1'))
+            return body, ''
+        except Exception as e:
+            return None, spd_base.es(e)
+
+    def clear_request_historys(self):
+        """清理全部历史的请求信息"""
+        self._data_requestWillBeSent.clear()
+        self._data_requestIDs.clear()
 
     def _open_websock(self):
         if self._websocket:
@@ -829,49 +867,18 @@ class spd_chrome:
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def get_request_urls(self, tab, hold_url=None, url_is_re=True):
-        """获取指定tab记录的请求信息,与hold_url匹配的url列表,或全部url列表;返回值:([urls],msg)"""
-        try:
-            t = self._tab(tab)
-            return t.get_request_urls(hold_url, url_is_re), ''
-        except Exception as e:
-            return None, py_util.get_trace_stack()
-
-    def wait_request_urls(self, tab, url, timeout=60, url_is_re=True):
+    def wait_request_infos(self, tab, url, timeout=60, url_is_re=True):
         """尝试等待请求信息中出现指定的url.返回值:([请求信息列表],msg),msg为空正常."""
         try:
             t = self._tab(tab)
             wait = spd_base.waited_t(timeout)
             while True:
-                dst = t.get_request_urls(url, url_is_re)
+                dst, msg = t.get_request_infos(url, url_is_re)
                 if len(dst):
                     return dst, ''
                 if wait.timeout():
                     break
-                time.sleep(0.45)
             return [], ''
-        except Exception as e:
-            return None, py_util.get_trace_stack()
-
-    def get_request_info(self, tab, url, url_is_re=False):
-        """获取指定url的请求信息
-            工作流程:1 打开tab页的时候,就需要告知url的匹配模式;2 等待页面装载完成,内部记录发送的请求信息; 3根据url查找发送的请求内容.
-            返回值: [(request,requestId)],msg
-                    msg为''则正常;request为请求内容;requestId为请求ID,可据此获取更多数据.
-        """
-        try:
-            t = self._tab(tab)
-            if url_is_re:
-                urls = t.get_request_urls(url, url_is_re)
-                if len(urls) == 0:
-                    return None, ''
-                rst = []
-                for u in urls:
-                    rst.extend(t.get_requests(u))
-                return rst, ''
-            else:
-                return t.get_requests(url), ''
-
         except Exception as e:
             return None, py_util.get_trace_stack()
 
@@ -879,13 +886,13 @@ class spd_chrome:
         """清空记录的请求内容"""
         try:
             t = self._tab(tab)
-            req_lst = t.get_requests(url)
+            req_lst = t.get_request_info(url)
             req_lst.clear()
             return ''
         except Exception as e:
             return py_util.get_trace_stack()
 
-    def get_response_body(self, tab, url, url_is_re=False, timeout=30):
+    def wait_response_body(self, tab, url, url_is_re=False, timeout=30):
         """获取指定url的回应内容
             工作流程:1 等待页面装载完成,内部记录发送的请求信息; 2 根据url查找发送的请求id; 3 使用请求id获取对应的回应内容.
             返回值: (body,msg)
@@ -893,30 +900,16 @@ class spd_chrome:
         """
         t = self._tab(tab)
 
-        def wait(reqid):
-            """等待回应到达"""
+        def wait_response(reqid, timeout):
+            """等待回应完成.返回值:None超时;否则为回应信息"""
             wait = spd_base.waited_t(timeout)
             while True:
-                r = t.get_response(reqid)
+                r = t.get_response_info(reqid)
                 if r:
                     return r
                 if wait.timeout():
                     break
-                time.sleep(0.45)
             return None
-
-        def call_getResponseBody(reqid):
-            try:
-                rst = t.call_method('Network.getResponseBody', requestId=reqid, _timeout=self.proto_timeout)
-                if rst is None:
-                    return None, 'Network.getResponseBody call fail.'
-                body = rst['body']
-                en = rst['base64Encoded']
-                if en:
-                    body = base64.decodebytes(body.encode('latin-1'))
-                return body, ''
-            except Exception as e:
-                return None, py_util.get_trace_stack()
 
         def get_downtmp(rrinfo, downpath):
             """在回应获取失败的时候,尝试查找下载文件"""
@@ -938,18 +931,18 @@ class spd_chrome:
                 os.remove(filepath)  # 下载并读取成功了,则删除当前的文件
             return filedata
 
-        req_lst, msg = self.get_request_info(tab, url, url_is_re)
+        req_lst, msg = self.wait_request_infos(tab, url, timeout, url_is_re)
         if msg:
             return None, msg
         if req_lst is None or len(req_lst) == 0:
-            return None, ''
+            return None, 'request waiting.'
 
-        req, reqid = req_lst[-1]
-        rrinfo = wait(reqid) #内部循环等待请求的回应内容到达
+        _, reqid = req_lst[-1]
+        rrinfo = wait_response(reqid, timeout)  # 内部循环等待请求的回应内容到达
         if not rrinfo:
-            return None, ''
+            return None, 'response waiting'
 
-        rst, msg = call_getResponseBody(reqid)
+        rst, msg = t.get_response_body(reqid, self.proto_timeout)
         if rst is None or msg and t.downpath:
             # 回应提取不成功的时候,还需要尝试判断是否有下载文件
             rst = get_downtmp(rrinfo, t.downpath)

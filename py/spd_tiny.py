@@ -558,7 +558,7 @@ class source_base:
 
         # 尝试检查是否为验证码错误的应答
         attdata = self.spider.http.get_BODY(b'')
-        if isinstance(attdata, str) and vcode_tip and query_re_str(attdata, vcode_cc_re):
+        if isinstance(attdata, str) and vcode_cc_re and query_re_str(attdata, vcode_cc_re):
             return -2, None
 
         return len(attdata), attdata
@@ -1115,11 +1115,9 @@ class collect_manager:
         self.dbs = dbs
         self.spiders = []
         self.on_idle = self._on_idle
+        self.threads = threads
         if threads:
-            self.threads = threads + 8
             locker.init()
-        else:
-            self.threads = 0
 
         _logger.info('tiny spider collect manager is starting ...')
 
