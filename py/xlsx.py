@@ -260,3 +260,30 @@ class xlsx_editor:
         """关闭编辑器"""
         self.file.close()
         self.file = None
+
+
+def rows_loop(fname, func, sheet_idx=0, row_offset=0):
+    """对指定的xlsx文件中的sheet_idx页从row_offset偏移开始进行遍历,回调函数func用于处理遍历的每一行.
+        func(fields, sheet, row)
+            fields - 当前行的字段数据列表
+            sheet - 当前操作的表格对象
+            row - 当前行序号
+    """
+    xe = xlsx_editor()
+    err = xe.open(fname)
+    if err:
+        return None, err
+    rc = 0
+    try:
+        sheet = xe.get_sheet(sheet_idx)
+        cols = sheet.max_column
+        rows = sheet.max_row
+        for row in range(row_offset, rows):
+            fields = [sheet.cell(row=row + 1, column=col + 1).value for col in range(cols)]
+            if func(fields, sheet, row):
+                break
+        rc += 1
+    except Exception as e:
+        return rc, str(e)
+
+    return rc, ''
