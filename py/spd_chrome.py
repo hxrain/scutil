@@ -890,7 +890,7 @@ class spd_chrome:
             wait = spd_base.waited_t(timeout)
             while True:
                 dst, msg = t.get_request_infos(url, url_is_re)
-                if len(dst):
+                if dst and len(dst):
                     return dst, ''
                 if wait.timeout():
                     break
