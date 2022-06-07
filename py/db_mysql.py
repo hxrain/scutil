@@ -1,5 +1,8 @@
 import pymysql
 import pymysql.constants.FIELD_TYPE as field_types
+from warnings import filterwarnings
+
+filterwarnings("ignore", category=pymysql.Warning)
 
 # 字段类型对应的类型名称
 field_type_names = {field_types.TIME: 'TIEM', field_types.DOUBLE: 'DOUBLE', field_types.STRING: 'STRING', field_types.DECIMAL: 'DECIMAL', field_types.NEWDATE: 'NEWDATE',
