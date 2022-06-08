@@ -86,6 +86,7 @@ class Tab(object):
         self.last_url = kwargs.get("url")
         self.last_title = kwargs.get("title")
         self.last_act = None
+        self.last_err = None
         self._websocket_url = kwargs.get("webSocketDebuggerUrl")  # 操纵tab的websocket地址
         self._cur_id = 1000  # 交互消息的初始流水序号
         self.downpath = None  # 控制浏览器的下载路径
@@ -118,9 +119,84 @@ class Tab(object):
         """记录该tab是否处于使用中,便于外部跟踪状态"""
         self.last_act = (using, time.time())
 
+    def __getattr__(self, item):
+        """拦截未定义操作,转换为对应的协议方法伪装"""
+        attr = GenericAttr(item, self)
+        setattr(self, item, attr)
+        return attr
+
+    def _recv(self, timeout=0.01):
+        """尝试进行一次接收处理.
+           返回值:(结果数,事件数,错误消息)
+                    (0,0,'')超时;
+                    (None,None,err)通信错误
+        """
+        if not self._websocket:
+            return (None, None, 'not websocket connection.')
+
+        try:
+            self._websocket.settimeout(timeout)
+            message_json = self._websocket.recv()
+            message = json.loads(message_json)  # 接收到json消息后就转换为对象
+        except websocket.WebSocketTimeoutException:
+            return (0, 0, '')  # 超时了,什么都没有收到
+        except websocket.WebSocketException as e:
+            return (None, None, spd_base.es(e))  # websocket错误
+        except Exception as e:
+            return (None, None, spd_base.es(e))  # 其他错误
+
+        if self.debug:  # 如果开启了调试输出,则打印接收到的消息
+            print('< RECV %s' % message_json)
+
+        if "method" in message:
+            # 接收到事件报文,尝试进行回调处理
+            method = message['method']
+            if method in self.event_handlers:
+                try:
+                    self.event_handlers[method](**message['params'])
+                except Exception as e:
+                    logger.warning("callback %s exception %s" % (method, py_util.get_trace_stack()))
+            return (0, 1, '')
+        elif "id" in message:
+            # 接收到结果报文
+            msg_id = message["id"]
+            if msg_id in self.method_results:
+                self.method_results[msg_id] = message  # 得到了等待的对应结果,则记录下来
+                return (1, 0, '')
+        else:
+            logger.warning("unknown CDP message: %s" % (message))
+            return (None, None, 'unknown CDP message.')
+        return (0, 0, '')
+
+    def recv_loop(self, wait_result=False, timeout=1):
+        """在指定的时间范围内进行接收处理.可告知是否必须等到结果或超时才结束;
+           返回值:(结果或事件数,错误消息)
+                    (None,错误消息) - 通信错误;
+                    (0,'') - 超时;
+        """
+        wait = spd_base.waited_t(timeout)
+        while True:  # 真正按照总的最大超时时间进行循环
+            rcnt, ecnt, err = self._recv(0.05)  # 尝试进行一次接收处理
+            if rcnt is None:
+                return (None, err)
+            if wait_result:  # 如果要求必须等待回应结果
+                if rcnt:  # 判断结果数
+                    return (rcnt, '')
+            else:
+                rcnt += ecnt
+                if rcnt:  # 判断结果数或事件数
+                    return (rcnt, '')
+            if wait.timeout():
+                break
+        return (0, '')
+
     def _call(self, message, timeout=5):
         """发送tab操纵请求对象.
-           返回值:None超时;其他为结果对象"""
+           返回值:(结果对象,错误消息)
+                (None,'') - 超时;
+                (None,错误消息) - 错误;
+                (结果对象,'') - 正常返回
+        """
         if 'id' not in message:
             self._cur_id += 1
             message['id'] = self._cur_id
@@ -144,114 +220,50 @@ class Tab(object):
                 self._open_websock()
                 self._websocket.send(msg_json)  # 重新发送请求
 
-            rst = self._recv_loop(True, timeout)  # 循环接收,要求必须尝试等待结果
+            rst = self.recv_loop(True, timeout)  # 循环接收,要求必须尝试等待结果
+            if rst[1]:
+                return None, rst[1]  # 出错了
             if rst[0]:
-                return self.method_results[msg_id]
+                return self.method_results[msg_id], ''  # 正常返回
             else:
-                return None
+                return None, ''  # 等待超时,需要继续尝试接收
 
         finally:
-            del self.method_results[msg_id]
-
-    def _recv(self, timeout=0.01):
-        """尝试进行一次接收处理.
-           返回值:(None,None)通信错误;(0,0)超时;其他为(结果数,事件数)"""
-        if not self._websocket:
-            return (None, None)
-
-        try:
-            self._websocket.settimeout(timeout)
-            message_json = self._websocket.recv()
-            message = json.loads(message_json)  # 接收到json消息后就转换为对象
-        except websocket.WebSocketTimeoutException:
-            return (0, 0)  # 超时了,什么都没有收到
-        except (websocket.WebSocketException, OSError):
-            # logger.error("websocket exception", exc_info=True)
-            return (None, None)  # websocket错误了
-        except Exception as e:
-            # logger.error("exception", exc_info=True)
-            return (None, None)  # 其他错误
-
-        if self.debug:  # pragma: no cover
-            print('< RECV %s' % message_json)
-
-        if "method" in message:
-            # 接收到事件了,尝试进行处理
-            method = message['method']
-            if method in self.event_handlers:
-                try:
-                    self.event_handlers[method](**message['params'])
-                except Exception as e:
-                    logger.warn("callback %s exception %s" % (method, py_util.get_trace_stack()))
-            return (0, 1)
-        elif "id" in message:
-            # 接收到结果了,记录下来
-            msg_id = message["id"]
-            if msg_id in self.method_results:
-                self.method_results[msg_id] = message
-                return (1, 0)
-
-        # logger.warn("unknown message: %s" % message)
-        message = None
-        return (0, 0)
-
-    def _recv_loop(self, wait_result=False, timeout=1):
-        """在指定的时间范围内进行接收处理.可告知是否必须等到结果或超时才结束;
-           返回值:(None,None)通信错误;(0,0)超时;其他为(结果数,事件数)"""
-        one_timeout = 0.01
-        loop = int(timeout // one_timeout) + 1
-        bt = time.time()
-        i = 0
-        while i < loop or time.time() < bt + timeout:  # 真正按照总的最大超时时间进行循环
-            i += 1
-            rst = self._recv(one_timeout)  # 尝试进行一次接收处理
-            if rst[0] is None:
-                break
-            if wait_result:
-                if rst[0]:  # 如果要求必须等待回应结果,则强制判断结果数
-                    return rst
-            else:
-                if rst[0] or rst[1]:  # 否则判断结果数或事件数
-                    return rst
-            if rst[0] is None:
-                return rst
-        return (0, 0)
-
-    def __getattr__(self, item):
-        """拦截未定义操作,转换为对应的协议方法伪装"""
-        attr = GenericAttr(item, self)
-        setattr(self, item, attr)
-        return attr
+            del self.method_results[msg_id]  # 无论结果如何,当前请求的期待应答登记结果都删除,避免字典无限增大
 
     def _on_Page_javascriptDialogOpening(self, url, message, type, hasBrowserHandler, *args, **kwargs):
         """拦截页面对话框"""
-        if type == 'alert' and self.disable_alert_url_re and spd_base.query_re_str(url, self.disable_alert_url_re):
-            self._handle_js_dialog(False)
 
-    def _handle_js_dialog(self, enable=False, proto_timeout=10):
-        """可在对话框事件回调中进行调用,禁用或启用页面上的js对话框"""
-        try:
-            rst = self.call_method('Page.handleJavaScriptDialog', accept=enable, _timeout=proto_timeout)
-            return True, ''
-        except Exception as e:
-            return False, spd_base.es(e)
+        def _handle_js_dialog(enable=False, proto_timeout=10):
+            """在对话框事件回调中进行调用,禁用或启用页面上的js对话框"""
+            try:
+                rst = self.call_method('Page.handleJavaScriptDialog', accept=enable, _timeout=proto_timeout)
+                return True, ''
+            except Exception as e:
+                return False, spd_base.es(e)
+
+        if type == 'alert' and self.disable_alert_url_re and spd_base.query_re_str(url, self.disable_alert_url_re):
+            _handle_js_dialog(False)
 
     def call_method(self, _method, *args, **kwargs):
         """调用协议方法,核心功能.具体请求交互细节可参考协议描述. https://chromedevtools.github.io/devtools-protocol/
            返回值:None超时;其他为回应结果"""
-
+        self.last_err = None
         if not self._websocket or (self.cycle and self.cycle.hit()):
             self.reopen()  # 进行ws的重连
 
         # 不允许使用普通参数传递,必须为key/value型参数
         timeout = kwargs.pop("_timeout", self.timeout)  # 额外摘取超时控制参数
 
-        result = self._call({"method": _method, "params": kwargs}, timeout=timeout)  # 发起调用请求
+        result, err = self._call({"method": _method, "params": kwargs}, timeout=timeout)  # 发起调用请求
+        if err:
+            self.last_err = f'call_method<{_method}> fail: {err}'
+
         if result is None:
             return None
 
         if 'result' not in result and 'error' in result:
-            # logger.warn("%s error: %s" % (_method, result['error']['message']))
+            # logger.warning("%s error: %s" % (_method, result['error']['message']))
             msg = result.get('error', {}).get('message', 'unknown')
             raise CallMethodException("calling method: %s error: %s" % (_method, msg))
 
@@ -381,42 +393,47 @@ class Tab(object):
         r = self._data_requestIDs[requestId]
         r.append(encodedDataLength)  # 记录当前请求的完整应答内容长度,回应阶段3
 
-    def recv_loop(self, loops=50):
-        """驱动接收循环,处理各类事件与消息应答"""
-        for i in range(loops):
-            rc, mc = self._recv_loop(timeout=0.2)
-            if rc is None:
-                break
-            if rc + mc == 0:
-                break
-
     def get_request_urls(self, hold_url, url_is_re=True):
         """获取记录过的请求url列表"""
-        self.recv_loop()
-        if hold_url is None:  # 没有明确告知拦截url的模式,则返回全部记录的请求url
-            return list(self._data_requestWillBeSent.keys())
 
-        rst = []
-        if url_is_re:
-            for url in self._data_requestWillBeSent.keys():
-                if spd_base.query_re_str(url, hold_url):  # 否则记录匹配的请求url
-                    rst.append(url)
-        else:
-            if self.get_request_info(hold_url):
-                rst.append(hold_url)
+        def _get():
+            if hold_url is None:  # 没有明确告知拦截url的模式,则返回全部记录的请求url
+                return list(self._data_requestWillBeSent.keys())
 
+            rst = []
+            if url_is_re:
+                for url in self._data_requestWillBeSent.keys():
+                    if spd_base.query_re_str(url, hold_url):  # 否则记录匹配的请求url
+                        rst.append(url)
+            else:
+                if self.get_request_info(hold_url):
+                    rst.append(hold_url)
+
+            return rst
+
+        rst = _get()
+        if len(rst) == 0:
+            self.recv_loop()
+            rst = _get()
         return rst
 
     def get_request_info(self, url=None):
         """获取已经发送的请求信息;如果给定了明确的url,则返回该url对应的最新请求列表;否则返回全部记录的请求字典."""
-        self.recv_loop()
-        if url:
-            if url in self._data_requestWillBeSent:
-                return self._data_requestWillBeSent[url]
+
+        def _get():
+            if url:
+                if url in self._data_requestWillBeSent:
+                    return self._data_requestWillBeSent[url]
+                else:
+                    return None
             else:
-                return None
-        else:
-            return self._data_requestWillBeSent
+                return self._data_requestWillBeSent
+
+        rst = _get()
+        if not rst or len(rst) == 0:
+            self.recv_loop()
+            rst = _get()
+        return rst
 
     def get_request_infos(self, url, url_is_re=False):
         """获取指定url的请求信息
@@ -441,13 +458,20 @@ class Tab(object):
 
     def get_response_info(self, reqid, stat=3):
         """根据请求id获取对应的回应信息,要求回应阶段满足stat的数量要求,返回值:None回应不存在;其他为回应对象."""
-        self.recv_loop()
-        if reqid not in self._data_requestIDs:
-            return None
-        r = self._data_requestIDs[reqid]
-        if len(r) != stat:
-            return None
-        return r
+
+        def _get():
+            if reqid not in self._data_requestIDs:
+                return None
+            r = self._data_requestIDs[reqid]
+            if len(r) != stat:
+                return None
+            return r
+
+        rst = _get()
+        if not rst or len(rst) == 0:
+            self.recv_loop()
+            rst = _get()
+        return rst
 
     def get_response_body(self, reqid, proto_timeout=10):
         """根据请求id获取回应body内容.需要先确保回应已经完成,否则出错.
@@ -456,7 +480,7 @@ class Tab(object):
         try:
             rst = self.call_method('Network.getResponseBody', requestId=reqid, _timeout=proto_timeout)
             if rst is None:
-                return None, 'Network.getResponseBody call fail.'
+                return None, 'Network.getResponseBody call fail: %s' % self.last_err
             body = rst['body']
             en = rst['base64Encoded']
             if en:
@@ -506,9 +530,9 @@ class Tab(object):
                 self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=1)
             return True
         except websocket.WebSocketBadStatusException as e:
-            logger.warn('reopen error: %s :: %d' % (self._websocket_url, e.status_code))
+            logger.warning('reopen error: %s :: %d' % (self._websocket_url, e.status_code))
         except Exception as e:
-            logger.warn('reopen error: %s :: %s' % (self._websocket_url, py_util.get_trace_stack()))
+            logger.warning('reopen error: %s :: %s' % (self._websocket_url, py_util.get_trace_stack()))
             return False
 
     def close(self):
@@ -558,7 +582,7 @@ class Browser(object):
         try:
             return rp.json()
         except Exception as e:
-            logger.warn('json decode fail:\n%s' % rp.text)
+            logger.warning('json decode fail:\n%s' % rp.text)
             return None
 
     def list_tab(self, timeout=None, backinit=True, req_event_filter=None, excludes={}):
@@ -571,7 +595,7 @@ class Browser(object):
 
         tab_jsons = self._load_json(rp)
         if tab_jsons is None:
-            logger.warn(dst_url)
+            logger.warning(dst_url)
 
         for tab_json in tab_jsons:
             if tab_json['type'] != 'page':  # pragma: no cover
@@ -929,7 +953,7 @@ class spd_chrome:
 
         def get_downtmp(rrinfo, downpath):
             """在回应获取失败的时候,尝试查找下载文件"""
-            if len(rrinfo) != 2:
+            if len(rrinfo) != 3:
                 return None
             rsp_heads = rrinfo[1].get('headers', None)
             if rsp_heads is None:
@@ -947,17 +971,20 @@ class spd_chrome:
                 os.remove(filepath)  # 下载并读取成功了,则删除当前的文件
             return filedata
 
-        req_lst, msg = self.wait_request_infos(tab, url, timeout, url_is_re)
+        # 先等待请求信息被发出
+        req_lst, msg = self.wait_request_infos(tab, url, 10, url_is_re)
         if msg:
             return None, msg
         if req_lst is None or len(req_lst) == 0:
             return None, 'request waiting.'
 
+        # 再等待请求的回应内容到达
         _, reqid = req_lst[-1]
-        rrinfo = wait_response(reqid, timeout)  # 内部循环等待请求的回应内容到达
+        rrinfo = wait_response(reqid, timeout)
         if not rrinfo:
             return None, 'response waiting'
 
+        # 之后再提取回应body
         rst, msg = t.get_response_body(reqid, self.proto_timeout)
         if rst is None or msg and t.downpath:
             # 回应提取不成功的时候,还需要尝试判断是否有下载文件
@@ -1297,7 +1324,7 @@ class spd_chrome:
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '' or html == '':  # html内容导出错误
                 if msg:
-                    logger.warn('wait (%s) take error <%s> :\n%s' % (cond, msg, html))
+                    logger.warning('wait (%s) take error <%s> :\n%s' % (cond, msg, html))
                 else:
                     msg = 'waiting'
             else:  # html内容导出完成,需要检查完成条件
@@ -1314,7 +1341,7 @@ class spd_chrome:
                             msg = ''  # 如果有串包含的结果,也认为匹配成功了.
 
                 if msg != '':
-                    logger.warn('%s wait (%s) query error <%s> :\n%s' % (t.last_url, cond, msg, html))
+                    logger.warning('%s wait (%s) query error <%s> :\n%s' % (t.last_url, cond, msg, html))
                 elif check_cond(isnot, r):
                     break  # 如果条件满足,则停止循环
                 else:
