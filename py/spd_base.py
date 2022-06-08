@@ -251,6 +251,15 @@ def extract_xml_text(xstr):
     return ret
 
 
+def clean_xml_tags(xstr, tags=['em']):
+    """清理删除指定的xml标签"""
+    ret = xstr.strip()  # 字符串两端净空
+    for tag in tags:
+        exp = f'<{tag}[^>]*?/>|<{tag}[^>]*?>|</{tag}>'
+        ret = re.sub(exp, '', ret)  # 丢弃自闭合节点
+    return ret
+
+
 # 可进行多次xpath查询的功能对象
 class xpath:
     def __init__(self, cntstr=None, try_format=True, fixNode='-'):
