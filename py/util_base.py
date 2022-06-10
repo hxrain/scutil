@@ -210,9 +210,23 @@ def append_lines(fname, dats, encoding=None):
         return False
 
 
-def clean_blank_line(txt):
+def clean_blank_line(txt, dst='\n'):
     """删除文本中的空白行(只由空白和回车符构成的行)"""
-    return re.sub(r'\n[\s\t]*\r?\n', '\n', txt)
+    return re.sub(r'\n[\s\t]*\r?\n', dst, txt)
+
+
+def clean_blank_str(txt):
+    """删除文本中的空白内容(由空白和回车符构成的片段)"""
+    return re.sub(r'[\r\n\s\t]+', '', txt)
+
+
+def clean_xml_tags(xstr, tags=['em']):
+    """清理删除指定的xml标签"""
+    ret = xstr.strip()  # 字符串两端净空
+    for tag in tags:
+        exp = f'<{tag}(\s+[^>]*)?/>|<{tag}(\s+[^>]*)?>|</{tag}>'
+        ret = re.sub(exp, '', ret)  # 丢弃自闭合节点
+    return ret
 
 
 def cmp_file_extname(aname, bname, like=True):
