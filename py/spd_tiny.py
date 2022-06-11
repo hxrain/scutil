@@ -675,7 +675,6 @@ class spider_base:
         self.source.spider = self  # 给采集源对象绑定当前的爬虫对象实例
         self.http.timeout = self.source.http_timeout
         self.begin_time = 0
-        self.meter = tick_meter(source.interval)
 
     # 对采集源待调用方法进行统一包装,防范意外错误
     def call_src_method(self, method, *args):
@@ -878,9 +877,6 @@ class spider_base:
 
     def run(self, dbs):
         """对当前采集任务进行完整流程处理:概览循环与细览循环"""
-        if not self.meter.hit():
-            return False
-
         self.source.stat.clear()
         self.reqs = 0
         self.rsps = 0
@@ -1114,6 +1110,7 @@ class collect_manager:
     def __init__(self, dbs, threads=0):
         self.dbs = dbs
         self.spiders = []
+        self.sources = []
         self.on_idle = self._on_idle
         self.threads = threads
         if threads:
@@ -1137,8 +1134,6 @@ class collect_manager:
             source_t = m.source_t
 
         src = source_t()  # 默认传递采集源的类或被动态装载后得到了采集源的类,创建实例
-        src.module_name = mname
-
         # 检查字段有效性
         if len(src.on_list_rulenames) == 0:
             _logger.warn('<%s> not setup info field.' % src.name)
@@ -1149,11 +1144,28 @@ class collect_manager:
                 _logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
                 return False
 
-        src.id = self.dbs.register(src.name, src.url, src.id)
-        if src.id == -1:
+        sid = self.dbs.register(src.name, src.url)
+        if sid == -1:
             return False
 
-        spd = spider_t(src)
+        meter = tick_meter(src.interval)  # 采集源运行间隔计时器
+        spdmeta = (spider_t, source_t, sid, mname, meter)
+        self.sources.append(spdmeta)  # 记录采集源爬虫元数据
+        self._make_spider(spdmeta, src)  # 根据采集源爬虫元数据生成首次运行需要的爬虫实例
+        return True
+
+    def _make_spider(self, spdmeta, src=None):
+        """根据采集源类型等参数生成爬虫实例"""
+        meter = spdmeta[4]
+        if not meter.hit():
+            return False  # 对于本轮不运行的采集源,跳过
+
+        if src is None:
+            src = spdmeta[1]()
+        src.id = spdmeta[2]
+        src.module_name = spdmeta[3]
+        spd = spdmeta[0](src)  # 重新构造当前采集源对应的爬虫实例
+
         if src.order_level:
             self.spiders.insert(0, spd)
         else:
@@ -1162,9 +1174,14 @@ class collect_manager:
 
     @guard(locker)
     def _inc_infos_(self, inc):
+        """记录每轮抓取的信息数量.可能被多线程并发,所以需要锁定."""
         self.infos += inc
 
     def _run_one(self, spd):
+        """真正执行爬虫实例的过程"""
+        if spd is None:
+            return  # 本轮无需运行的爬虫实例
+
         _logger.info("source <%s{%3d}> begin[%d+%d:%d]. <%s>", spd.source.name, spd.source.id, spd.source.list_url_cnt,
                      spd.source.list_inc_cnt,
                      spd.source.list_max_cnt, spd.source.url)
@@ -1175,10 +1192,20 @@ class collect_manager:
 
     def run(self):
         """对全部爬虫逐一进行调用.返回值:是否要求停止"""
+
+        if len(self.spiders) == 0:  # 进行预处理,适应多次运行时的爬虫实例初始化
+            for spdmeta in self.sources:
+                self._make_spider(spdmeta)
+
+        total_spiders = len(self.spiders)
+        if total_spiders == 0:
+            return None  # 预处理后确实没有需要运行的采集源,直接结束
+        else:
+            _logger.info("spiders will run <%d> ..." % total_spiders)
+
         self.infos = 0
         stop = False
-        total_spiders = len(self.spiders)
-        _logger.info("total sources <%3d>", total_spiders)
+
         if self.threads:  # 使用多线程并发运行全部的爬虫
             task_ids = [i - 1 for i in range(len(self.spiders), 0, -1)]  # 待处理任务索引列表,倒序,便于后面pop使用
             workers = []  # 工作线程对象列表
@@ -1200,23 +1227,30 @@ class collect_manager:
                 if self.on_idle and self.on_idle():
                     stop = True
                     break
-                _logger.info("progress <%3d/%d>", idx, total_spiders)
+                if total_spiders > 1:
+                    _logger.info("progress <%d/%d>", idx, total_spiders)
                 self._run_one(spd)
                 idx += 1
 
-        _logger.info("total sources <%d>. new infos <%d>.", total_spiders, self.infos)
         for spd in self.spiders:
+            if spd is None or len(spd.source.stat) == 0:
+                continue
             if len(spd.source.stat) == 1 and 200 in spd.source.stat:
                 continue
-            _logger.info("<%s> | source <%s {%d}> | stat <%s> | %s", spd.source.module_name, spd.source.name, spd.source.id, spd.source.stat, spd.source.url)
+            _logger.warning("<%s> | source <%s {%d}> | stat <%s> | %s", spd.source.module_name, spd.source.name, spd.source.id, spd.source.stat, spd.source.url)
+        _logger.info("spiders collect <%d>.", self.infos)
 
+        # 爬虫实例用过一次就作废
+        self.spiders.clear()
         return stop
 
     def close(self):
         self.spiders.clear()
+        self.sources.clear()
+        self.sources = None
         self.spiders = None
         self.dbs = None
-        _logger.info('tiny spider collect manager is stop.')
+        _logger.info('end.')
 
 
 def make_collect_mgr(log_path='./log_spd_tiny.txt', db_path='spd_tiny.sqlite3', threads=0, log_con_lvl=logging.INFO,
@@ -1258,7 +1292,18 @@ def run_collect_sys(srcs=None, params=None):
         parser.add_argument("--root", type=str, default='src', help="source file root path")
         parser.add_argument("--thread", type=int, default=0, help="enable thread mode.")
         parser.add_argument("--debug", type=int, default=0, help="enable debug info output.")
-        return parser.parse_args()
+        parser.add_argument("--loop_count", type=int, default=1, help="enable long loop mode,loops count.")
+        parser.add_argument("--loop_sleep", type=int, default=30, help="long loop mode,sleep second.")
+
+        args = parser.parse_args()
+        if params:
+            for key in args.__dict__.keys():
+                if key in params:  # 尝试使用函数入参进行命令行参数的修正
+                    dv = parser.get_default(key)
+                    if dv == args.__dict__[key]:  # 命令行参数是默认值的时候,进行入参的校正
+                        args.__dict__[key] = params[key]
+
+        return args
 
     args = get_params()
 
@@ -1270,20 +1315,9 @@ def run_collect_sys(srcs=None, params=None):
     sys.path.append(curdir + f'/{rootpath}')
 
     # 获取运行文件名称作为标记
-    if params and 'tag' in params:
-        args.tagname = params.get('tag')
     tag = args.tagname if args.tagname != '' else re.split('[\\\\/]', sys.argv[0])[-1].split('.')[0]
-
-    if params and 'dbname' in params:
-        args.dbname = params.get('dbname')
     dbname = args.dbname if args.dbname != '' else './%s.sqlite3' % tag
-
-    if params and 'logname' in params:
-        args.logname = params.get('logname')
     logname = args.logname if args.logname != '' else './%s.log' % tag
-
-    if params and 'thread' in params:
-        args.thread = params.get('thread')
 
     # 获取采集系统对象并打开数据库与日志
     cm = make_collect_mgr(logname, dbname, args.thread,
@@ -1317,6 +1351,18 @@ def run_collect_sys(srcs=None, params=None):
                 continue
             cm.register('%s.%s' % (rootpath, s[:-3]))
 
+    loop_sleep = max(5, args.loop_sleep)
     # 运行全部采集爬虫
-    cm.run()
+    if args.loop_count == -1:
+        while True:
+            cm.run()
+            _logger.info('sleeping ...')
+            time.sleep(loop_sleep)
+    else:
+        for i in range(max(1, args.loop_count)):
+            if i != 0:
+                _logger.info('sleeping ...')
+                time.sleep(loop_sleep)
+            cm.run()
+
     cm.close()
