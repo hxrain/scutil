@@ -476,7 +476,8 @@ class source_base:
         if mode == 'classic':
             rc, vcode = self.http_take(rec_svr_url, vdata)
             if rc != 200 or not vcode:
-                vcode = gd.input_validcode(vdata)  # 自动识别出错时进行手动处理
+                with locker:  # 单进程内多线程并发时,对话框UI需要进行锁保护调用
+                    vcode = gd.input_validcode(vdata)  # 自动识别出错时进行手动处理
             if not vcode:
                 return None, f'vcode calc error: {rc}'
             return vcode, ''
@@ -1112,8 +1113,8 @@ class collect_manager:
         self.spiders = []
         self.sources = []
         self.on_idle = self._on_idle
-        self.threads = threads
-        if threads:
+        self.threads = max(1, threads)
+        if self.threads > 1:
             locker.init()
 
         _logger.info('tiny spider collect manager is starting ...')
@@ -1206,7 +1207,7 @@ class collect_manager:
         self.infos = 0
         stop = False
 
-        if self.threads:  # 使用多线程并发运行全部的爬虫
+        if self.threads > 1:  # 使用多线程并发运行全部的爬虫
             task_ids = [i - 1 for i in range(len(self.spiders), 0, -1)]  # 待处理任务索引列表,倒序,便于后面pop使用
             workers = []  # 工作线程对象列表
             while len(task_ids) or len(workers):
