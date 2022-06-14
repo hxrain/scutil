@@ -350,7 +350,7 @@ class source_base:
             return True
 
     def chrome_hold(self, url, chrome, tab, timeout=None, url_is_re=False):
-        """使用chrome控制器,在指定的tab上提取指定url的回应内容"""
+        """在指定的tab上提取指定url的回应内容"""
         if timeout is None:
             timeout = self.chrome_timeout
 
@@ -369,13 +369,13 @@ class source_base:
         return True
 
     def chrome_exec(self, js, chrome, tab, cond_re, is_run=False, body_only=True, timeout=None, frmSel=None, cond_xp=None):
-        """使用chrome控制器,在指定的tab上运行指定的js代码(或代码列表),完成条件是cond_re"""
+        """在指定的tab上运行指定的js代码(或代码列表),完成条件是cond_re"""
 
         def exec(s):
             if is_run:
-                r = chrome.run(tab, s)  # 控制浏览器访问入口url
+                r = chrome.run(tab, s)  # 附带dom100.js运行指定的脚本
             else:
-                r = chrome.exec(tab, s)  # 控制浏览器访问入口url
+                r = chrome.exec(tab, s)  # 不附带dom100.js运行指定的脚本
             if r[1]:
                 self.make_http_result('', 993, 'chrome exec js fail.')
                 return False
@@ -394,24 +394,35 @@ class source_base:
             return self.chrome_wait(chrome, tab, cond_re, body_only, timeout, frmSel)
 
     def chrome_cookies(self, url, chrome, tab):
-        """使用chrome控制器,在指定的tab上获取指定url对应的cookie值列表"""
+        """在指定的tab上获取指定url对应的cookie值列表
+                url - 用于匹配cookie作用域和路径
+            返回值:None失败,或[cookie信息]列表
+        """
         cks, msg = chrome.query_cookies(tab, url)
         if msg:
             return None
         return cks
 
-    def chrome_goto(self, url, chrome, tab):
-        """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
-        chrome.stop(tab)
+    def chrome_goto(self, url, chrome, tab, preclean=True):
+        """在指定的tab上浏览指定的url页面,不进行完成等待
+                preclean - 是否在浏览之前进行页面预清空,避免前后内容干扰等待条件的判断.
+            返回值:是否成功
+        """
+        chrome.stop(tab, preclean)
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
             self.make_http_result('', 900, 'chrome open fail. %s' % r[2])
             return False
         return True
 
-    def chrome_take(self, url, chrome, tab, cond_re, body_only=False, frmSel=None):
-        """使用chrome控制器,在指定的tab上抓取指定的url页面,完成条件是cond_re"""
-        chrome.stop(tab)
+    def chrome_take(self, url, chrome, tab, cond_re, body_only=False, frmSel=None, preclean=True):
+        """便捷函数结合goto/wait功能,在指定的tab上浏览指定的url页面,根据完成条件cond_re进行结果等待.
+                body_only - 是否仅返回body节点内部的内容.
+                frmSel - iframe选取器,用于抓取该iframe内部的内容.
+                preclean - 是否在浏览之前进行页面预清空,避免前后内容干扰等待条件的判断.
+            返回值:是否成功
+        """
+        chrome.stop(tab, preclean)
         r = chrome.goto(tab, url)  # 控制浏览器访问入口url
         if not r[0]:
             self.make_http_result('', 900, 'chrome open fail. %s' % r[2])
@@ -419,7 +430,7 @@ class source_base:
         return self.chrome_wait(chrome, tab, cond_re, body_only, frmSel=frmSel)
 
     def chrome_post(self, url, chrome, data, tab, cond_re, body_only=False, contentType="application/x-www-form-urlencoded"):
-        """使用chrome控制器,在指定的tab上发起ajax/post请求url页面,完成条件是cond_re"""
+        """在指定的tab上发起ajax/post请求url页面,完成条件是cond_re"""
         r = chrome.post(tab, url, data, contentType)  # 控制浏览器访问入口url
         if r[1]:
             self.make_http_result('', 996, r[1])
@@ -427,7 +438,7 @@ class source_base:
         return self.chrome_wait(chrome, tab, cond_re, body_only)
 
     def chrome_get(self, url, chrome, tab, cond_re, body_only=False):
-        """使用chrome控制器,在指定的tab上发起ajax/get请求url页面,完成条件是cond_re"""
+        """在指定的tab上发起ajax/get请求url页面,完成条件是cond_re"""
         r = chrome.get(tab, url)  # 控制浏览器访问入口url
         if r[1]:
             self.make_http_result('', 995, r[1])
@@ -841,7 +852,7 @@ class spider_base:
                 spd_sleep(self.source.list_url_sleep)  # 根据需要进行概览采集休眠
 
             if not self.call_src_method('on_list_take', list_url, req_param):
-                self.source.log_warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                self.source.log_warn('list_url http fail <%s> :: %d - %s' % (list_url, self.http.get_status_code(), self.http.get_error()))
                 self.source.rec_stat(self.http.get_status_code())
                 continue
 

@@ -1155,9 +1155,11 @@ class spd_chrome:
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def stop(self, tab):
+    def stop(self, tab, clean=False):
         """控制指定的tab页停止浏览.返回值:错误消息,空正常"""
         t = self._tab(tab)
+        if clean:
+            self.clean(t)
         return t.stop(self.proto_timeout)
 
     def goto(self, tab, url, retry=3):
@@ -1235,17 +1237,12 @@ class spd_chrome:
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def clean(self, tab):
+    def clean(self, tab, retry=1):
         """清空当前tab页的内容,返回值:错误信息.空串正常."""
         txt, msg = self.exec(tab, "document.documentElement.innerHTML='';")
-        if msg:
-            time.sleep(1)
+        if msg and retry:
+            time.sleep(retry)
             txt, msg = self.exec(tab, "document.documentElement.innerHTML='';")
-        return msg
-
-    def dhtml_clear(self, tab):
-        """清空指定tab页当前的动态渲染后的html内容.返回值:错误消息,空为正常."""
-        rst, msg = self.exec(tab, "document.documentElement.innerHTML='';")
         return msg
 
     def exec(self, tab, js):
