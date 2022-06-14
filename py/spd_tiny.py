@@ -174,7 +174,7 @@ class source_base:
         self.info_upd_mode = False  # 是否开启该信息源的更新模式
         self.proxy_addr = None  # 代理服务器地址,格式为 http://192.168.20.108:808
         self.http_timeout = 60  # http请求超时时间,秒
-        self.chrome_timeout = 600  # chrome等待超时,秒
+        self.chrome_timeout = 300  # chrome等待超时,秒
         self.item_combs = items_comb()  # 信息列表组合管理器，便于对多分类组合进行遍历抓取
         self.list_url_idx = 0  # 当前概览页号
         self.list_begin_idx = 0  # 初始概览页号

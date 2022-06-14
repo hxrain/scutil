@@ -288,6 +288,11 @@ class waited_t:
         """用当前时间判断,是否超时了"""
         return time.time() >= self.end
 
+    def remain(self):
+        """获知剩余等待秒数"""
+        r = self.end - time.time()
+        return 0 if r <= 0 else r
+
 
 # 文件行输出器
 class append_line_t:

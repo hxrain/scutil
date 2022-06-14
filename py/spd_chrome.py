@@ -551,6 +551,24 @@ class Tab(object):
         except Exception as e:
             return None, spd_base.es(e)
 
+    def exec(self, js, proto_timeout=10):
+        """在tab页中运行js代码.返回值(运行结果,错误消息)"""
+        try:
+            rst = self.call_method('Runtime.evaluate', expression=js, returnByValue=True, _timeout=proto_timeout)
+            if rst is None:
+                return '', ''
+            ret = rst['result']
+            if 'value' in ret:
+                return ret['value'], ''
+            elif 'description' in ret:
+                return '', ret['description']
+            elif 'type' in ret and ret['type'] == 'undefined':
+                return '', ''
+            else:
+                return '', ret
+        except Exception as e:
+            return '', py_util.get_trace_stack()
+
     def stop(self, proto_timeout=10):
         """控制指定的tab页停止浏览.返回值:错误消息,空正常"""
         try:
@@ -875,9 +893,36 @@ def make_cookie_dct(cks):
 
 # 定义常见爬虫功能类
 class spd_chrome:
-    def __init__(self, proto_url="http://127.0.0.1:9222"):
+    def __init__(self, proto_url="http://127.0.0.1:9222", enable_wait_evt=False):
         self.browser = Browser(proto_url)
         self.proto_timeout = 10
+        self.on_waiting = None if not enable_wait_evt else self.on_cb_waiting  # 等待事件回调
+
+    def on_cb_waiting(self, tab, page, loops, remain):
+        """默认等待事件回调函数,可进行外部idle驱动,或其他判定处理.
+            tab - 当前的tab对象
+            page - 本次获取的页面内容
+            loops - 目前已经循环等待过的次数
+            remain - 剩余等待时间,秒float
+            返回值:是否停止等待.
+        """
+        if loops:
+            if not tab.last_title:
+                # 在没有得到有效title的时候,尝试从html页面获取
+                tab.last_title = spd_base.query_re_str(page, '<title>(.*?)</title>', '')
+                if not tab.last_title:
+                    # 页面获取失败则尝试动态从tab中获取
+                    title, msg = tab.exec('document.title')
+                    if title != tab.last_url:
+                        tab.last_title = title  # 得到有效的title了,记录下来
+            else:
+                js = """document.title='等待<%d>次 剩余<%.02f>秒'""" % (loops, remain)
+                tab.exec(js)  # 等待中,修改title显示进度
+        elif tab.last_title:
+            js = """document.title='%s'""" % tab.last_title  # 等待完成,恢复原有title
+            tab.exec(js)
+
+        return False
 
     def open(self, url='', req_event_filter=None):
         """打开tab页,并浏览指定的url;返回值:(tab页标识id,错误消息)"""
@@ -1249,18 +1294,7 @@ class spd_chrome:
         """在指定的tab页中运行js代码.返回值(内容串,错误消息)"""
         try:
             t = self._tab(tab)
-            rst = t.call_method('Runtime.evaluate', expression=js, returnByValue=True, _timeout=self.proto_timeout)
-            if rst is None:
-                return '', ''
-            ret = rst['result']
-            if 'value' in ret:
-                return ret['value'], ''
-            elif 'description' in ret:
-                return '', ret['description']
-            elif 'type' in ret and ret['type'] == 'undefined':
-                return '', ''
-            else:
-                return '', ret
+            return t.exec(js, self.proto_timeout)
         except Exception as e:
             return '', py_util.get_trace_stack()
 
@@ -1300,9 +1334,6 @@ class spd_chrome:
 
     def wait(self, tab, cond, is_xpath, max_sec=60, body_only=False, frmSel=None):
         """在指定的tab页上,等待符合条件的结果出现,最大等待max_sec秒.返回值:(内容串,错误消息)"""
-        loops = max_sec * 2 if max_sec > 0 else 1  # 间隔0.5秒进行循环判定
-        xhtml = ''
-
         isnot, cond = parse_cond(cond)
 
         # 获取tab标识
@@ -1311,9 +1342,12 @@ class spd_chrome:
             return None, msg
 
         wait = spd_base.waited_t(max_sec)
+        xhtml = ''
+        loops = 0
         msg = 'waiting'
         # 进行循环等待
-        for i in range(loops):
+        while True:
+            loops += 1
             if t.id not in self.browser._tabs:
                 msg = 'TNE'
                 break
@@ -1340,8 +1374,12 @@ class spd_chrome:
                 if msg != '':
                     logger.warning('%s wait (%s) query error <%s> :\n%s' % (t.last_url, cond, msg, html))
                 elif check_cond(isnot, r):
+                    if self.on_waiting:
+                        self.on_waiting(t, html, 0, wait.remain())  # 给出完成通知
                     break  # 如果条件满足,则停止循环
                 else:
+                    if self.on_waiting and self.on_waiting(t, html, loops, wait.remain()):  # 给出外部回调事件
+                        break
                     msg = 'waiting'
 
             if wait.timeout():
