@@ -218,16 +218,20 @@ class source_base:
         return self.list_url_idx <= max_cnt
 
     def on_ready(self, req):
-        """准备进行采集动作了,可以返回入口url获取最初得到cookie等内容,也可进行必要的初始化或设置req请求参数"""
+        """进行采集初始动作,也可进行必要的初始化或设置req请求参数.
+            返回值:初始动作需要抓取的url地址,None则不抓取.
+        """
         self.list_url_idx = self.list_begin_idx
         return None
 
-    def on_end(self):
-        """全部概细览动作完成"""
-
     def on_ready_info(self, rsp):
-        """如果on_ready给出了入口地址,则这里会进行入口信息的处理.比如获取初始访问key;返回值告知是否继续抓取."""
+        """如果on_ready返回了初始地址,则这里会进行抓取结果的处理.比如获取最初的cookie等内容,获取初始访问key;
+            返回值:告知是否继续采集源的运行.
+        """
         return True
+
+    def on_end(self):
+        """全部概细览动作完成,可进行最后的收尾动作"""
 
     def on_list_format(self, rsp):
         """返回列表页面的格式化内容,默认对html进行新xhtml格式化;返回值:None告知停止循环;__EMPTY_PAGE__为跳过当前概览页;其他为xml格式内容"""

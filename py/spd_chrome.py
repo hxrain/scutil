@@ -604,7 +604,9 @@ class Browser(object):
             return None
 
     def list_tab(self, timeout=None, backinit=True, req_event_filter=None, excludes={}):
-        """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控"""
+        """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控.
+            返回值:[{'id': tabid, 'title': '', 'url': ''}]
+        """
         dst_url = "%s/json" % self.dev_url
         rp = requests.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
 
