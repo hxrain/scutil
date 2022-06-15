@@ -129,6 +129,19 @@ def adj_logger_stream(lg, lvl, stream_name='StreamHandler'):
     return rc
 
 
+def calc_paging(pages, cur, part=5):
+    """计算翻页列表页号范围,总页数pages,当前页cur,当前页号两侧列表数part
+        返回值:(begin,end)页号范围
+    """
+    pg_begin = max(1, cur - part)
+    pg_end = min(pages, cur + part)
+    if cur <= part:
+        pg_end = min(pages, part * 2 + 1)
+    if cur > pages - part:
+        pg_begin = max(1, pages - part * 2)
+    return pg_begin, pg_end
+
+
 def json_default(obj):
     """自定义对象导出json时使用的default转换函数"""
     dst = {}
