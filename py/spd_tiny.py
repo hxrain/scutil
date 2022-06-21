@@ -275,8 +275,13 @@ class source_base:
         """判断概览翻页循环是否应该结束.返回值:None则停止循环"""
         if self.item_combs.next():  # 调整到下一个组合数据
             return None  # 如果组合循环点归零,说明全部排列组合都已循环一轮,可以真正结束了.
+        self.on_next_plan()
         self.list_url_idx = self.list_begin_idx + self.check_list_adj  # 否则,翻页索引复位,准备继续抓取
         return True
+
+    def on_next_plan(self):
+        """item_combs组合器进行下一个组合值的生成时,可以进行相关的初始化动作"""
+        pass
 
     def on_list_plan(self):
         """对一个概览页完成遍历处理之后的事件.可告知当前采集计划的进度总量信息(对于组合遍历时可大致告知总体进度)"""
