@@ -385,7 +385,7 @@ class Tab(object):
         r = self._data_requestIDs[requestId]
         r.append(response)  # 记录当前请求的应答头,回应阶段2
 
-    def _on_loadingFinished(self, requestId, timestamp, encodedDataLength, shouldReportCorbBlocking, **args):
+    def _on_loadingFinished(self, requestId, timestamp, encodedDataLength, *arg, **args):
         """记录请求对应的完成信息"""
         if requestId not in self._data_requestIDs:
             return
