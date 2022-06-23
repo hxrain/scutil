@@ -536,7 +536,11 @@ import binascii
 
 
 def hexstr_to_chr(hex_str):
-    hex = hex_str.encode('utf-8')
+    """将hex字节数组或字符串转换为对应的文本串"""
+    if isinstance(hex_str, str):
+        hex = hex_str.encode('utf-8')
+    else:
+        hex = hex_str
     str_bin = binascii.unhexlify(hex)
     return str_bin.decode('utf-8')
 

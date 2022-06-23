@@ -5,10 +5,25 @@ from lxml.html.clean import Cleaner
 import re
 
 
-def get_node_val(html, tag, with_tag=False):
+def get_tag_child(html, tag, with_tag=False):
     """在html内容中,提取tag标签的内容,返回子节点内容列表"""
     rst = []
-    res = re.finditer("""<\s*(%s)?\s*[^>]*?>\s*(.*?)\s*<\s*/(%s)?\s*>""" % (tag, tag), html, re.DOTALL)
+    res = re.finditer("""<\s*(%s)\s*[^<>]*?>\s*(.*?)\s*<\s*/(%s)\s*>""" % (tag, tag), html, re.DOTALL)
+    for m in res:
+        if with_tag:
+            rst.append(m.group(0))
+        else:
+            rst.append(m.group(2))
+    return rst
+
+
+def get_tag_nest(html, tag='\w+', with_tag=False):
+    """在html内容中,提取tag标签嵌套的内容,返回子节点内容列表
+        单级嵌套和多级嵌套的返回值都是单一的.但多个并行嵌套的返回值是多个.
+    """
+    rst = []
+    exp = r"""(<\s*%s\s*[^<>]*?>[\n\s]*)+(.*?)([\n\s]*<\s*/%s\s*>)+""" % (tag, tag)
+    res = re.finditer(exp, html, re.DOTALL)
     for m in res:
         if with_tag:
             rst.append(m.group(0))
@@ -289,7 +304,7 @@ def remove_empty(xstr, cc_xpath, fixNode=' '):
     try:
         def rec(node):
             if node.text is not None:
-                r = re.sub(r'[\r\n\t ]', '', node.text)
+                r = re.sub(r'[\r\n\t ]+', '', node.text)
                 if r:
                     return True  # 存在有效数据,直接返回.
             childs = list(node)
