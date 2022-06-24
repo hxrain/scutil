@@ -186,7 +186,9 @@ class source_base:
         self.page_is_json = False  # 告知细览页面是否为json串,进而决定默认格式化方式
         self.list_url_sleep = 0  # 概览翻页的延迟休眠时间
         self.page_url_sleep = 0  # 细览翻页的延迟休眠时间
+        self.page_url_trys = 0  # 记录当前这是第几次重试抓取细览页
         self.last_list_items = -1  # 记录最后一次概览提取元素数量
+        self.last_list_url = None  # 记录最后一次概览地址
         self.list_take_retry = 1  # 概览页面抓取并提取信息的动作重试次数
         self.page_take_retry = 1  # 细览页面抓取动作重试次数
         self.on_list_empty_limit = 3  # 概览内容提取为空的次数上限,连续超过此数量时概览循环终止
@@ -296,18 +298,18 @@ class source_base:
             if rc is None: return None
             is_check_list_end = True
 
-        url = self.make_list_urlz(req)  # 先尝试生成0序列的概览列表地址
+        self.last_list_url = self.make_list_urlz(req)  # 先尝试生成0序列的概览列表地址
         self.list_url_idx += 1  # 概览页索引增加
-        if url is not None:
-            return url
+        if self.last_list_url is not None:
+            return self.last_list_url
 
         self.check_list_adj = 1  # 告知概览检查处于的位置,并对应的调整计数.
         if not self.can_listing() and not is_check_list_end:
             rc = self.check_list_end(req)  # 给出判断机会,如果循环条件不允许了,翻页采集结束
             if rc is None: return None
 
-        url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
-        return url
+        self.last_list_url = self.make_list_url(req)  # 再尝试调用1序列的概览地址生成函数
+        return self.last_list_url
 
     def make_http_result(self, body, code=200, err=''):
         """生成http抓取结果"""
@@ -722,6 +724,7 @@ class spider_base:
         take_stat = False
         info_stat = True
         for i in range(self.source.page_take_retry):
+            self.source.page_url_trys = i + 1  # 记录当前这是第几次重试抓取细览页
             if len(self.http.rst) and self.source.page_url_sleep:
                 self.source.log_info('page sleeping %d second ...' % self.source.page_url_sleep)
                 spd_sleep(self.source.page_url_sleep)  # 细览页面需要间隔休眠
