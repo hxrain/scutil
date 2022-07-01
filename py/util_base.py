@@ -31,7 +31,7 @@ def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
         max_baks:告知是否允许生成循环备份的日志文件
             None:使用单日志文件模式
             isinstance(max_baks,int):告知备份文件数量
-            isinstance(max_baks, tuple):告知备份文件数量,以及文件最大尺寸
+            isinstance(max_baks, tuple):告知(备份文件数量,以及文件最大尺寸)
         tag为不同日志记录器的标识名字
     """
 
