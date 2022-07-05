@@ -328,7 +328,7 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
         req['PROXY']=None       可告知请求使用的代理服务器,如'http://ip:port'
         req['HEAD']={}          可告知http请求头域信息
         req['BODY']={}          可告知http请求的body信息,注意需要同时给出正确的Content-Type
-        req['COOKIE']={}        可告知http请求的cookie信息
+        req['COOKIE']={}        可告知http请求的cookie信息,并进入cookie管理器进行多连接复用.(HEAD中的cookie仅单次请求有效)
         req['SSL_VERIFY']=False 可明确关闭SSL的证书校验
 
         rst['error']            记录过程中出现的错误
