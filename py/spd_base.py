@@ -590,9 +590,12 @@ class spd_base:
     def get_HEAD(self):
         return self.rst.get('HEAD', {})
 
-    # 获取会话回应cookie字典
-    def get_COOKIE(self):
-        return self.rst.get('COOKIE', {})
+    # 获取会话回应cookie字典,如果给出了名字则返回对应的值
+    def get_COOKIE(self, name=None):
+        cookies = self.rst.get('COOKIE', {})
+        if name is None:
+            return cookies
+        return cookies.get(name)
 
     # 获取回应内容,解压缩转码后的内容
     def get_BODY(self, dv=None):

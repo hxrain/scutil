@@ -158,6 +158,14 @@ class info_t:
 __EMPTY_PAGE__ = '__EMPTY__'
 
 
+def query_cookie_value(cookies, name):
+    """在cookies对象数组中查询对应名字的值"""
+    for cookie in cookies:
+        if cookie.get('name') == name:
+            return cookie.get('value')
+    return None
+
+
 class source_base:
     """概细览采集源基类,提供概细览采集所需功能的核心接口与数据结构定义"""
     proxy = None
@@ -642,7 +650,8 @@ class source_base:
 
             # 处理抓取错误
             if datalen < 0 or attdata is None:
-                msg = f'ATTACH TAKE FAIL: {info.title} | {dst_url}'
+                err = 'verification code error.' if datalen == -2 else 'download error.'
+                msg = f'ATTACH TAKE FAIL <{err}>: {info.title} | {dst_url}'
                 self.log_warn(msg)
                 errs.append(msg)
                 continue
@@ -913,6 +922,8 @@ class spider_base:
         # 进行入口请求的处理
         req_param = self._make_req_param(self.source)
         entry_url = self.call_src_method('on_ready', req_param)
+        if isinstance(entry_url, bool) and not entry_url:
+            return False
         if entry_url is not None:
             self.reqs += 1
             if self.http.take(entry_url, req_param):
