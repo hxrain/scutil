@@ -29,6 +29,7 @@ class imgui_dlg(imgui_mod_base):
 
     def on_load(self, im):
         self.win_size = im.main_win.get_size()
+        self.tex = imenv.imgae_tex(self.img)
 
     def on_mod(self, im):
         # 如果窗体不是最小化,那么就强制获取焦点
@@ -40,18 +41,25 @@ class imgui_dlg(imgui_mod_base):
             ret = True
             # 设置imgui内部窗口位置和样式
             flags = imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_SAVED_SETTINGS | imgui.WINDOW_NO_COLLAPSE | imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE
+
+            imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (30, 2))
             imgui.set_next_window_position(0, 0)
             imgui.set_next_window_size(self.win_size[0], self.win_size[1])
 
             # 绘制imgui交互窗口
             imgui.begin("1", False, flags)
+            imgui.set_window_font_scale(1.5)
+            imgui.image(self.tex.handle, self.img.width, self.img.height, border_color=(0, 0, 1, 1))
             imgui.set_keyboard_focus_here()  # 要求输入框具有焦点
             if not cln:
-                changed, self.value = imgui.input_text('', self.value, 20, imgui.INPUT_TEXT_CHARS_UPPERCASE)
+                changed, self.value = imgui.input_text('', self.value, 10, imgui.INPUT_TEXT_CHARS_UPPERCASE)
             else:  # 为了规避多次实例创建出现的遗留剩余数据的bug
-                _, _ = imgui.input_text(' ', '', 20, imgui.INPUT_TEXT_CHARS_UPPERCASE)
+                _, _ = imgui.input_text(' ', '', 10, imgui.INPUT_TEXT_CHARS_UPPERCASE)
                 ret = False
             imgui.end()
+
+            imgui.pop_style_var()
+
             return ret
 
         # 如果发现回车键被按下,则停止程序
@@ -68,9 +76,17 @@ def input_validcode(img, title='请输入'):
         style = imgui.get_style()
         style.window_rounding = 0
 
-    dlg = imgui_dlg(img)
-    imenv.im_env_loop(dlg, title=title, width=240, height=60, fullscreen=False, app_class=imgui_app_base, env_init_cb=env_init_cb)
-    return dlg.value
+        style.colors[imgui.COLOR_TEXT] = (0, 1, 1, 1)
+        style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (.75, .75, .75, 1)
+        style.colors[imgui.COLOR_FRAME_BACKGROUND] = (.3, .3, .3, 1)
+
+    try:
+        dlg = imgui_dlg(img)
+        imenv.im_env_loop(dlg, title=title, width=max(dlg.img.width, 180), height=dlg.img.height + 36,
+                          fullscreen=False, app_class=imgui_app_base, env_init_cb=env_init_cb, bg_color=(.7, .7, .7, 1))
+        return dlg.value
+    except Exception as e:
+        return None
 
 
 if __name__ == '__main__':

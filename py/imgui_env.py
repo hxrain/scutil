@@ -2,7 +2,7 @@ import imgui
 import glfw
 import time
 import OpenGL.GL as gl
-
+from PIL import Image
 import os
 
 
@@ -30,12 +30,24 @@ def mouse_in(x, y, w, h):
     return True
 
 
-class imgui_mod:
-    'imgui应用app的功能逻辑模块'
+class imgui_mod_base:
+    'imgui应用app的功能逻辑模块基类'
 
-    def on_load(self):
+    def on_load(self, im):
         """当前模块被装载的事件"""
         pass
+
+    def on_mod(self, im):
+        '''
+            进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.
+            此方法应该被子类重载,完成具体的功能逻辑
+        '''
+
+        return True
+
+
+class imgui_mod(imgui_mod_base):
+    'imgui应用app的功能逻辑模块'
 
     def _on_menu(self):
         # 绘制并处理主菜单条
@@ -95,7 +107,7 @@ class imgui_mod:
         # 右下窗口
         self.do_show_text('预处理', hpos[2], bar_height + vpos[1], widths[2], heights[1], '测试1234')
 
-        #imgui.show_demo_window()
+        # imgui.show_demo_window()
         return True
 
     def do_show_text(self, title, x, y, w, h, text, use_hsbar=False):
@@ -120,13 +132,46 @@ class imgui_mod:
         imgui.end()
 
 
-class imgui_app:
-    'imgui应用程序基类'
+class imgui_app_base:
+    """imgui应用程序基类"""
 
     def __init__(self):
         self.mods = []
         self.im = None
         pass
+
+    def on_init(self, im):
+        'app初始化:im为imgui环境对象'
+        self.im = im
+        for m in self.mods:
+            m.__dict__['im'] = im  # 给每个模块绑定imgui环境
+
+    def on_step(self):
+        '应用绘制的主逻辑:im为imgui环境对象;返回值告知程序是否继续.'
+        return self.on_app()
+
+    def on_app(self):
+        '进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.'
+        for m in self.mods:
+            if not m.on_mod(self.im):
+                return False
+        return True
+
+    def append_mod(self, mod_class, im):
+        '创建mod_class对象并放入内部模块链表'
+        self.append_modobj(mod_class(), im)
+
+    def append_modobj(self, mod, im):
+        '将mod对象放入内部模块链表'
+        mod.on_load(im)
+        self.mods.append(mod)
+
+
+class imgui_app(imgui_app_base):
+    """imgui应用程序扩展基类"""
+
+    def __init__(self):
+        super().__init__()
 
     def on_init(self, im):
         'app初始化:im为imgui环境对象'
@@ -147,32 +192,53 @@ class imgui_app:
         # imgui.get_io().fonts.add_font_default() #内置英文字体
         im.imgui_bk.refresh_font_texture()
 
-    def on_step(self):
-        '应用绘制的主逻辑:im为imgui环境对象;返回值告知程序是否继续.'
-        return self.on_app()
 
-    def on_app(self):
-        '进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.'
-        for m in self.mods:
-            if not m.on_mod(self.im):
-                return False
-        return True
+class imgae_tex:
+    def __init__(self, image=None):
+        self.handle = None
+        self.width = None
+        self.height = None
+        if image:
+            self.open(image)
 
-    def append_mod(self, mod_class):
-        '创建mod_class对象并放入内部模块链表'
-        self.append_modobj(mod_class())
+    def open(self, image):
+        """使用GL指令生成贴图，获取贴图ID"""
+        self.close()
+        try:
+            self.width = image.width
+            self.height = image.height
+            self.handle = gl.glGenTextures(1)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle)
 
-    def append_modobj(self, mod):
-        '将mod对象放入内部模块链表'
-        mod.on_load()
-        self.mods.append(mod)
+            # Set the texture wrapping parameters
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_REPEAT)
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
+            # Set texture filtering parameters
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+
+            image = image.transpose(Image.FLIP_TOP_BOTTOM)
+            img_data = image.convert("RGBA").tobytes()
+            gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, image.width, image.height, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+            return ''
+        except Exception as e:
+            return str(e)
+
+    def close(self):
+        self.width = None
+        self.height = None
+
+        if self.handle:
+            gl.glDeleteTextures(1, self.handle)
+            self.handle = None
 
 
 class imgui_env:
-    'imgui应用环境对象'
+    """imgui应用环境对象"""
 
     class glfw_win:
-        'glfw环境管理器'
+        """glfw环境管理器"""
 
         def __init__(self):
             # 窗口句柄初始化
@@ -213,6 +279,37 @@ class imgui_env:
             glfw.set_window_title(self.window, title)
             return True
 
+        def enable_topmost(self, val):
+            """开启窗口始终置顶"""
+            if self.window is None:
+                glfw.window_hint(glfw.FLOATING, glfw.TRUE if val else glfw.FALSE)
+            else:
+                glfw.set_window_attrib(self.window, glfw.FLOATING, glfw.TRUE if val else glfw.FALSE)
+            return True
+
+        def is_minimize(self):
+            """判断是否处于最小化状态"""
+            if self.window is None:
+                return False
+            return glfw.get_window_attrib(self.window, glfw.ICONIFIED)
+
+        def set_focus(self):
+            """设置窗口聚焦"""
+            if self.window is None:
+                return False
+            glfw.focus_window(self.window)
+            return True
+
+        def focused(self):
+            """判断窗口是否聚焦"""
+            if self.window is None:
+                return False
+            return glfw.get_window_attrib(self.window, glfw.FOCUSED)
+
+        def enable_resize(self, val):
+            """是否可以调整窗口尺寸"""
+            glfw.window_hint(glfw.RESIZABLE, 1 if val else 0)
+
         def get_size(self):
             """获取窗口尺寸"""
             if self.window is None:
@@ -239,7 +336,7 @@ class imgui_env:
                 self.window = None
             glfw.terminate()
 
-    def __init__(self, app, title='test测试imgui', width=1024, height=768, fullscreen=False):
+    def __init__(self, env_init_cb=None, title='test测试imgui', width=1024, height=768, fullscreen=False, bg_color=(.2, .2, .2, 1)):
         '初始化imgui应用环境'
         from imgui.integrations.glfw import GlfwRenderer
         self.keys_stat = {}
@@ -248,19 +345,26 @@ class imgui_env:
         self.font_tag_en = '英文s'
 
         imgui.create_context()
-        self.app = app
         # 生成glfw环境的对象
         self.main_win = self.glfw_win()
+        # 进行窗口环境初始化
+        if env_init_cb:
+            env_init_cb(self.main_win)
         # 创建glfw绘图窗口
         self.main_win.open(title, width, height, fullscreen)
         # 定义绘图窗口背景色
-        self.bg_color = (.2, .2, .2, 1)
+        self.bg_color = bg_color
         # 清空背景
         self.clean()
         # 调整窗口位置
         self.main_win.set_pos()
         # 创建imgui绘图后端
         self.imgui_bk = imgui.integrations.glfw.GlfwRenderer(self.main_win.window)
+
+    def bind(self, app):
+        if app is None:
+            return
+        self.app = app
         # 调用app对象的初始化事件
         self.app.on_init(self)
 
@@ -319,15 +423,15 @@ class imgui_env:
         glfw.swap_buffers(self.main_win.window)
 
     def need_stop(self):
-        '判断gl窗口是否需要关闭'
+        """判断gl窗口是否需要关闭"""
         return glfw.window_should_close(self.main_win.window)
 
     def set_stop(self):
-        '设置,停止应用循环'
+        """设置,停止应用循环"""
         glfw.set_window_should_close(self.main_win.window, 1)
 
     def is_key_down(self, keys):
-        '检查是否有ctrl+字母等组合键被按下'
+        """检查是否有ctrl+字母等组合键被按下"""
         if not keys: return False
         chars = keys.replace(' ', '').split('+')
         for key in chars:
@@ -350,6 +454,18 @@ class imgui_env:
                 return False
         return True
 
+    def chk_key_down(self, keys, cln=True):
+        """检查给定的keys键值是否被按下"""
+        if isinstance(keys, int):
+            keys = [keys]
+        rst = []
+        for k in keys:
+            if imgui.get_io().keys_down[k]:
+                rst.append(k)
+                if cln:
+                    imgui.get_io().keys_down[k] = 0
+        return rst
+
     def is_key_press(self, keys):
         """检查指定的按键组合,是否被按下后又抬起"""
         if self.is_key_down(keys):
@@ -361,26 +477,34 @@ class imgui_env:
                 return True
 
     def loop(self, delay=0.03):
-        '进行imgui的主体循环,让gui真正的跑起来'
+        """进行imgui的主体循环,让gui真正的跑起来"""
         while not self.need_stop():
             self.step()
             if delay:
                 time.sleep(delay)
 
     def shutdown(self):
-        '关闭imgui环境,一切都结束了'
+        """关闭imgui环境,一切都结束了"""
         self.imgui_bk.shutdown()
         self.main_win.close()
 
 
 # 简单运行模块的app与env功能封装函数
-def im_env_loop(mod_class, title='测试imgui', width=1024, height=768, fullscreen=False):
+def im_env_loop(mod, title='测试imgui', width=1024, height=768, fullscreen=False, app_class=imgui_app, env_init_cb=None, bg_color=(.2, .2, .2, 1)):
+    # 定义env对象
+    im_env = imgui_env(env_init_cb, title, width, height, fullscreen, bg_color)
+
     # 定义app对象
-    app = imgui_app()
+    app = app_class()
+
     # 给app对象增加mod模块
-    app.append_mod(mod_class)
-    # 定义env对象并绑定app
-    im_env = imgui_env(app, title, width, height, fullscreen)
+    if isinstance(mod, imgui_mod_base):
+        app.append_modobj(mod, im_env)
+    else:
+        app.append_mod(mod, im_env)
+
+    # 绑定app对象
+    im_env.bind(app)
     # 进行env的事件循环
     im_env.loop()
     # 程序结束进行收尾
