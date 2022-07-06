@@ -5,6 +5,11 @@ from lxml.html.clean import Cleaner
 import re
 
 
+def es(e: Exception):
+    """格式化简短异常信息"""
+    return '%s:%s' % (e.__class__.__name__, e)
+
+
 def get_tag_child(html, tag, with_tag=False):
     """在html内容中,提取tag标签的内容,返回子节点内容列表"""
     rst = []
