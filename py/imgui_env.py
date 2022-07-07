@@ -201,7 +201,7 @@ class imgae_tex:
         if image:
             self.open(image)
 
-    def open(self, image):
+    def open(self, image, flip_tb=None):
         """使用GL指令生成贴图，获取贴图ID"""
         self.close()
         try:
@@ -217,7 +217,8 @@ class imgae_tex:
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
             gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
 
-            image = image.transpose(Image.FLIP_TOP_BOTTOM)
+            if flip_tb:  # 是否进行上下翻转
+                image = image.transpose(Image.FLIP_TOP_BOTTOM)
             img_data = image.convert("RGBA").tobytes()
             gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, image.width, image.height, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, img_data)
             gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
@@ -483,7 +484,7 @@ class imgui_env:
             if delay:
                 time.sleep(delay)
         self.step(True)
-        
+
     def shutdown(self):
         """关闭imgui环境,一切都结束了"""
         self.imgui_bk.shutdown()
