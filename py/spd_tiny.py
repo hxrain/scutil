@@ -2,7 +2,7 @@ import argparse
 import importlib
 import sys
 
-import gui_dlg_im as _gd
+import gui_dlg as _gd
 from db_sqlite import *
 from mutex_lock import *
 from spd_base import *
