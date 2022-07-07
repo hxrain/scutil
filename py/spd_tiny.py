@@ -1237,7 +1237,7 @@ class collect_manager:
         spd.run(self.dbs)
         self._inc_infos_(spd.infos)
         self.dbs.update_act(spd)
-        _logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d> vcodes<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.spider.cnt_input_vcode)
+        _logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d> vcodes<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.cnt_input_vcode)
 
     def run(self):
         """对全部爬虫逐一进行调用.返回值:是否要求停止"""
