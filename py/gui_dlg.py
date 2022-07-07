@@ -91,7 +91,9 @@ def _input_validcode(img, title=None):
 
 
 def input_validcode(img, title=None):
-    """进行错误异常拦截的最终方法,输入图片对应的验证码."""
+    """进行错误异常拦截的最终方法,输入图片对应的验证码.
+       返回值:输入的内容;发生错误返回None
+    """
     try:
         return _input_validcode(img, title)
     except Exception as e:

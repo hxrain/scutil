@@ -37,7 +37,7 @@ class imgui_mod_base:
         """当前模块被装载的事件"""
         pass
 
-    def on_mod(self, im):
+    def on_mod(self, im, app, isclosing):
         '''
             进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.
             此方法应该被子类重载,完成具体的功能逻辑
@@ -66,7 +66,7 @@ class imgui_mod(imgui_mod_base):
             imgui.end_main_menu_bar()
         return running
 
-    def on_mod(self, im):
+    def on_mod(self, im, app, isclosing):
         '''
             进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.
             此方法应该被子类重载,完成具体的功能逻辑
@@ -146,14 +146,14 @@ class imgui_app_base:
         for m in self.mods:
             m.__dict__['im'] = im  # 给每个模块绑定imgui环境
 
-    def on_step(self):
+    def on_step(self, isclosing):
         '应用绘制的主逻辑:im为imgui环境对象;返回值告知程序是否继续.'
-        return self.on_app()
+        return self.on_app(isclosing)
 
-    def on_app(self):
+    def on_app(self, isclosing):
         '进行具体的应用逻辑绘制处理:im为imgui环境对象;返回值告知程序是否继续.'
         for m in self.mods:
-            if not m.on_mod(self.im):
+            if not m.on_mod(self.im, self, isclosing):
                 return False
         return True
 
@@ -397,7 +397,7 @@ class imgui_env:
         # 切换gl窗口的显示缓存,将最新渲染结果真实呈现在gl窗口中
         glfw.swap_buffers(self.main_win.window)
 
-    def step(self):
+    def step(self, isclosing=False):
         '进行imgui一帧窗口内容的绘制'
         # 清空gl窗口背景
         gl.glClearColor(*self.bg_color)
@@ -409,7 +409,7 @@ class imgui_env:
         try:
             imgui.new_frame()
             # 调用实际app逻辑,进行ui绘制
-            if not self.app.on_step():
+            if not self.app.on_step(isclosing):
                 self.set_stop()
             # imgui窗口虚拟帧绘制结束
             imgui.end_frame()
@@ -482,7 +482,8 @@ class imgui_env:
             self.step()
             if delay:
                 time.sleep(delay)
-
+        self.step(True)
+        
     def shutdown(self):
         """关闭imgui环境,一切都结束了"""
         self.imgui_bk.shutdown()
