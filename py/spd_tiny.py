@@ -2,7 +2,7 @@ import argparse
 import importlib
 import sys
 
-import gui_dlg as gd
+import gui_dlg_im as _gd
 from db_sqlite import *
 from mutex_lock import *
 from spd_base import *
@@ -119,6 +119,8 @@ _proxy = None  # 全局代理地址信息
 lists_rate = 1  # 全局概览翻页倍率
 info_upd_mode = False  # 是否开启采集源全局更新模式(根据排重条件查询得到主键id,之后更新此信息)
 locker = lock_t()  # 全局多线程保护锁
+locker_dg = lock_t()  # 全局多线程对话框锁
+_cnt_input_vcode = 0  # 记录全局手动输入验证码的总数
 
 
 # 绑定全局默认代理地址
@@ -506,13 +508,23 @@ class source_base:
         if mode == 'classic':
             rc, vcode = self.http_take(rec_svr_url, vdata)
             if rc != 200 or not vcode:
-                with locker:  # 单进程内多线程并发时,对话框UI需要进行锁保护调用
-                    vcode = gd.input_validcode(vdata)  # 自动识别出错时进行手动处理
+                # 自动识别出错时进行手动处理
+                vcode = self.input_validcode(vdata)
+
             if not vcode:
                 return None, f'vcode calc error: {rc}'
             return vcode, ''
 
         return None, f'not impl vcode_mode: {mode}'
+
+    @guard(locker_dg)  # 单进程内多线程并发时,对话框UI需要进行锁保护调用
+    def input_validcode(self, vdata):
+        """显示给定的图片数据并返回输入的验证码"""
+        self.spider.cnt_input_vcode += 1  # 当前采集源爬虫手动输入验证码计数增加
+        global _cnt_input_vcode
+        _cnt_input_vcode += 1  # 全局验证码输入计数增加
+        title = f'{self.spider.cnt_input_vcode}/{_cnt_input_vcode}'
+        return _gd.input_validcode(vdata, title)
 
     def on_attach_update(self, info, att_idx, att_url, att_name, file_path):
         """更新当前附件信息在正文中的内容部分,确保再次浏览正文时可访问本地附件文件.返回空正常
@@ -707,6 +719,7 @@ class spider_base:
         self.source.spider = self  # 给采集源对象绑定当前的爬虫对象实例
         self.http.timeout = self.source.http_timeout
         self.begin_time = 0
+        self.cnt_input_vcode = 0  # 记录手动输入验证码次数
 
     # 对采集源待调用方法进行统一包装,防范意外错误
     def call_src_method(self, method, *args):
@@ -1150,6 +1163,7 @@ class collect_manager:
         self.threads = max(1, threads)
         if self.threads > 1:
             locker.init()
+            locker_dg.init()
 
         _logger.info('tiny spider collect manager is starting ...')
 
@@ -1223,7 +1237,7 @@ class collect_manager:
         spd.run(self.dbs)
         self._inc_infos_(spd.infos)
         self.dbs.update_act(spd)
-        _logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos)
+        _logger.info("source <%s> end. reqs<%d> rsps<%d> succ<%d> infos<%d> vcodes<%d>", spd.source.name, spd.reqs, spd.rsps, spd.succ, spd.infos, spd.spider.cnt_input_vcode)
 
     def run(self):
         """对全部爬虫逐一进行调用.返回值:是否要求停止"""
@@ -1273,9 +1287,9 @@ class collect_manager:
             if len(spd.source.stat) == 1 and 200 in spd.source.stat:
                 continue
             _logger.warning("<%s> | source <%s {%d}> | stat <%s> | %s", spd.source.module_name, spd.source.name, spd.source.id, spd.source.stat, spd.source.url)
-        _logger.info("spiders collect <%d>.", self.infos)
+        _logger.info("spiders collect <%d>, vcodes<%d>" % (self.infos, _cnt_input_vcode))
 
-        # 爬虫实例用过一次就作废
+        # 爬虫实例用过一次就作废,全部清空等待重新创建.
         self.spiders.clear()
         return stop
 
