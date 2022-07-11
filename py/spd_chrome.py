@@ -670,20 +670,16 @@ class Browser(object):
 dom100 = '''
 //DOM选取功能封装:el为选择表达式或已选取的对象;parent为选取的父节点范围作用域,也可以为父节点的选取表达式
 var _$_ = function(el, parent) {
-	//最终返回的API对象,初始的时候其持有的el元素对象为null
-	var api = { el: null }
-	//内部使用的CSS选择器单节点查询函数
-	var qs = function(selector, parent) {
+	var api = { el: null } //最终返回的API对象,初始的时候其持有的el元素对象为null
+	var qs = function(selector, parent) { //内部使用的CSS选择器单节点查询函数
 		parent = parent || document;
 		return parent.querySelector(selector);
 	};
-	//内部使用的CSS选择器多节点查询函数
-	var qsa = function(selector, parent) {
+	var qsa = function(selector, parent) { //内部使用的CSS选择器多节点查询函数
 		parent = parent || document;
 		return parent.querySelectorAll(selector);
 	};
-	//内部使用的xpath多节点查询函数
-	var qx=function(xpath,parent) {
+	var qx=function(xpath,parent) { //内部使用的xpath多节点查询函数
 		parent = parent || document;
 	    var xresult = document.evaluate(xpath, parent, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
 	    switch(xresult.snapshotLength)
@@ -748,35 +744,35 @@ var _$_ = function(el, parent) {
 				}
 				break;
 		}
-		return set ? api : null;	//最终的返回值,对于赋值动作可以链式继续处理;取值动作应该在上面处理了,这里就返回未处理的null
+		return set ? api : null;	//返回值,可继续链式调用;取值动作在上面处理,这里返回null
 	}
 	//对外提供的触发事件功能,默认为点击事件,0ms延迟后异步执行
-	api.hit=function (evtType,delayMs,key){//evtType:"click/dbclick/mouseenter/mouseleave/blur/focus"
+	api.hit=function (evtType,delayMs,key,mode){//evtType:"click/dbclick/mouseenter/mouseleave/blur/focus"
 		evtType = evtType||"click";
 		delayMs = delayMs || 0;
 		el=this.el;
 		setTimeout(function(){
-			var myEvent = document.createEvent('Events') //创建事件对象
+		    var EventMode=key?'Event':'MouseEvent';
+		    if (mode) EventMode=mode;
+			var myEvent = document.createEvent(EventMode) //创建事件对象
 			myEvent.initEvent(evtType, true, true);//初始化事件类型
 			if (key)
 			    myEvent.keyCode=key;
 			el.dispatchEvent(myEvent);	//触发事件
 		},delayMs);
 	}
-	//查询获取iframe节点
-	api.frm=function(){
+	api.click=function(){api.hit('click');} //对目标元素触发点击动作(是hit函数的语法糖,与jquery保持兼容.)
+	api.frm=function(){ //查询获取iframe节点
 		if (this.el==null || this.el.nodeName!='IFRAME')
 			return null;
 		return this.el.contentWindow;
 	}
-	//获取iframe的整体内容.
-	api.frm_html=function(){
+	api.frm_html=function(){ //获取iframe的整体内容.
 	    cw=api.frm()
 	    if (cw!=null && cw.document!=null && cw.document.documentElement!=null)
 	        return cw.document.documentElement.outerHTML;
 	    return "";
 	}
-
 	//根据输入的选择表达式的类型进行选取操作
 	switch(typeof el) {
 		case 'string':
@@ -790,7 +786,6 @@ var _$_ = function(el, parent) {
 			if(typeof el.nodeName != 'undefined') api.el = el;
 			break;
 	}
-
 	return api; //对于选取操作,返回的就是封装后的对象
 }
 '''
