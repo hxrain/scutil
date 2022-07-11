@@ -509,6 +509,8 @@ class source_base:
             rc, vcode = self.http_take(rec_svr_url, vdata)
             if rc != 200 or not vcode:
                 # 自动识别出错时进行手动处理
+                if rc != 200:
+                    self.log_warn('<%s> vcode calc error: %s' % (rec_svr_url, self.spider.http.get_error()))
                 vcode = self.input_validcode(vdata)
 
             if not vcode:
@@ -969,7 +971,7 @@ class spider_base:
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if self.source._list_content != __EMPTY_PAGE__:
-                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), self.source._list_content))
+                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>' % (list_url, self.http.get_status_code()))
                             self.source.rec_stat(994)
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:

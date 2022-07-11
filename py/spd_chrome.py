@@ -1249,7 +1249,7 @@ class spd_chrome:
             if 'root' in rst:
                 return rst['root'], ''
             else:
-                return '', ret
+                return '', rst
         except Exception as e:
             return '', py_util.get_trace_stack()
 
@@ -1263,7 +1263,7 @@ class spd_chrome:
             if 'nodeId' in rst:
                 return rst['nodeId'], ''
             else:
-                return '', ret
+                return '', rst
         except Exception as e:
             return '', py_util.get_trace_stack()
 
@@ -1280,7 +1280,7 @@ class spd_chrome:
             if 'outerHTML' in rst:
                 return rst['outerHTML'], ''
             else:
-                return '', ret
+                return '', rst
         except Exception as e:
             return '', py_util.get_trace_stack()
 
