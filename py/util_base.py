@@ -509,6 +509,7 @@ def save_to_file(fname, strdata, encode='utf-8', mode='w'):
         f.close()
         return True
     except Exception as e:
+        print(es(e))
         return False
 
 
