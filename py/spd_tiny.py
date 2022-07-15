@@ -729,7 +729,7 @@ class spider_base:
             call = getattr(self.source, method)  # 获取指定的方法
             return call(*args)  # 调用指定的方法
         except Exception as e:
-            self.source.log_error('call <%s> error <%s>' % (method, es(e)))  # 统一记录错误
+            self.source.log_error('call <%s> error <%s>' % (method, ei(e)))  # 统一记录错误
             return None
 
     # 统一生成默认请求参数
