@@ -5,6 +5,7 @@ from threading import Thread
 from threading import Semaphore
 from threading import currentThread
 import time
+import traceback
 
 """
 locker = lock_t()  # 定义互斥锁封装对象
@@ -99,7 +100,7 @@ def guard(locker):  # 顶层装饰函数,用来接收用户参数,返回外层�
                 ret = fun(*args, **kwargs)
             except Exception as e:
                 ret = e
-                print(e)
+                print('%s:\n%s' % (e.__class__.__name__, ''.join(traceback.format_tb(e.__traceback__))))
                 pass
             locker.unlock()
             return ret

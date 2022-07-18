@@ -3251,15 +3251,15 @@ def make_map_area_ids(tails={'省', '市', '区', '县', '州'}):
     return rst
 
 
-def make_citys_names(alias=None, tails={'市', '区', '县', '州'}):
-    """生成城市的名字和别名.alias=True优先输出简称;alias=False不输出简称;alias=None全部输出"""
+def make_citys_names(alias=None, tails={'市', '区', '县', '州', '省'}, prov=True):
+    """生成城市的名字和别名.alias=True优先输出简称;alias=False不输出简称;alias=None全部输出;prov是否输出省份"""
     rst = []
     for aid in map_id_areas:
         if aid % 100 != 0:
             continue  # 屏蔽区县
 
         if aid % 1000 == 0 and map_id_areas[aid][0][-1] != '市':
-            if aid not in {810000, 820000}:
+            if not prov and aid not in {810000, 820000}:
                 continue  # 屏蔽省,保留直辖市和特区
 
         names = map_id_areas[aid]
