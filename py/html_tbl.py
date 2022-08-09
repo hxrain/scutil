@@ -8,7 +8,7 @@ import copy
 
 def html_query_table(html, drop_multi=True):
     """尝试从html中提取table文本段列表"""
-    tbls, msg = query_xpath_x(html, '//table', None)  # 先查询所有表格
+    tbls, msg = query_xpath_x(html, '//table', fixNode=None)  # 先查询所有表格
     if drop_multi:
         rst = []
         for t in tbls:
