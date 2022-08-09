@@ -748,6 +748,40 @@ assert (norm_date_str('2015-2-20日') == '2015-02-20')
 assert (norm_date_str('2015-2-20日下午12:00:00') == '2015-02-20')
 
 
+def norm_date_str2(txt, to_upper=True):
+    """对英式美式日期串txt(要求外部大写转换)进行归一化"""
+    if to_upper:
+        txt = txt.upper()
+    mons = {'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6, 'JUL': 7, 'AUG': 8, 'SEPT': 9, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12}
+    ms = re.search(r'(\d{1,2})(ST|ND|RD|TH)?[ ,]{1,2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEPT|SEP|OCT|NOV|DEC)[ .,]{1,3}(\d{4})', txt)
+    ymd = None
+    if ms:
+        mr = ms.groups()
+        if mr and len(mr) == 4:
+            ymd = (mr[3], mons.get(mr[2]), int(mr[0]))
+
+    if ymd is None:
+        ms = re.search(r'(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEPT|SEP|OCT|NOV|DEC)[ .,]{1,3}(\d{1,2})(ST|ND|RD|TH)?[ ,]{1,2}(\d{4})', txt)
+        if ms:
+            mr = ms.groups()
+            if mr and len(mr) == 4:
+                ymd = (mr[3], mons.get(mr[0]), int(mr[1]))
+
+    if ymd is None:
+        return txt
+    return '%s-%02d-%02d' % ymd
+
+
+assert (norm_date_str2('11 APR,2022') == '2022-04-11')
+assert (norm_date_str2('11,APR,2022') == '2022-04-11')
+assert (norm_date_str2('11 APR. 2022') == '2022-04-11')
+assert (norm_date_str2('11TH APR. 2022') == '2022-04-11')
+assert (norm_date_str2('11TH,APR.,2022') == '2022-04-11')
+assert (norm_date_str2('11TH,APR. ,2022') == '2022-04-11')
+assert (norm_date_str2('11TH,APR ,2022') == '2022-04-11')
+assert (norm_date_str2('11TH,APR,2022') == '2022-04-11')
+
+
 def norm_time_str(txt):
     pat = '(上午|中午|下午)?([\d一二三四五六七八九十]{1,2})[时点\:]([\d一二三四五六七八九十]{1,3})?[分\:]?(\d{1,2})?[秒|时|点|整]?'
     ms = re.search(pat, txt)
@@ -779,6 +813,38 @@ def norm_time_str(txt):
 
     return rst
 
+
+def norm_time_str2(txt, to_upper=True):
+    """将美式英式时间格式串txt(要求外部大写转换)进行归一化"""
+    if to_upper:
+        txt = txt.upper()
+    ms = re.search(r'(AM|PM)?[ ]?(\d{1,2})[:：](\d{1,2})([:：]\d{1,2})?[ ]?(AM|PM)?', txt)
+    if not ms:
+        return txt
+
+    mr = ms.groups()
+    if not mr or len(mr) != 5:
+        return txt
+
+    APM = mr[0]
+    if not APM:
+        APM = mr[4]
+
+    h = int(mr[1])
+    if h < 12 and APM == 'PM':
+        h += 12
+
+    m = int(mr[2])
+    if mr[3] is not None:
+        s = int(mr[3][1:])
+    else:
+        s = 0
+    return '%02d:%02d:%02d' % (h, m, s)
+
+
+assert (norm_time_str2('9:2:03 PM') == '21:02:03')
+assert (norm_time_str2('PM9:2:03') == '21:02:03')
+assert (norm_time_str2('PM 9:2:03') == '21:02:03')
 
 assert (norm_time_str('09:08:7') == '09:08:07')
 assert (norm_time_str('上午9点00分') == '09:00')
