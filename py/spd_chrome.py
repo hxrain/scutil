@@ -974,7 +974,7 @@ class spd_chrome:
         except Exception as e:
             return py_util.get_trace_stack()
 
-    def wait_response_body(self, tab, url, url_is_re=False, timeout=30):
+    def wait_response_body(self, tab, url, url_is_re=False, timeout=30, get_body=True):
         """获取指定url的回应内容
             工作流程:1 等待页面装载完成,内部记录发送的请求信息; 2 根据url查找发送的请求id; 3 使用请求id获取对应的回应内容.
             返回值: (body,msg)
@@ -1026,6 +1026,10 @@ class spd_chrome:
         if not rrinfo:
             return None, 'response waiting'
 
+        # 不要求回应body的时候,等待回应完成就直接返回
+        if not get_body:
+            return None, ''
+
         # 之后再提取回应body
         rst, msg = t.get_response_body(reqid, self.proto_timeout)
         if rst is None or msg and t.downpath:
@@ -1057,6 +1061,17 @@ class spd_chrome:
         except Exception as e:
             return False, py_util.get_trace_stack()
 
+    def page_reload(self, tab):
+        """重新装载页面
+            返回值: (bool,msg)
+                    msg=''为正常,否则为错误信息"""
+        try:
+            t = self._tab(tab)
+            rst = t.call_method('Page.reload', _timeout=self.proto_timeout)
+            return True, ''
+        except Exception as e:
+            return False, py_util.get_trace_stack()
+
     def clear_storage(self, tab, url=None, types='all'):
         """删除浏览器指定域名下的storage数据;types可以为以下值逗号分隔串:
             appcache, cookies, file_systems, indexeddb, local_storage, shader_cache, websql, service_workers, cache_storage, interest_groups, all, other
@@ -1067,6 +1082,8 @@ class spd_chrome:
             if url is None:
                 url = t.last_url
             origin = spd_base.query_re_str(url, '^.*?://.*?/')
+            if origin is None:
+                origin = url
             t.call_method('Storage.clearDataForOrigin', origin=origin, storageTypes=types, _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:

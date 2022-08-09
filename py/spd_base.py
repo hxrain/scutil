@@ -236,14 +236,16 @@ def find_chs_by_cnt(cnt):
     rp = '<meta[^<>]+charset\s*?=\s*?"?(.*?)[; ">]+'
     if type(cnt).__name__ == 'bytes':
         rp = rp.encode('utf-8')
+    ret = ''
     m = re.search(rp, cnt)
     if m:
         if type(cnt).__name__ == 'bytes':
-            return m.group(1).decode('utf-8')
+            ret = m.group(1).decode('utf-8')
         else:
-            return m.group(1)
-
-    return ''
+            ret = m.group(1)
+    if len(ret) <= 2:
+        return ''
+    return ret
 
 
 # -----------------------------------------------------------------------------
@@ -417,14 +419,17 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
             chs = 'utf-8'
 
     def dc(cnt, chs):
+        ret = cnt
         try:
-            return cnt.decode(chs, errors='ignore')
+            ret = cnt.decode(chs, errors='ignore')
+            return ret
         except Exception as e:
             print('STR DECODE WARN :: %s :: %s :: %s' % (rsp.headers, es(e), rsp_cnt))
 
         try:
             chs2 = 'utf-8'
-            return cnt.decode(chs2, errors='ignore')
+            ret = cnt.decode(chs2, errors='ignore')
+            return ret
         except Exception as e:
             print('STR DECODE ERR :: %s :: %s :: %s :: %s' % (chs, chs2, es(e), rsp_cnt))
 
