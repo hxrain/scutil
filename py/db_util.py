@@ -1,5 +1,62 @@
 from util_base import *
 
+'''
+
+    def _cat_cond(self, info: info_t, cond):
+        """ 拼装排重条件与值元组
+            cond为['字段1','字段2']时,代表多个字段为and逻辑
+            cond为[('字段1','字段2'),('字段3','字段4')]时,代表多个字段组为or逻辑,组内字段为and逻辑
+        """
+        vals = ()
+        cons = ()
+
+        # 统计分组的数量
+        grps = 0
+        for i in range(len(cond)):
+            if isinstance(cond[i], tuple):
+                grps += 1
+
+        if grps:
+            # 有分组,需要先对分组中的tuple进行检查修正
+            for i in range(len(cond)):
+                if not isinstance(cond[i], tuple):
+                    cond[i] = (cond[i],)
+
+            for fields in cond:
+                # 对每个组进行处理,拼装and部分的逻辑串
+                vals += tuple(info.__dict__[c] for c in fields)
+                cons += ('(' + ' and '.join(tuple(c + '=?' for c in fields)) + ')',)
+        else:
+            # 无分组,直接拼装and部分的逻辑
+            vals = tuple(info.__dict__[c] for c in cond)
+            cons += (' and '.join(tuple(c + '=?' for c in cond)),)
+
+        # 多个and条件,进行or连接
+        cons = ' or '.join(tuple(c for c in cons))
+        return vals, cons
+
+    @guard(locker)
+    def check_repeat(self, info: info_t, cond):
+        """使用指定的信息对象,根据给定的cond条件(字段名列表),判断其是否重复.
+            返回值:None不重复;其他为已有信息的ID
+        """
+        if len(cond) == 0:
+            return None  # 没有给出判重条件,则认为不重复
+
+        val, cnd = self._cat_cond(info, cond)
+        rows, msg = self.dbq.query("select id from tbl_infos where %s limit 1" % cnd, val)
+
+        if msg != '':
+            _logger.error('info <%s> repeat QUERY fail. DB error <%s>', info.__dict__.__str__(), msg)
+            return None
+
+        if len(rows) == 0:
+            return None
+
+        return rows[0][0]
+
+'''
+
 
 # 查询指定的sql,返回元组列表,每个元组对应一行数据.
 def query(q, sql, dat=None, ext=False):
