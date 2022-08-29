@@ -560,6 +560,8 @@ def chinese_to_arabic(value):
         separator = '圆'
     elif '块' in value:
         separator = '块'
+    elif '点' in value:
+        separator = '点'
 
     if separator:
         values = value.split(separator)
@@ -568,19 +570,27 @@ def chinese_to_arabic(value):
     else:
         integer = ''
         decimal = value
-    unit = 1
 
     # 小数部分
     decimal_part = 0
+    unit = 1
     for char in reversed(decimal):
         if char in CHINESE_DIGITS:
-            decimal_part += CHINESE_DIGITS[char] * unit
-            unit = 1
+            if separator != '点':
+                decimal_part += CHINESE_DIGITS[char] * unit
+                unit = 1
+            else:
+                decimal_part += CHINESE_DIGITS[char] * unit
+                unit *= 10
         elif char in CHINESE_UNITS:
             unit = CHINESE_UNITS[char]
 
+    if separator == '点':
+        decimal_part /= unit
+
     # 整数部分
     integer_part = 0
+    unit = 1
     if len(integer) > 0:
         ratio = 1
         for char in reversed(integer):
@@ -605,6 +615,7 @@ def chinese_to_arabic(value):
     return round(integer_part + decimal_part, 2)
 
 
+assert (chinese_to_arabic('十五点三五') == 15.35)
 assert (chinese_to_arabic('十元') == 10)
 assert (chinese_to_arabic('十二元') == 12)
 assert (chinese_to_arabic('二十元') == 20)
