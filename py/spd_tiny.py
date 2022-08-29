@@ -1015,6 +1015,13 @@ class db_base:
     def opened(self):
         return self.db.opened()
 
+    def close(self):
+        if self.db:
+            self.dbq.close()
+            self.dbq = None
+            self.db.close()
+            self.db = None
+
     def register(self, name, site_url, id=None):
         """根据名字进行采集源在数据库中的注册,返回值:-1失败,成功为采集源ID"""
         rows, msg = self.dbq.query("select id,reg_time,site_url from tbl_sources where name=?", (name,))
@@ -1195,7 +1202,7 @@ class collect_manager:
                 _logger.warn('<%s> using illegal info field <%s>.' % (src.name, field))
                 return False
 
-        sid = self.dbs.register(src.name, src.url)
+        sid = self.dbs.register(src.name, src.url, src.id)
         if sid == -1:
             return False
 
@@ -1416,4 +1423,5 @@ def run_collect_sys(srcs=None, params=None):
                 time.sleep(loop_sleep)
             cm.run()
 
+    cm.dbs.close()
     cm.close()
