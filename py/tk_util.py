@@ -363,10 +363,10 @@ class memo_t:
 class checkbox_t:
     """复选按钮组"""
 
-    def __init__(self, parent, values, defidx=None):
+    def __init__(self, parent, values, defidx=None, side=LEFT):
         # 背景容器
         self.ui_frame = ttk.Frame(parent, relief=GROOVE)
-        self.ui_frame.pack(fill=BOTH, expand=True)
+        self.ui_frame.pack(side=side, fill=BOTH, expand=True)
         self.ui_frame.bind('<Double-Button-1>', self.on_dblclick_callback)
         self.value_lst = []
 
@@ -456,10 +456,10 @@ class checkbox_t:
 class radiobox_t:
     """单选按钮组"""
 
-    def __init__(self, parent, values, defidx=0):
+    def __init__(self, parent, values, defidx=0, side=LEFT):
         # 背景容器
         self.ui_frame = ttk.Frame(parent, relief=GROOVE)
-        self.ui_frame.pack(fill=BOTH, expand=True)
+        self.ui_frame.pack(side=side, fill=BOTH, expand=True)
         self.value_lst = []
         self.var = StringVar()
 
