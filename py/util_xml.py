@@ -3,6 +3,7 @@ from lxml import etree
 from lxml import html
 from lxml.html.clean import Cleaner
 import re
+import xml.sax.saxutils as xss
 
 
 def es(e: Exception):
@@ -144,6 +145,15 @@ def extract_xml_text(xstr):
     ret = ret.replace('&#13;', '\n')  # 修正结果串
     ret = ret.strip()
     return ret
+
+
+def remove_declaration(cnt_str):
+    """移除xml声明"""
+    cnt_str = cnt_str.strip()
+    if not cnt_str.startswith('<?xml'):
+        return cnt_str
+    cnt_str = re.sub(r'<\?xml[^>]*?\?>', '', cnt_str)
+    return cnt_str
 
 
 # 可进行多次xpath查询的功能对象
@@ -582,3 +592,17 @@ class table_xpath:
                 k1 = k
                 v1 = self.dct[k]
             dct[k1] = v1
+
+
+def xml_escape(s):
+    """对xml串中的特殊符号进行转义处理"""
+    if isinstance(s, str):
+        return xss.escape(s)
+    return s
+
+
+def xml_unescape(s):
+    """对xml串中的特殊符号进行反转义处理"""
+    if isinstance(s, str):
+        return xss.unescape(s)
+    return s
