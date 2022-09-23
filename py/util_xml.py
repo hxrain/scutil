@@ -156,6 +156,17 @@ def remove_declaration(cnt_str):
     return cnt_str
 
 
+def parse_lxml_tree(cnt_str, retain_cdata=True):
+    """解析内容串,得到lxml树的根节点.返回值:(root,'')或(None,err)"""
+    try:
+        cnt_str = remove_declaration(cnt_str)
+        parser = etree.XMLParser(strip_cdata=not retain_cdata)  # 需要保留CDATA节点
+        root = etree.XML(cnt_str, parser)
+        return root, ''
+    except Exception as e:
+        return None, es(e)
+
+
 # 可进行多次xpath查询的功能对象
 class xpath:
     def __init__(self, cntstr=None, try_format=True, fixNode='-'):
@@ -594,15 +605,154 @@ class table_xpath:
             dct[k1] = v1
 
 
-def xml_escape(s):
+def xml_escape(s, tostr=True):
     """对xml串中的特殊符号进行转义处理"""
     if isinstance(s, str):
-        return xss.escape(s)
+        return xss.escape(s, {'"': '&quot;'})
+    if tostr:
+        return str(s)
     return s
 
 
 def xml_unescape(s):
     """对xml串中的特殊符号进行反转义处理"""
     if isinstance(s, str):
-        return xss.unescape(s)
+        return xss.unescape(s, {'&quot;': '"'})
     return s
+
+
+def make_lxml_node(tag, text=None, attrs=None):
+    """使用指定的tag构建lxml节点,可同时告知文本节点内容text和属性词典attrs;如果tag为None则创建CData节点.
+        返回值:创建的新节点
+    """
+    if tag is None:
+        node = etree.CDATA(text)
+    else:
+        node = etree.Element(tag, attrs)
+        node.text = text
+    return node
+
+
+def join_lxml_node(ref_x: etree._Element, imode, xnode: etree._Element):
+    """将xnode节点按照指定的模式imode挂接到参考ref_x节点中.
+        imode模式有:
+            sub -  xnode成为ref_x的子节点
+            prev - xnode成为ref_x的前兄弟节点
+            next - xnode成为ref_x的后兄弟节点
+            this - xnode成为ref_x的父节点
+        返回值:空串正常;其他为错误消息
+    """
+    if ref_x is None or not isinstance(ref_x, etree._Element):
+        return 'join_lxml_node ref_x is bad.'
+    if xnode is None or not isinstance(xnode, etree._Element):
+        return 'join_lxml_node xnode is bad.'
+
+    try:
+        if imode == 'sub':  # 将xnode挂接为ref_x的子节点
+            ref_x.append(xnode)
+        elif imode == 'prev':  # 将xnode挂接为ref_x的前兄弟节点
+            ref_x.addprevious(xnode)
+        elif imode == 'next':  # 将xnode挂接为ref_x的后兄弟节点
+            ref_x.addnext(xnode)
+        elif imode == 'this':  # 将xnode挂接为ref_x的父节点
+            pn = ref_x.getparent()
+            ref_x.addprevious(xnode)  # 1 将当前节点插入在参考节点之前
+            pn.remove(ref_x)  # 2 将参考节点从当前位置删除
+            xnode.append(ref_x)  # 3 将参考节点插入当前的子节点
+        return ''
+    except Exception as e:
+        return 'join_lxml_node err:' + es(e)
+
+
+def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
+    """将指定的lxml根节点进行格式化输出.closing告知应该自闭合的tag集;tab告知缩进字符串;text_limit限定文本换行所需长度
+        返回值:(结果,'')或(None,err)
+    """
+
+    def take_att(node, att):
+        """获取节点的指定属性,并进行转义处理"""
+        val = node.attrib.get(att)
+        ret = xml_escape(val)
+        return ret
+
+    def make_head(node, isclosing=False):
+        """生成指定节点的xml属性行"""
+        rst = [f'<{node.tag}']
+        for att in node.attrib:
+            rst.append(f' {att}="{take_att(node, att)}"')
+        if isclosing:
+            rst.append('/>')  # 要求自闭合
+        else:
+            rst.append('>')  # 不要自闭合
+        return ''.join(rst)
+
+    def take_text(node):
+        """获取节点文本内容并进行必要的保护处理"""
+        if not node.text:
+            return ''
+        text = node.text.strip()
+        if not text:
+            return ''
+        if len(re.findall(r"""[<>&]""", text)):
+            return f'<![CDATA[{text}]]>'  # 如果文本包含特殊字符,则进行cdata包裹
+        else:
+            return text
+
+    def make_node(node, deep):
+        """生成xml属性行,或整个节点内容.返回值:(结果,需要继续递归的子列表)"""
+        childs = list(node)
+        if len(childs):
+            # 还有子元素需要遍历
+            return make_head(node), childs
+        else:
+            # 没有子元素,输出完整节点
+            text = take_text(node)
+            if text:
+                ret = [make_head(node)]
+                if len(text) > text_limit:
+                    # 文本串过长,进行换行缩进处理
+                    ret.append('\n')
+                    ret.append((deep + 1) * tab)
+                    ret.append(text)
+                    ret.append('\n')
+                    ret.append(deep * tab)
+                else:
+                    # 文本串较短,当前行输出
+                    ret.append(text)
+                ret.append(f'</{node.tag}>')
+                return ''.join(ret), None
+            else:
+                # 没有子元素,也没有文本节点
+                if closing is None:
+                    return make_head(node, True), None  # 默认全部进行自闭合输出
+
+                if node.tag in closing:  # 根据明确限定进行自闭合输出
+                    return make_head(node, True), None
+                else:  # 进行普通输出
+                    return f'{make_head(node)}</{node.tag}>', None
+
+    lines = []  # 输出结果行列表
+    deep = 0  # 缩进深度计数
+
+    def proc(node):
+        """对指定的节点进行深度递归遍历"""
+        nonlocal deep
+        nonlocal lines
+        # 构建当前节点输出
+        line, childs = make_node(node, deep)
+        lines.append(f'{deep * tab}{line}')
+        if not childs:
+            return  # 没有子节点需要遍历,直接返回
+        # 进行子节点递归遍历
+        deep += 1
+        for child in childs:
+            proc(child)
+        deep -= 1
+        # 有子节点那就一定需要输出闭合标签
+        lines.append(f'{deep * tab}</{node.tag}>')
+
+    try:
+        proc(root)
+        return '\n'.join(lines), ''
+    except Exception as e:
+        return None, es(e)

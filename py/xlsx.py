@@ -262,7 +262,7 @@ class xlsx_editor:
         self.file = None
 
 
-def rows_loop(fname, func, sheet_idx=0, row_offset=0):
+def rows_loop(fname, func, sheet_idx=0, row_offset=0, save=False):
     """对指定的xlsx文件中的sheet_idx页从row_offset偏移开始进行遍历,回调函数func用于处理遍历的每一行.
         func(fields, sheet, row)
             fields - 当前行的字段数据列表
@@ -282,7 +282,9 @@ def rows_loop(fname, func, sheet_idx=0, row_offset=0):
             fields = [sheet.cell(row=row + 1, column=col + 1).value for col in range(cols)]
             if func(fields, sheet, row):
                 break
-        rc += 1
+            rc += 1
+        if save:
+            xe.save()
     except Exception as e:
         return rc, str(e)
 
