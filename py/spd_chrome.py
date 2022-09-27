@@ -1322,9 +1322,11 @@ class spd_chrome:
            由于浏览器对于跨域请求的限制,所以在执行ajax/post之前,需要先使用goto让页面处于正确的域状态下.
         """
         if isinstance(data, str):
-            data = data.replace('\n', '\\n')
-        jss = http_ajax + 'http_ajax("%s","POST","%s","%s","%s");' % (url, data, contentType, show)
-        return self.exec(tab, jss)
+            data = data.replace('\n', '\\n').replace('"', r'\"')
+        jss = [http_ajax]
+        jss.append('_tmp_ajaxPostData_="%s";' % data)
+        jss.append('http_ajax("%s","POST",_tmp_ajaxPostData_,"%s","%s");' % (url, contentType, show))
+        return self.exec(tab, '\n'.join(jss))
 
     def get(self, tab, url, show="root"):
         """在指定的tab页上,利用js的ajax技术,发起get请求.返回值:正常为('','')
