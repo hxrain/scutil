@@ -666,7 +666,7 @@ def join_lxml_node(ref_x: etree._Element, imode, xnode: etree._Element):
 
 def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
     """将指定的lxml根节点进行格式化输出.closing告知应该自闭合的tag集;tab告知缩进字符串;text_limit限定文本换行所需长度
-        返回值:(结果,'')或(None,err)
+        返回值:(结果文本,节点行号映射)或(None,err)
     """
 
     def take_att(node, att):
@@ -707,6 +707,9 @@ def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
         else:
             # 没有子元素,输出完整节点
             text = take_text(node)
+            if isinstance(node, etree._Comment):
+                return f'<!-- {text} -->', None
+
             if text:
                 ret = [make_head(node)]
                 if len(text) > text_limit:
@@ -733,14 +736,20 @@ def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
 
     lines = []  # 输出结果行列表
     deep = 0  # 缩进深度计数
+    nodes = {}  # 节点行号映射
+    lineno = 0  # 最新输出的行号位置
 
     def proc(node):
         """对指定的节点进行深度递归遍历"""
         nonlocal deep
         nonlocal lines
+        nonlocal lineno
+        nonlocal nodes
         # 构建当前节点输出
+        nodes[node] = lineno
         line, childs = make_node(node, deep)
         lines.append(f'{deep * tab}{line}')
+        lineno += 1 + line.count('\n')
         if not childs:
             return  # 没有子节点需要遍历,直接返回
         # 进行子节点递归遍历
@@ -750,9 +759,10 @@ def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
         deep -= 1
         # 有子节点那就一定需要输出闭合标签
         lines.append(f'{deep * tab}</{node.tag}>')
+        lineno += 1
 
     try:
         proc(root)
-        return '\n'.join(lines), ''
+        return '\n'.join(lines), nodes
     except Exception as e:
         return None, es(e)
