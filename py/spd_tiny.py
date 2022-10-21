@@ -176,6 +176,7 @@ class source_base:
         """记录采集源动作信息"""
         self.stat = {}  # 记录运行的状态码计数
         self.spider = None  # 运行时绑定的爬虫功能对象
+        self.dbs = None  # 运行时绑定的数据功能对象
         self.order_level = 0  # 运行优先级,高优先级的先执行,比如需要人工交互的
         self.interval = 1000 * 60 * 30  # 采集源任务运行间隔
         self.id = None  # 采集源注册后得到的唯一标识
@@ -494,6 +495,12 @@ class source_base:
         """从page中提取必要的细览页信息放入info中.返回值告知是否处理成功"""
         return True
 
+    def on_save_info(self, info, updid):
+        """使用dbs保存info到数据库中,updid告知是否为信息更新模式.返回值:保存的信息数量."""
+        if self.dbs.save_info(info, updid):
+            return 1
+        return 0
+
     def do_vcode_calc(self, vdata, **param):
         """进行验证码的识别计算
             参数说明:
@@ -778,6 +785,9 @@ class spider_base:
         # 进行细览url的补全
         info.url = up.urljoin(list_url, info.url)
 
+        # 给采集源绑定数据库功能对象
+        self.source.dbs = dbs
+
         # 先进行一下过滤判断
         if not self.call_src_method('on_info_filter', info):
             return None
@@ -847,12 +857,12 @@ class spider_base:
         tol_items = len(list_items)
         for i in range(tol_items):
             item = list_items[i]
-            self.updid = None
             self.source.list_item_index = (i + 1, tol_items)  # 告知采集源,当前的概览页条目索引信息
+            self.updid = None
             info = self._do_page(item, list_url, dbs)
             if info:
-                dbs.save_info(info, self.updid)
-                infos += 1
+                infos += self.call_src_method('on_save_info', info, self.updid)  # 概览页处理完成
+
         self.infos += infos
         self.call_src_method('on_list_end', self.infos, infos)  # 概览页处理完成
 
