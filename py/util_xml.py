@@ -128,7 +128,7 @@ def fix_xml_node(xstr, dst='-'):
     ret = xstr.strip()  # 字符串两端净空
     if dst is not None:
         ret = re.sub('<([^>/\s]+)(\s*[^>/]*)/>', '<\\1\\2>%s</\\1>' % dst, ret)  # 修正自闭合节点
-        ret = re.sub('<([^/][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
+        ret = re.sub('<([^/!][^>]*?)></([^>]*?)>', '<\\1>%s</\\2>' % dst, ret)  # 替换空节点
     ret = re.sub(r'[\u001f\u000b\u001e]', '', ret)  # 替换无效字符干扰
     ret = ret.replace('&#13;', '\n')  # 修正结果串
     return ret
@@ -647,6 +647,22 @@ def take_lxml_next(node, skipcmt=True, dstTag=None):
             continue
         break
     return node, cnt
+
+
+def skip_lxml_next(node, skip):
+    """以node为原点,向后跳跃skip个兄弟节点.
+        返回值:([nodes],dst)
+            [nodes] - 从入口节点开始,包括所有被跳过的节点列表
+            dst - 为目标节点,None没有目标兄弟节点了
+    """
+    nodes = []
+    for i in range(skip):
+        nodes.append(node)
+        node = node.getnext()
+        if node is None:
+            break
+
+    return nodes, node
 
 
 def take_lxml_child(node: etree._Element, skipcmt=True, dstTag=None):
