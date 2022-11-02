@@ -4,6 +4,7 @@ from lxml import html
 from lxml.html.clean import Cleaner
 import re
 import xml.sax.saxutils as xss
+from copy import deepcopy
 
 
 def es(e: Exception):
@@ -633,6 +634,11 @@ def make_lxml_node(tag, text=None, attrs=None):
     return node
 
 
+def clone_lxml_node(node):
+    """克隆node的完整副本.递归包含子节点,但没有父节点和兄弟节点的相关性."""
+    return deepcopy(node)
+
+
 def take_lxml_next(node, skipcmt=True, dstTag=None):
     """获取node的下一个有效兄弟节点,可以跳过注释节点或要求明确的目标节点dstTag.返回值:(下一个节点,跳过的注释数量)"""
     cnt = 0
@@ -687,30 +693,75 @@ def join_lxml_node(ref_x: etree._Element, imode, xnode: etree._Element):
             this - xnode成为ref_x的父节点
         返回值:空串正常;其他为错误消息
     """
-    if ref_x is None or not isinstance(ref_x, etree._Element):
+
+    def chk(node):
+        if node is None:
+            return False
+        if isinstance(node, etree._Element):
+            return True
+        if isinstance(node, list):
+            if len(node) == 0:
+                return False
+            for n in node:
+                if not isinstance(n, etree._Element):
+                    return False
+            return True
+        return False
+
+    if not chk(ref_x):
         return 'join_lxml_node ref_x is bad.'
-    if xnode is None or not isinstance(xnode, etree._Element):
+    if not chk(xnode):
         return 'join_lxml_node xnode is bad.'
+    if imode == 'this' and isinstance(ref_x, list) and isinstance(xnode, list):
+        return 'join_lxml_node xnode and ref_x param error.'
 
     try:
         if imode == 'sub':  # 将xnode挂接为ref_x的子节点
-            ref_x.append(xnode)
+            if isinstance(ref_x, list):
+                return 'in sub mode,ref_x should not be list.'
+            if isinstance(xnode, list):
+                for node in xnode:
+                    ref_x.append(node)
+            else:
+                ref_x.append(xnode)
         elif imode == 'prev':  # 将xnode挂接为ref_x的前兄弟节点
-            ref_x.addprevious(xnode)
+            if isinstance(ref_x, list):
+                return 'in prev mode,ref_x should not be list.'
+            if isinstance(xnode, list):
+                for node in xnode:
+                    ref_x.addprevious(node)
+            else:
+                ref_x.addprevious(xnode)
         elif imode == 'next':  # 将xnode挂接为ref_x的后兄弟节点
-            ref_x.addnext(xnode)
+            if isinstance(ref_x, list):
+                return 'in next mode,ref_x should not be list.'
+            if isinstance(xnode, list):
+                for node in reversed(xnode):
+                    ref_x.addnext(node)
+            else:
+                ref_x.addnext(xnode)
         elif imode == 'this':  # 将xnode挂接为ref_x的父节点
-            pn = ref_x.getparent()
-            ref_x.addprevious(xnode)  # 1 将当前节点插入在参考节点之前
-            pn.remove(ref_x)  # 2 将参考节点从当前位置删除
-            xnode.append(ref_x)  # 3 将参考节点插入当前的子节点
+            if isinstance(xnode, list):
+                return 'in this mode,xnode should not be list.'
+            if isinstance(ref_x, list):
+                pn = ref_x[0].getparent()
+                ref_x[0].addprevious(xnode)  # 1 将当前节点插入在参考节点之前
+                for node in ref_x:
+                    pn.remove(node)  # 2 将参考节点从当前位置删除
+                for node in ref_x:
+                    xnode.append(node)  # 3 将参考节点插入当前的子节点
+            else:
+                pn = ref_x.getparent()
+                ref_x.addprevious(xnode)  # 1 将当前节点插入在参考节点之前
+                pn.remove(ref_x)  # 2 将参考节点从当前位置删除
+                xnode.append(ref_x)  # 3 将参考节点插入当前的子节点
         return ''
     except Exception as e:
         return 'join_lxml_node err:' + es(e)
 
 
-def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
-    """将指定的lxml根节点进行格式化输出.closing告知应该自闭合的tag集;tab告知缩进字符串;text_limit限定文本换行所需长度
+def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60, outroot=True, drop_atts={}):
+    """将指定的lxml根节点进行格式化输出.closing告知应该自闭合的tag集;tab告知缩进字符串;text_limit限定文本换行所需长度;drop_atts告知不输出的属性名集合
         返回值:(结果文本,节点行号映射)或(None,err)
     """
 
@@ -724,6 +775,8 @@ def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
         """生成指定节点的xml属性行"""
         rst = [f'<{node.tag}']
         for att in node.attrib:
+            if att in drop_atts:
+                continue
             rst.append(f' {att}="{take_att(node, att)}"')
         if isclosing:
             rst.append('/>')  # 要求自闭合
@@ -784,30 +837,33 @@ def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60):
     nodes = {}  # 节点行号映射
     lineno = 0  # 最新输出的行号位置
 
-    def proc(node):
+    def proc(node, outroot=True):
         """对指定的节点进行深度递归遍历"""
         nonlocal deep
         nonlocal lines
         nonlocal lineno
         nonlocal nodes
-        # 构建当前节点输出
-        nodes[node] = lineno
+
         line, childs = make_node(node, deep)
-        lines.append(f'{deep * tab}{line}')
-        lineno += 1 + line.count('\n')
-        if not childs:
-            return  # 没有子节点需要遍历,直接返回
+        # 构建当前节点输出
+        if outroot:
+            nodes[node] = lineno
+            lines.append(f'{deep * tab}{line}')
+            lineno += 1 + line.count('\n')
+            if not childs:
+                return  # 没有子节点需要遍历,直接返回
         # 进行子节点递归遍历
         deep += 1
         for child in childs:
             proc(child)
         deep -= 1
         # 有子节点那就一定需要输出闭合标签
-        lines.append(f'{deep * tab}</{node.tag}>')
-        lineno += 1
+        if outroot:
+            lines.append(f'{deep * tab}</{node.tag}>')
+            lineno += 1
 
     try:
-        proc(root)
+        proc(root, outroot)
         return '\n'.join(lines), nodes
     except Exception as e:
         return None, es(e)
