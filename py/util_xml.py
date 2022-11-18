@@ -684,6 +684,32 @@ def take_lxml_child(node: etree._Element, skipcmt=True, dstTag=None):
         return None
 
 
+def take_lxml_childs(node: etree._Element, skipcmt=True, dstTag=None):
+    """获取node的全部子节点(可以跳过注释节点或要求明确的目标节点dstTag).返回值:None没找到,或目标节点列表."""
+    if node is None:
+        return None
+    rsts = []
+    try:
+        rst = next(node.iterchildren(dstTag))
+        if skipcmt and isinstance(rst, etree._Comment):
+            rst, _ = take_lxml_next(rst, dstTag)
+        while rst is not None:
+            rsts.append(rst)
+            rst, _ = take_lxml_next(rst, dstTag)
+        return rsts
+    except:
+        return None
+
+
+def xpath_lxml_node(root, node):
+    """生成root下node节点的xpath路径.返回值:None错误,或xpath字符串"""
+    try:
+        tree = etree.ElementTree(root)
+        return tree.getpath(node)
+    except:
+        return None
+
+
 def join_lxml_node(ref_x: etree._Element, imode, xnode: etree._Element):
     """将xnode节点按照指定的模式imode挂接到参考ref_x节点中.
         imode模式有:

@@ -309,18 +309,29 @@ class waited_t:
 
 # 文件行输出器
 class append_line_t:
-    def __init__(self, fname, encoding='utf-8'):
+    def __init__(self, fname=None, encoding='utf-8'):
+        if fname:
+            self.open(fname, encoding)
+
+    def open(self, fname, encoding='utf-8'):
         try:
             self.fp = open(fname, 'a', encoding=encoding)
+            return ''
         except Exception as e:
-            print('ERROR: %s' % (es(e)))
+            self.fp = None
+            return es(e)
 
     def append(self, line=''):
         if isinstance(line, list):
             for l in line:
-                self.fp.writelines([l, '\n'])
+                if l.endswith('\n'):
+                    self.fp.write(l)  # 不要输出额外的空行
+                else:
+                    self.fp.writelines([l, '\n'])  # 确保正确分行
+            return len(line)
         else:
             self.fp.writelines([line, '\n'])
+            return 1
 
     def flush(self):
         if self.fp:
@@ -337,12 +348,17 @@ class append_line_t:
 
 # 文件行读取器
 class read_lines_t:
-    def __init__(self, fname, encoding='utf-8'):
+    def __init__(self, fname=None, encoding='utf-8'):
+        if fname:
+            self.open(fname, encoding)
+
+    def open(self, fname, encoding='utf-8'):
         try:
             self.fp = open(fname, 'r', encoding=encoding)
+            return ''
         except Exception as e:
             self.fp = None
-            print('ERROR: %s' % (es(e)))
+            return es(e)
 
     def skip(self, lines=100):
         if not self.fp:
@@ -382,6 +398,47 @@ class read_lines_t:
 
     def __del__(self):
         self.close()
+
+
+def conv_file_lines(infile, outfile, cbfunc, cbargs=None):
+    """逐行读取infile内容,使用cbfunc处理后,再输出到outfile中.
+        回调函数原型: cbfunc(line, idx, lines, *cbargs) -> newlines
+        返回值:(oldlines,newlines)或errormsg
+    """
+    oldlines = 0
+    newlines = 0
+
+    # 打开读取器
+    if isinstance(infile, read_lines_t):
+        reader = infile
+    else:
+        reader = read_lines_t()
+        msg = reader.open(infile)
+        if msg:
+            return msg
+
+    # 打开输出器
+    if isinstance(outfile, append_line_t):
+        writer = outfile
+    else:
+        writer = append_line_t()
+        msg = writer.open(outfile)
+        if msg:
+            return msg
+
+    # 进行读取处理循环
+    inlines = reader.fetch()
+    while inlines:
+        oldlines += len(inlines)
+        for idx, line in enumerate(inlines):
+            outlines = cbfunc(line, idx, lines, *cbargs)
+            if outlines:
+                newlines += writer.append(outlines)
+        inlines = reader.fetch()
+
+    writer.close()
+    reader.close()
+    return (oldlines, newlines)
 
 
 # 将infile分隔为多个ofile_prx文件,每个文件最多lines行
