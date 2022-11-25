@@ -245,7 +245,7 @@ class xpath:
             return [], es(e)
 
     def take(self, cc_xpath, idx=None, rstmode='xml'):
-        """查询cc_xpath表达式对应的结果串或串列表,错误串为空则正常.
+        """查询cc_xpath表达式对应的结果文本或文本列表.返回值中错误串为空则正常.
             idx=None,获取全部结果
                 返回值:([结果串],'错误')
             idx=数字,得到指定的idx结果

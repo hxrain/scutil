@@ -292,17 +292,17 @@ class Tab(object):
     def querySelector(self, selector, nodeid=None):
         '''执行选择器,获取对应的节点'''
         if not nodeid:
-            nodeid = self.DOM.getDocument()
+            nodeid = self.call_method('DOM.getDocument')
             nodeid = nodeid["root"]["nodeId"]
-        res = self.DOM.querySelector(nodeId=nodeid, selector=selector)
+        res = self.call_method('DOM.querySelector', nodeId=nodeid, selector=selector)
         return res["nodeId"] if res["nodeId"] > 0 else None
 
     def querySelectorAll(self, selector, nodeid=None):
         '''执行选择器,获取对应的全部节点'''
         if not nodeid:
-            nodeid = self.DOM.getDocument()
+            nodeid = self.call_method('DOM.getDocument')
             nodeid = nodeid["root"]["nodeId"]
-        res = self.DOM.querySelectorAll(nodeId=nodeid, selector=selector)
+        res = self.call_method('DOM.querySelectorAll', nodeId=nodeid, selector=selector)
         return res["nodeIds"]
 
     def getViewport(self):
@@ -317,9 +317,11 @@ class Tab(object):
          'height': 内容高度}
         """
         try:
-            res = self.Page.getLayoutMetrics()
+            res = self.call_method('Page.getLayoutMetrics')
             if res is None:
                 return None, 'Page.getLayoutMetrics fail.'
+
+            # 查询视口尺寸
             Viewport = None
             if 'cssVisualViewport' in res:
                 Viewport = res['cssVisualViewport']
@@ -328,6 +330,7 @@ class Tab(object):
             else:
                 return None, 'visualViewport not found.'
 
+            # 查询内容尺寸
             Box = None
             if 'cssContentSize' in res:
                 Box = res['cssContentSize']
@@ -336,32 +339,104 @@ class Tab(object):
             else:
                 return None, 'contentSize not found.'
 
-            Viewport['width'] = Box['width']
-            Viewport['height'] = Box['height']
+            # 记录内存尺寸
+            Viewport['contentWidth'] = Box['width']
+            Viewport['contentHeight'] = Box['height']
             return Viewport, ''
         except Exception as e:
             return None, e.__repr__()
 
-    def getScreenshot(self, timeout=10, width=None, height=None, x=0, y=0, scale=1):
-        """获取页面图像快照,可指定视口范围.返回值:(base64图像数据,msg),msg为空正常"""
-        if width and height:
-            vp = {'x': x, 'y': y, 'width': width, 'height': height, 'scale': scale}
-        else:
-            vp = None
+    def setEmuScreen(self, width, height, timeout=20, scale=1, mobile=False):
+        """设置模拟屏幕的尺寸,校正旧版本chrome全尺寸截图失效的情况"""
+        try:
+            if timeout is None:
+                timeout = self.timeout
+            if width and height:
+                res = self.call_method('Emulation.setDeviceMetricsOverride', width=width, height=height, deviceScaleFactor=scale, mobile=mobile, _timeout=timeout)
+            else:
+                res = self.call_method('Emulation.clearDeviceMetricsOverride', _timeout=timeout)
+            if res is None:
+                return 'Emulation.setDeviceMetricsOverride fail.'
+            return ''
+        except Exception as e:
+            return None, e.__repr__()
 
+    def getScreenshot(self, tobin=True, timeout=20, isfull=True, scale=1, quality=None):
+        """获取页面图像快照
+            tobin - 是否返回二进制而不是base64串
+            timeout - 等待超时时间
+            isfull - 指定抓取视口范围或完整内容范围.
+            scale - 拉伸缩放比例
+            quality - jpeg压缩品质系数,1~100
+            返回值:(base64图像数据,msg),msg为空正常
+        """
+        box, msg = self.getViewport()
+        if msg:
+            return None, msg
+
+        args = {}
         if timeout is None:
             timeout = self.timeout
 
+        # 等待超时
+        args['_timeout'] = timeout
+
+        # 图像格式
+        if quality:
+            args['format'] = 'jpeg'
+            args['quality'] = quality
+        else:
+            args['format'] = 'png'
+
+        # 截图范围
+        if isfull:
+            args['clip'] = {'x': 0, 'y': 0, 'width': box['contentWidth'], 'height': box['contentHeight'], 'scale': scale}
+            args['captureBeyondViewport'] = True
+            self.setEmuScreen(args['clip']['width'], args['clip']['height'])  # 修正chrome86不能正确全尺寸截图的问题
+        else:
+            args['clip'] = {'x': 0, 'y': 0, 'width': box['clientWidth'], 'height': box['clientHeight'], 'scale': scale}
+
         try:
-            if vp:
-                img = self.Page.captureScreenshot(clip=vp, _timeout=timeout)
-            else:
-                img = self.Page.captureScreenshot(_timeout=timeout)
+            img = self.call_method('Page.captureScreenshot', **args)
+            if isfull:
+                self.setEmuScreen(None, None, timeout=timeout)
             if img is None or 'data' not in img:
                 return None, 'Page.captureScreenshot fail.'
-            return img['data'], ''
+            if tobin:
+                return base64.decodebytes(img['data'].encode('ascii')), ''
+            else:
+                return img['data'], ''
         except Exception as e:
             return None, e.__repr__()
+
+    def sendKey(self, keyCode=0x0D, eventType='keyDown', modifiers=0, timeout=10):
+        """给tab页发送键盘事件.返回值:错误消息
+            keyCode参考:
+                https://msdn.microsoft.com/en-us/library/dd375731(VS.85).aspx
+                https://docs.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
+            eventType - 事件类型:keyDown, keyUp
+            modifiers - 修饰类型:Alt=1, Ctrl=2, Meta/Command=4, Shift=8
+        """
+        try:
+            r = self.call_method('Input.dispatchKeyEvent', type=eventType, windowsVirtualKeyCode=keyCode, nativeVirtualKeyCode=keyCode, modifiers=modifiers,
+                                 _timeout=timeout)
+            return '' if r is not None else 'sendMouse fail.'
+        except Exception as e:
+            return spd_base.es(e)
+
+    def sendMouse(self, x, y, eventType='mousePressed', buttons=0, modifiers=0, timeout=10):
+        """给tab页发送鼠标事件.返回值:错误消息
+            x,y - 鼠标位置
+            eventType - 事件类型: mousePressed, mouseReleased, mouseMoved, mouseWheel
+            buttons - 按钮类型(int): 1 - Left, 2- Right, 4 - Middle, 0 - None.
+            modifiers - 修饰类型:Alt=1, Ctrl=2, Meta/Command=4, Shift=8
+        """
+        try:
+            r = self.call_method('Input.dispatchMouseEvent', type=eventType, x=x, y=y, modifiers=modifiers, buttons=buttons,
+                                 _timeout=timeout)
+            return '' if r is not None else 'sendMouse fail.'
+        except Exception as e:
+            return spd_base.es(e)
 
     def _on_requestWillBeSent(self, requestId, loaderId, documentURL, request, timestamp, wallTime, initiator, **param):
         """记录发送的请求信息"""
@@ -1335,20 +1410,7 @@ class spd_chrome:
         jss = http_ajax + 'http_ajax("%s","GET","","","%s");' % (url, show)
         return self.exec(tab, jss)
 
-    def sendkey(self, tab, keyCode=0x0D, eventType='keyDown'):
-        """给指定的tab页发送键盘事件.返回值(True,错误消息).事件代码参考
-            https://msdn.microsoft.com/en-us/library/dd375731(VS.85).aspx
-            https://docs.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
-        """
-        try:
-            t = self._tab(tab)
-            t.call_method('Input.dispatchKeyEvent', type=eventType, windowsVirtualKeyCode=keyCode, nativeVirtualKeyCode=keyCode,
-                          _timeout=self.proto_timeout)
-            return True, ''
-        except Exception as e:
-            return False, py_util.get_trace_stack()
-
-    def wait(self, tab, cond, is_xpath, max_sec=60, body_only=False, frmSel=None):
+    def wait(self, tab, cond, is_xpath=False, max_sec=60, body_only=False, frmSel=None):
         """在指定的tab页上,等待符合条件的结果出现,最大等待max_sec秒.返回值:(内容串,错误消息)"""
         isnot, cond = parse_cond(cond)
 

@@ -582,11 +582,15 @@ def save_to_file2(path, fname, strdata, encode='utf-8', mode='w'):
 # -----------------------------------------------------------------------------
 # 将数据保存到fn对应的文件中
 def save_file(fn, data, encoding='utf-8'):
-    if type(data).__name__ == 'str':
-        data = data.encode(encoding)
-    f = open(fn, "wb+")
-    f.write(data)
-    f.close()
+    try:
+        if type(data).__name__ == 'str':
+            data = data.encode(encoding)
+        f = open(fn, "wb+")
+        f.write(data)
+        f.close()
+        return ''
+    except Exception as e:
+        return es(e)
 
 
 # 十六进制串转换为对应的字符
