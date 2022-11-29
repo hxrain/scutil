@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 class padding:
     def __init__(self, block_size, mode):
         self.block_size = block_size

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import sqlite3 as s
 from hash_calc import *
 

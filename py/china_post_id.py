@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import china_area_id as cai
 import re
 

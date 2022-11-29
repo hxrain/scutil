@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import ctypes
 
 # 默认图像的DPI,70是最小值

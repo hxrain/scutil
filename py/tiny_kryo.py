@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 \x00 VarInt(0)
 \x80 None|VarIntFlag(0)

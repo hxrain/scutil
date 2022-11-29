@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # 对提取的高频短语重新进行词频计算后,再统计BM25需要的IDF词频词典
 
 import mean_shift as ms

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import imgui_env as imenv
 import imgui
 from PIL import Image

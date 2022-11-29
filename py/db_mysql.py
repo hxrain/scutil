@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import pymysql
 import pymysql.constants.FIELD_TYPE as field_types
 from warnings import filterwarnings

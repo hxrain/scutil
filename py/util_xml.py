@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from xml.dom import minidom
 from lxml import etree
 from lxml import html

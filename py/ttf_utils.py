@@ -1,4 +1,6 @@
-﻿import base64
+﻿# -*- coding: utf-8 -*-
+
+import base64
 import hashlib
 import json
 from io import *

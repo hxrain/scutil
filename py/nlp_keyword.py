@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 from uni_blocks import *
 from nlp_idf_dict import *

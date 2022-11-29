@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import paramiko
 from io import BytesIO
 

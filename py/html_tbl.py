@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
     html/table布局分析模块,根据table中的rowspan/colspan将表格填充为完整归一化的格子.
 """

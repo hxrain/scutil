@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import datetime
 import html as hp
 import http.cookiejar as cookiejar

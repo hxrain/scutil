@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # skeeto三绕哈希函数配置参数(36个)
 _skeeto_3f = [
     (17, 0xed5ad4bb, 11, 0xac4c1b51, 15, 0x31848bab, 14),
