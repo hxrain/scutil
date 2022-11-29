@@ -471,7 +471,7 @@ def make_head(req_dict, head_str):
 
     for line in lines:
         line = line.strip()
-        if line is '': continue
+        if line == '': continue
         kv = line.split(':', 1)
         req_dict['HEAD'][kv[0].strip()] = kv[1].strip()
 

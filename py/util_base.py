@@ -368,7 +368,7 @@ class read_lines_t:
 
         for i in range(lines):
             l = self.fp.readline()
-            if l is '': break
+            if l == '': break
         return True
 
     def fetch(self, lines=100):
@@ -377,7 +377,7 @@ class read_lines_t:
         ret = []
         for i in range(lines):
             l = self.fp.readline()
-            if l is '': break
+            if l == '': break
             ret.append(l.rstrip())
         return ret
 
@@ -387,7 +387,7 @@ class read_lines_t:
         rc = 0
         while True:
             l = self.fp.readline()
-            if l is '': break
+            if l == '': break
             rc += 1
             looper(l, rc)
 
