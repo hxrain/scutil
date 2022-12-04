@@ -352,26 +352,44 @@ class source_base:
             return self.spider.http.get_status_code(), self.spider.http.get_BODY()
 
     def chrome_wait(self, chrome, tab, cond_re, body_only=False, timeout=None, frmSel=None):
+        """等待页面装载完毕:
+            chrome - chrome客户端对象
+            tab - chrome页面标识
+            cond_re - 页面完成判定(正则表达式)
+            body_only - 是否仅返回html/body内容
+            timeout - 外部指定的完成等待超时上限
+            frmSel - 页面iframe选取器(css选取器)
+            返回值:空等待超时;否则为页面内容
+        """
         if timeout is None:
             timeout = self.chrome_timeout
         rsp, msg = chrome.wait_re(tab, cond_re, timeout, body_only, frmSel)  # 等待页面装载完成
-        if msg != '':
+        if msg != '' or rsp is None:
             self.make_http_result('', 998, msg)
-            return False
+            return ''
         else:
             self.make_http_result(rsp)
-            return True
+            return rsp
 
     def chrome_wait_xp(self, chrome, tab, cond_xp, body_only=False, timeout=None, frmSel=None):
+        """等待页面装载完毕:
+            chrome - chrome客户端对象
+            tab - chrome页面标识
+            cond_xp - 页面完成判定(xpath表达式)
+            body_only - 是否仅返回html/body内容
+            timeout - 外部指定的完成等待超时上限
+            frmSel - 页面iframe选取器(css选取器)
+            返回值:空等待超时;否则为页面内容
+        """
         if timeout is None:
             timeout = self.chrome_timeout
         rsp, msg = chrome.wait_xp(tab, cond_xp, timeout, body_only, frmSel)  # 等待页面装载完成
-        if msg != '':
+        if msg != '' or rsp is None:
             self.make_http_result('', 997, msg)
-            return False
+            return ''
         else:
             self.make_http_result(rsp)
-            return True
+            return rsp
 
     def chrome_hold(self, url, chrome, tab, timeout=None, url_is_re=False):
         """在指定的tab上提取指定url的回应内容"""
