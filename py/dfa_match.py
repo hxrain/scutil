@@ -49,7 +49,7 @@ class rep_rec_t:
         ri.tag = tag
 
         # 匹配位置的左右内容
-        txtl = self.txt[0:begin] if begin <= self.lr_len else self.txt[begin:begin + self.lr_len]
+        txtl = self.txt[0:begin] if begin <= self.lr_len else self.txt[begin - self.lr_len:begin]
         txtr = self.txt[end: end + self.lr_len]
         # 记录匹配信息
         ri.rec_src(begin, end, self.txt[begin:end], txtl, txtr)
@@ -79,6 +79,11 @@ class dfa_match_t():
         self.rep_rec = rep_rec  # 替换记录器
 
     def dict_add(self, keyword, val='\x00', strip=True):
+        """添加关键词条到词表
+            keyword - 待匹配的关键词
+            val - 匹配后对应的替换目标词
+            strip - 是否对关键词进行净空处理(可能会导致空格被丢弃)
+        """
         if strip:
             keyword = keyword.strip()  # 关键词丢弃首尾空白
         if self.keyword_lower:
@@ -242,7 +247,15 @@ class dfa_match_t():
         return rst
 
     def do_loop(self, cb, message, msg_len=None, offset=0, max_match=True, isall=True, skip_match=False):
-        """基础方法,对给定的消息进行关键词匹配循环,返回值:匹配次数"""
+        """基础方法,对给定的消息进行关键词匹配循环
+            cb - 结果回调函数
+            message - 待匹配的原文消息
+            msg_len - 待匹配的原文消息字符长度
+            offset - 从原文的指定偏移量进行匹配
+            max_match - 是否进行关键词最大化优先匹配
+            isall - 是否在最大化优先匹配的情况下记录同词根的短词匹配结果
+            skip_match - 是否直接跳过已匹配的短语长度(提高速度,但可能丢弃中间短语)
+            返回值:匹配次数"""
         if msg_len is None:
             msg_len = len(message)
         start = offset  # 记录当前正处理的字符位置
@@ -347,3 +360,16 @@ def lookup(reps, begin, end=None, by_src=True):
         rst.append(i)
 
     return rst
+
+
+if __name__ == '__main__':
+    match = dfa_match_t()
+    match.dict_add('abcde', '12345')
+    match.dict_add('abc', '123')
+    match.dict_add('cde', '345')
+    match.dict_add('bcd', '234')
+    txt = "hello!abcde!abc!"
+    result = match.do_match(txt)
+    print(result)
+    result2 = match.do_filter(txt, isall=True)
+    print(result2)
