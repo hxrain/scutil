@@ -35,6 +35,13 @@ class RuntimeException(PyChromeException):
 
 
 logger = logging.getLogger(__name__)
+debug_out = os.getenv("SPD_CHROME_DEBUG", False)  # 是否显示收发内容
+if debug_out:
+    filehandler = logging.handlers.RotatingFileHandler('./dbg_cdp.txt', encoding='utf-8', maxBytes=1024 * 1024 * 32, backupCount=8)
+    filehandler.setLevel(logging.DEBUG)
+    filehandler.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
+    logger.addHandler(filehandler)
+    logger.setLevel(logging.DEBUG)
 
 
 # 协议方法伪装
@@ -95,8 +102,10 @@ class Tab(object):
         self.timeout = 3  # 默认的交互超时时间
         self.disable_alert_url_re = None  # 需要关闭alert对话框的页面url配置
 
+        if debug_out:
+            logger.info(f'url={self.last_url} tabid={self.id} => {self._websocket_url}')
+
         # 根据环境变量的设定进行功能开关的处理
-        self.debug = os.getenv("SPD_CHROME_DEBUG", False)  # 是否显示收发内容
         if os.getenv("SPD_CHROME_REOPEN", False):
             self.cycle = cycle_t(1000 * 60 * 5)  # 是否自动重连websocket
         else:
@@ -147,8 +156,8 @@ class Tab(object):
         except Exception as e:
             return (None, None, spd_base.es(e))  # 其他错误
 
-        if self.debug:  # 如果开启了调试输出,则打印接收到的消息
-            print('< RECV %s' % message_json)
+        if debug_out:  # 如果开启了调试输出,则打印接收到的消息
+            logger.debug('< RECV %s' % message_json)
 
         if "method" in message:
             # 接收到事件报文,尝试进行回调处理
@@ -207,8 +216,8 @@ class Tab(object):
         msg_json = json.dumps(message)  # 生成本次请求的消息json串
         self.method_results[msg_id] = None  # 提前登记待接收结果对应的消息id
 
-        if self.debug:  # pragma: no cover
-            print("SEND > %s" % msg_json)
+        if debug_out:  # pragma: no cover
+            logger.debug("SEND > %s" % msg_json)
 
         reconn = False
         try:
@@ -426,16 +435,21 @@ class Tab(object):
         except Exception as e:
             return spd_base.es(e)
 
-    def sendMouse(self, x, y, eventType='mousePressed', buttons=0, modifiers=0, timeout=10):
+    def sendMouseEvent(self, x, y, eventType='mousePressed', button=None, modifiers=0, timeout=10):
         """给tab页发送鼠标事件.返回值:错误消息
             x,y - 鼠标位置
             eventType - 事件类型: mousePressed, mouseReleased, mouseMoved, mouseWheel
-            buttons - 按钮类型(int): 1 - Left, 2- Right, 4 - Middle, 0 - None.
+            button - 按钮类型: none, left, middle, right, back, forward
             modifiers - 修饰类型:Alt=1, Ctrl=2, Meta/Command=4, Shift=8
         """
         try:
-            r = self.call_method('Input.dispatchMouseEvent', type=eventType, x=x, y=y, modifiers=modifiers, buttons=buttons,
-                                 _timeout=timeout)
+            args = {}
+            if button:
+                args['button'] = button
+                args['clickCount'] = 1
+            if modifiers:
+                args['modifiers'] = modifiers
+            r = self.call_method('Input.dispatchMouseEvent', type=eventType, x=x, y=y, **args, _timeout=timeout)
             return '' if r is not None else 'sendMouse fail.'
         except Exception as e:
             return spd_base.es(e)
@@ -636,13 +650,13 @@ class Tab(object):
                 return '', ''
             ret = rst['result']
             if 'value' in ret:
-                return ret['value'], ''
+                return ret['value'], ''  # 正常有返回值
             elif 'description' in ret:
-                return '', ret['description']
+                return '', ret['description']  # 出现错误了
             elif 'type' in ret and ret['type'] == 'undefined':
-                return '', ''
+                return '', ''  # 正常无返回值
             else:
-                return '', ret
+                return '', ret  # 其他错误
         except Exception as e:
             return '', py_util.get_trace_stack()
 
@@ -746,7 +760,7 @@ class Browser(object):
 
 dom100 = '''
 //DOM选取功能封装:el为选择表达式或已选取的对象;parent为选取的父节点范围作用域,也可以为父节点的选取表达式
-var _$_ = function(el, parent) {
+var _$_ = function(exp, parent) {
 	var api = { el: null } //最终返回的API对象,初始的时候其持有的el元素对象为null
 	var qs = function(selector, parent) { //内部使用的CSS选择器单节点查询函数
 		parent = parent || document;
@@ -851,16 +865,16 @@ var _$_ = function(el, parent) {
 	    return "";
 	}
 	//根据输入的选择表达式的类型进行选取操作
-	switch(typeof el) {
+	switch(typeof exp) {
 		case 'string':
 			//选取表达式为串,先处理得到正确的父节点
 			parent = parent && typeof parent === 'string' ? qs(parent) : parent;
-			if (el.charAt(0)=='/'||(el.charAt(0)=='.'&&el.charAt(1)=='/')) api.el = qx(el, parent);
-			else api.el = qs(el, parent);
+			if (exp.charAt(0)=='/'||(exp.charAt(0)=='.'&&exp.charAt(1)=='/')) api.el = qx(exp, parent);
+			else api.el = qs(exp, parent);
 			break;
 		case 'object':
 			//选取表达式为对象,如果对象是一个原生的DOM节点,则直接记录下来
-			if(typeof el.nodeName != 'undefined') api.el = el;
+			if(typeof exp.nodeName != 'undefined') api.el = exp;
 			break;
 	}
 	return api; //对于选取操作,返回的就是封装后的对象
@@ -1138,13 +1152,13 @@ class spd_chrome:
         except Exception as e:
             return False, py_util.get_trace_stack()
 
-    def page_reload(self, tab):
-        """重新装载页面
+    def page_reload(self, tab, nocache=False):
+        """重新装载页面.nocache告知是否强制重装(不使用缓存)
             返回值: (bool,msg)
                     msg=''为正常,否则为错误信息"""
         try:
             t = self._tab(tab)
-            rst = t.call_method('Page.reload', _timeout=self.proto_timeout)
+            rst = t.call_method('Page.reload', ignoreCache=nocache, _timeout=self.proto_timeout)
             return True, ''
         except Exception as e:
             return False, py_util.get_trace_stack()
