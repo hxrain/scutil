@@ -17,6 +17,7 @@ import spd_base
 import socket
 import traceback
 import py_util
+import util_curve
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
@@ -300,21 +301,48 @@ class Tab(object):
         self.event_handlers = {}
         return True
 
-    def querySelector(self, selector, nodeid=None):
-        '''执行选择器,获取对应的节点'''
-        if not nodeid:
-            nodeid = self.call_method('DOM.getDocument')
-            nodeid = nodeid["root"]["nodeId"]
-        res = self.call_method('DOM.querySelector', nodeId=nodeid, selector=selector)
+    def getDocument(self, timeout=None):
+        '''获取文档主体节点树(字典)'''
+        if timeout is None:
+            timeout = self.timeout
+        res = self.call_method('DOM.getDocument', _timeout=timeout)
+        return res["root"]
+
+    def querySelector(self, selector, parentid=None, timeout=None):
+        '''在指定的parentid节点上执行选择器,获取对应的节点'''
+        if timeout is None:
+            timeout = self.timeout
+        if parentid is None:
+            parentid = self.getDocument(timeout)["nodeId"]
+        res = self.call_method('DOM.querySelector', nodeId=parentid, selector=selector, _timeout=timeout)
         return res["nodeId"] if res["nodeId"] > 0 else None
 
-    def querySelectorAll(self, selector, nodeid=None):
-        '''执行选择器,获取对应的全部节点'''
-        if not nodeid:
-            nodeid = self.call_method('DOM.getDocument')
-            nodeid = nodeid["root"]["nodeId"]
-        res = self.call_method('DOM.querySelectorAll', nodeId=nodeid, selector=selector)
+    def querySelectorAll(self, selector, parentid=None, timeout=None):
+        '''在指定的parentid节点上执行选择器,获取对应的全部节点'''
+        if timeout is None:
+            timeout = self.timeout
+        if parentid is None:
+            parentid = self.call_method('DOM.getDocument', _timeout=timeout)
+            parentid = parentid["root"]["nodeId"]
+        res = self.call_method('DOM.querySelectorAll', nodeId=parentid, selector=selector, _timeout=timeout)
         return res["nodeIds"]
+
+    def queryNodeBox(self, sel, parentid=None, timeout=None):
+        """在指定的parentid节点上执行选择器sel,获取对应的节点box模型数据
+            矩形表达为8个浮点数的数组,分别为[左,上,右,上,右,下,左,下]
+            返回值:{'content':内容矩形,'padding':填充矩形,'border':边框矩形,'margin':外边界矩形,'width':整体宽度,'height':整体高度},nodeid
+        """
+        if timeout is None:
+            timeout = self.timeout
+        if isinstance(sel, str):
+            nid = self.querySelector(sel, parentid, timeout)
+        else:
+            nid = sel
+
+        if nid is None:
+            return None, None
+        res = self.call_method('DOM.getBoxModel', nodeId=nid, _timeout=timeout)
+        return res['model'], nid
 
     def getViewport(self):
         """获取页面布局视口信息.返回值:(布局信息对象,msg),msg为空正常,否则信息对象为None
@@ -453,6 +481,63 @@ class Tab(object):
             return '' if r is not None else 'sendMouse fail.'
         except Exception as e:
             return spd_base.es(e)
+
+    def take_pos(self, sel, rand=True):
+        """获取指定CSS选取器sel对应的元素位置点,可进行随机偏移.
+            返回值:(x,y),'' 或 None,errmsg
+        """
+        try:
+            model, nodeid = self.queryNodeBox(sel, None, self.timeout)
+            if model is None:
+                return None, ''  # 目标不存在
+            border = model['border']
+            pt = util_curve.make_rect_center((border[0], border[1]), (border[4], border[5]), rand)
+            return pt, ''
+        except Exception as e:
+            return None, py_util.get_trace_stack()
+
+    def mouse_move(self, path, button='left'):
+        """在指定的tab页上,控制鼠标按指定的路径path进行移动.如果指定了按钮button,则是拖拽动作."""
+        sz = len(path)
+        for i in range(sz):
+            pt = path[i]
+            msg = self.sendMouseEvent(pt[0], pt[1], 'mouseMoved')
+
+            if msg:
+                return msg
+
+            if not button:
+                continue
+
+            if i == 0:
+                msg = self.sendMouseEvent(pt[0], pt[1], 'mousePressed', button)
+                if msg:
+                    return msg
+            elif i == sz - 1:
+                msg = self.sendMouseEvent(pt[0], pt[1], 'mouseReleased', button)
+                if msg:
+                    return msg
+
+        return ''
+
+    def mouse_click(self, dst, button='left'):
+        """在指定的tab页面对指定点位置或CSS选取器dst目标发起鼠标按钮button点击"""
+        try:
+            if isinstance(dst, str):
+                pt, msg = self.take_pos(dst)
+                if msg:
+                    return msg
+            else:
+                pt = dst
+            msg = self.sendMouseEvent(pt[0], pt[1], 'mousePressed', button, timeout=self.timeout)
+            if msg:
+                return msg
+            msg = self.sendMouseEvent(pt[0], pt[1], 'mouseReleased', button, timeout=self.timeout)
+            if msg:
+                return msg
+            return ''
+        except Exception as e:
+            return py_util.get_trace_stack()
 
     def _on_requestWillBeSent(self, requestId, loaderId, documentURL, request, timestamp, wallTime, initiator, **param):
         """记录发送的请求信息"""
@@ -667,6 +752,112 @@ class Tab(object):
             return ''
         except Exception as e:
             return None, spd_base.es(e)
+
+
+class MouseAct:
+    """多个鼠标动作的组合执行器.
+        1 必须先调用enter进入到视口的目标位置
+        2 整体多个动作可链式调用,简化编码: enter(dst1).move(dst2).sleep().click()
+        3 过程中出现的首个错误记录在err中,并且后续动作被放弃.
+        可用于判断整体动作是否成功完成.
+    """
+
+    def __init__(self, tab):
+        self.last = None  # 上一次动作最后停留的点位
+        self.tab = tab  # 操纵的tab页对象
+        self.err = None  # 记录过程中出现的首个错误(idx,type,msg),
+        self.acts = None  # 动作执行的数量
+
+    def enter(self, dst=None, btn=None):
+        """鼠标从上方进入tab视口,到达CSS选取器dst对应的元素或目标点.
+            返回值:self
+        """
+        self.last = None
+        self.acts = 0
+
+        if isinstance(dst, str):
+            dst, msg = self.tab.take_pos(dst)  # 获取目标位置
+            if msg:
+                self.err = (self.acts, 'enter', msg)
+                return self
+
+        if not dst:
+            dst = (100, 100)  # dst无效的时候,给出默认值
+
+        src = (round(50 + util_curve.random.random() * 200), 0)  # 视口上边缘的随机位置
+        path = util_curve.make_beizer2_path3(src, dst)
+        self.last = path[-1]  # 记录最后的位置
+
+        msg = self.tab.mouse_move(path, btn)  # 移动鼠标
+        if msg:
+            self.err = (self.acts, 'enter', msg)
+        return self
+
+    def click(self, dst=None, btn='left'):
+        """在目标CSS选取器或点位dst上点击鼠标按钮btn.如果没有dst则在最后的点位处点击.
+            返回值:self
+        """
+        self.acts += 1
+        if self.err:
+            return self
+
+        if isinstance(dst, str):
+            dst, msg = self.tab.take_pos(dst)  # 获取目标位置
+            if msg:
+                self.err = (self.acts, 'click', msg)
+                return self
+
+        if dst:
+            self.last = dst  # 记录目标位置
+
+        msg = self.tab.mouse_click(self.last, btn)  # 执行点击
+        if msg:
+            self.err = (self.acts, 'click', msg)
+        return self
+
+    def move(self, dst, btn=None):
+        """从当前点位移动到CSS选取器目标或点位dst,如果给定了按钮btn则进行拖放.
+            返回值:self
+        """
+        if self.last is None:
+            return self.enter(dst, btn)  # 没有上一次的点位,那么就认为是首次进入
+
+        self.acts += 1
+        if self.err:
+            return self
+
+        if isinstance(dst, str):
+            dst, msg = self.tab.take_pos(dst)  # 获取目标位置
+            if msg:
+                self.err = (self.acts, 'move', msg)
+                return self
+
+        path = util_curve.make_beizer2_path3(self.last, dst)
+        self.last = path[-1]  # 记录最后的位置
+
+        msg = self.tab.mouse_move(path, btn)  # 移动鼠标
+        if msg:
+            self.err = (self.acts, 'move', msg)
+
+        return self
+
+    def moveto(self, dst):
+        return self.move(dst)
+
+    def lineto(self, dst):
+        return self.move(dst, 'left')
+
+    def sleep(self, delay=0.5, range=0.5):
+        """休眠动作,用于更好的模拟人工动作.休眠时间为delay+随机range.
+            返回值:self
+        """
+        self.acts += 1
+        if self.err:
+            return self
+
+        t = round(delay + range * util_curve.random.random(), 2)
+        time.sleep(t)
+        return self
 
 
 # Chrome浏览器管理对象
@@ -1346,31 +1537,19 @@ class spd_chrome:
         """获取当前tab页的DOM根节点"""
         try:
             t = self._tab(tab)
-            rst = t.call_method('DOM.getDocument', _timeout=self.proto_timeout)
-            if rst is None:
-                return '', ''
-            if 'root' in rst:
-                return rst['root'], ''
-            else:
-                return '', rst
+            return t.getDocument(self.proto_timeout), ''
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def dom_node(self, tab, sel, parentNodeId=1):
+    def dom_node(self, tab, sel, parentNodeId=None):
         """使用css选择表达式,或xpath表达式,在父节点id之下,查询对应的节点id"""
         try:
             t = self._tab(tab)
-            rst = t.call_method('DOM.querySelector', nodeId=parentNodeId, selector=sel, _timeout=self.proto_timeout)
-            if rst is None:
-                return '', ''
-            if 'nodeId' in rst:
-                return rst['nodeId'], ''
-            else:
-                return '', rst
+            return t.querySelector(sel, parentNodeId, self.proto_timeout), ''
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def dom_dhtml(self, tab, sel, parentNodeId=1):
+    def dom_dhtml(self, tab, sel, parentNodeId=None):
         """获取dom对象的html文本,但对于iframe无效"""
         nid, err = self.dom_query_node(tab, sel, parentNodeId)
         if err:
