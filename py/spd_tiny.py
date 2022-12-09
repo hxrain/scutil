@@ -487,6 +487,13 @@ class source_base:
             return False
         return self.chrome_wait(chrome, tab, cond_re, body_only)
 
+    def chrome_mouseact(self, chrome, tab):
+        """获取鼠标动作执行器.返回值:None或MouseAct对象"""
+        tab, msg = chrome.tab(tab)
+        if msg:
+            return None
+        return MouseAct(tab)
+
     def on_list_take(self, list_url, req):
         """发起对list_url的http抓取动作
             self.spider.http.rst['BODY']中保存了抓取结果;
@@ -1106,6 +1113,23 @@ class db_base:
             return False
 
         return True
+
+    @guard(locker)
+    def clear_old(self, days=15, srcid=None):
+        """清理旧数据,仅保留days天的数据.srcid可指定采集源编号,或全部.
+            返回值:<0错误;>=0为删除的记录数
+        """
+        if srcid is None:
+            sql = f"delete from tbl_infos where create_time<strftime('%s',datetime('now','localtime','-{days} day'))"
+        else:
+            sql = f"delete from tbl_infos where source_id={srcid} and create_time<strftime('%s',datetime('now','localtime','-{days} day'))"
+
+        ret, msg = self.dbq.exec(sql)
+        if not ret:
+            _logger.error("clear source old <%s> fail. DB error <%s>", str(srcid), msg)
+            return -1
+
+        return msg
 
     @guard(locker)
     def save_info(self, info: info_t, updid=None):
