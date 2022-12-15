@@ -141,10 +141,8 @@ def fix_xml_node(xstr, dst='-'):
 def extract_xml_text(xstr):
     if xstr is None: return None
     ret = xstr.strip()  # 字符串两端净空
-    ret = re.sub('<([^>/]*?)/>', '', ret)  # 丢弃自闭合节点
-    ret = re.sub('<([^/][^>]*?)>', '', ret)  # 替换开始标签
-    ret = re.sub('</([^>]*?)>', '', ret)  # 替换结束标签
-
+    ret = re.sub('<([^>/]*?)/>|<([^/][^>]*?)>|</([^>]*?)>', '', ret)  # 丢弃自闭合节点
+    ret = re.sub('&nbsp;', ' ', ret)  # 替换空格实体
     ret = ret.replace('&#13;', '\n')  # 修正结果串
     ret = ret.strip()
     return ret
