@@ -182,7 +182,7 @@ class s3query:
 
     def extract(self, sql, filter_fun, param=None, fetchsize=100):
         """执行查询,给出sql和参数param,对结果行进行filter_fun过滤,可设定提取批尺寸fetchsize.
-           返回值:成功时 - (结果数量,错误信息)
+           返回值:(结果数量,错误信息)
         """
         rc = 0
         rows, msg = self.query(sql, param, fetchsize)
