@@ -381,6 +381,15 @@ class read_lines_t:
             ret.append(l.rstrip())
         return ret
 
+    def fetch_all(self):
+        rst = []
+        while True:
+            lines = self.fetch(100)
+            rst.extend(lines)
+            if len(lines) < 100:
+                break
+        return rst
+
     def loop(self, looper):
         if not self.fp:
             return 0
