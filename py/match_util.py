@@ -1,4 +1,4 @@
-#match_dfa和match_ac使用的公共基础功能
+# match_dfa和match_ac使用的公共基础功能
 
 class pos_t:
     """匹配位置信息记录"""
@@ -123,4 +123,14 @@ def lookup(reps, begin, end=None, by_src=True):
             break
         rst.append(i)
 
+    return rst
+
+
+def take_match_text(message, matchs):
+    """根据匹配结果[(b,e,v)]列表matchs,在原信息文本message中查找对应的文本内容段.
+        返回值:[(b,e,v,t)]
+    """
+    rst = []
+    for m in matchs:
+        rst.append((*m, message[m[0]:m[1]]))
     return rst

@@ -22,8 +22,9 @@ class ac_match_t:
             self.char = None  # 当前节点字母
             self.childs = {}  # 当前节点的子节点分支 {char:node_t}
             self.words = None  # 当前节点前缀词的长度
-            self.end = None  # 当前节点是否是结束节点(不为None,就是替换目标值)
+            self.end = None  # 当前节点是否为一个有效端点(不为None,存在替换目标值,即为一个有效端点)
             self.fail = None  # 当前节点所指向的fail指针
+            self.first = None  # 当前节点所指向的第一个端点fail指针
             self.parent = None  # 当前节点的父节点
 
         def pre_word(self):
@@ -87,6 +88,16 @@ class ac_match_t:
         for char in root.childs:  # 将根节点的全部子节点放入待处理队列
             queue.append(root.childs[char])
 
+        def get_fail_end(node):
+            """获取指定节点node的第一个有效fail指针"""
+            if node.end is not None:
+                return node
+            while node and node.fail:
+                if node.fail.end is not None:
+                    return node.fail
+                node = node.fail
+            return None
+
         # 从第一层开始,对trie树进行广度优先逐层遍历,由浅入深为每个节点增加Fail指针
         while queue:
             for i in range(len(queue)):
@@ -106,7 +117,9 @@ class ac_match_t:
                 else:  # 记录当前节点的匹配的fail指针(pfail的对应分支节点)
                     node.fail = pfail.childs[node.char]
 
-    def dict_load(self, fname, isend=True, defval='\x00', sep='@', encoding='utf-8'):
+                node.first = get_fail_end(node)  # 记录当前节点的首个端点fail指针
+
+    def dict_load(self, fname, isend=True, defval='', sep='@', encoding='utf-8'):
         """从文本文件fname装载词条.此函数可多次调用, 最后一次确保isend为真即可.
             文件单行为一个词条配置,用sep分隔的左边值将被替换为右边值.没有sep分隔时,替换值为defval
             返回值:(词条数量,错误消息)
@@ -137,9 +150,6 @@ class ac_match_t:
         if msg_len is None:
             msg_len = len(message)
 
-        def has_rst(node):
-            """判断当前node与其fail路径上,是否存在end端点"""
-
         node = self.root  # 尝试从根节点进行初始匹配
         while pos < msg_len:  # 在循环中,node就是状态机的当前状态
             char = message[pos]
@@ -153,31 +163,29 @@ class ac_match_t:
                 continue
 
             node = node.childs[char]  # 得到当前字符匹配的子节点
-            fails = node.get_fails()
-            if fails:
+            if node.first:
                 # 如果当前节点fail路径是存在的,则可能需要处理匹配结果
-                cb(pos, fails)
+                cb(pos, node)
                 rc += 1
 
         return rc
 
-    def do_check(self, message, msg_len=None, offset=0, mode: mode_t = mode_t.max_match):
+    def do_check(self, message, msg_len=None, offset=0, mode: mode_t = mode_t.is_all):
         """对给定的消息进行词条匹配测试,返回值:匹配结果[三元组(begin,end,val)]列表"""
         rst = []
 
-        def cb_max(pos, fails):
+        def cb_max(pos, node):
             """后项最大匹配,记录最后出现的有效结果"""
-            node = fails[-1]
-            if node.end is None:
-                return
+            node = node.first
             b, e, v = pos - node.words, pos, node.end
             while rst and b < rst[-1][1]:  # 新结果的起点小于已有结果的终点
                 rst.pop(-1)  # 踢掉旧结果
             rst.append((b, e, v))
 
-        def cb_all(pos, fails):
+        def cb_all(pos, node):
             """记录原文字符pos处匹配的节点node的全部可能值"""
-            for fail in fails:
+            fails = node.get_fails()
+            for fail in reversed(fails):
                 rst.append((pos - fail.words, pos, fail.end))
 
         # 根据要求的匹配模式,选取对应的结果记录函数
@@ -211,7 +219,7 @@ class ac_match_t:
             rst.append((last[1], msg_len, None))
         return rst
 
-    def do_match(self, message, msg_len=None, mode=mode_t.max_match):
+    def do_match(self, message, msg_len=None, mode=mode_t.is_all):
         """对给定的消息进行关键词匹配,得到补全过的结果链[(begin,end,val),(begin,end,val),...],val为None说明是原内容部分"""
         if msg_len is None:
             msg_len = len(message)
