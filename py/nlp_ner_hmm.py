@@ -207,8 +207,8 @@ class ner_hmm_bio_t:
         return self.hmm.model_load(model_dir, model_tag)
 
     def on_check(self, r, txt):
-        """检查识别结果是否可以使用,返回值:可用的结果,或None"""
-        return r if r[2][-1] == I else None  # 要求NER结尾状态为2(I)
+        """检查r识别结果(begin,end,[status])是否可以使用,返回值:可用的结果,或None"""
+        return r if r[2][0] == B and r[2][-1] == I else None  # 要求NER结尾状态为2(I)
 
     def predict(self, txt, sep_status=O):
         """对给定的txt文本进行ner预测.返回值:[(begin,end,[status])]"""
@@ -246,4 +246,4 @@ class ner_hmm_bioe_t(ner_hmm_bio_t):
 
     def on_check(self, r, txt):
         """检查识别结果是否可以使用,返回值:可用的结果,或None"""
-        return r if r[2][-1] == E else None  # 要求NER结尾状态为3(E)
+        return r if r[2][0] == B and r[2][-1] == E else None  # 要求NER结尾状态为3(E)
