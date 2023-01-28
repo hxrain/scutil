@@ -1,3 +1,4 @@
+from enum import Enum, unique
 import numpy as np
 import tqdm
 import os
@@ -192,11 +193,16 @@ SEP_CHARS = {'\n', '！', '？', '#', '￥', '%', '，', '。', '、', '|', '!',
 SEP_CHARSTR = '[' + ''.join(SEP_CHARS) + ']'
 
 
+@unique
+class tags(Enum):
+    O = 0  # NER其他状态
+    B = 1  # NER开始状态
+    I = 2  # NER中间状态
+    E = 3  # NER结束状态
+
+
 class ner_hmm_bio_t:
     """基于简单BIO标注的NER识别器.要求:O-0;B-1;I-2"""
-    O = 0
-    B = 1
-    I = 2
 
     def __init__(self, model_dir=None, model_tag='bio', status_N=3):
         self.hmm = std_hmm_t(status_N)
@@ -208,9 +214,9 @@ class ner_hmm_bio_t:
 
     def on_check(self, r, txt):
         """检查r识别结果(begin,end,[status])是否可以使用,返回值:可用的结果,或None"""
-        return r if r[2][0] == self.B and r[2][-1] == self.I else None  # 要求NER结尾状态为2(I)
+        return r if r[2][0] == tags.B.value and r[2][-1] == tags.I.value else None  # 要求NER结尾状态为2(I)
 
-    def predict(self, txt, sep_status=O):
+    def predict(self, txt, sep_status=tags.O.value):
         """对给定的txt文本进行ner预测.返回值:[(begin,end,[status])]"""
         rst = []
         lines = re.split(SEP_CHARSTR, txt)
@@ -236,14 +242,10 @@ class ner_hmm_bio_t:
 
 class ner_hmm_bioe_t(ner_hmm_bio_t):
     """基于简单BIOE标注的NER识别器.要求:O-0;B-1;I-2;E-3"""
-    O = 0
-    B = 1
-    I = 2
-    E = 3
 
     def __init__(self, model_dir=None, model_tag='bioe'):
         super().__init__(model_dir, model_tag, 4)
 
     def on_check(self, r, txt):
         """检查识别结果是否可以使用,返回值:可用的结果,或None"""
-        return r if r[2][0] == self.B and r[2][-1] == self.E else None  # 要求NER结尾状态为3(E)
+        return r if r[2][0] == tags.B.value and r[2][-1] == tags.E.value else None  # 要求NER结尾状态为3(E)
