@@ -3,6 +3,7 @@ import numpy as np
 import tqdm
 import os
 import re
+import uni_blocks as ub
 
 
 class std_hmm_t:
@@ -71,6 +72,28 @@ class std_hmm_t:
         except Exception as e:
             return e
 
+    def model_watch(self, col, dst='B', row=None):
+        """查看目标模型dst中指定行row和列col的概率值"""
+        if dst in {'A', 'a'}:
+            if row is None:
+                return self.A[:, col]
+            elif col is None:
+                return self.A[row,]
+            else:
+                return self.A[row, col]
+        elif dst in {'B', 'b'}:
+            if row is None:
+                return self.B[:, col]
+            elif col is None:
+                return self.B[row,]
+            else:
+                return self.B[row, col]
+        else:
+            if col is None:
+                return self.PI
+            else:
+                return self.PI[col]
+
     def predict(self, obs, sep_status=None):
         """使用维特比算法进行序列obs对应状态的预测,返回值:[预测的状态值列表],[有效区间列表(begin,end)]"""
         O = len(obs)  # 待预测的序列长度
@@ -86,7 +109,7 @@ class std_hmm_t:
         for i in range(1, O):
             temp = delta[:, i - 1] + self.A.T  # 计算前一个观测的每个状态转移到当前状态的全部可能性
             psi[:, i] = np.argmax(temp, axis=1)  # psi[:,i] 到达当前观测的最大概率值的上一个状态的位置
-            delta[:, i] = np.max(temp, axis=1) + self.B[:, obs[i]]  # delta[:,i] 到达当前观测序列的每个状态的最大概率值
+            delta[:, i] = np.max(temp, axis=1) + self.B[:, obs[i]]  # delta[:,i] 更新到达当前观测序列的每个状态的最大概率值
 
         ret = [0] * O
         # 从delta的最后取最大值，利用psi向前回溯即可找到最大概率序列
@@ -120,7 +143,7 @@ class std_hmm_t:
 
 
 class train_hmm_t:
-    """对hmm进行标注训练处理的功能基类"""
+    """对hmm进行标注训练处理的功能适配器"""
 
     def __init__(self, dstpath, tag, SN=3, OM=65535):
         self.hmm = std_hmm_t(SN, OM)  # HMM功能对象
@@ -189,8 +212,19 @@ def train_from_file(hmm: train_hmm_t, fn_label, cb_parse=None):
 
 
 # 用于分句的符号
-SEP_CHARS = {'\n', '！', '？', '#', '￥', '%', '，', '。', '、', '|', '!', '?', '#', '$', '%', ',', '\\', '`', '~'}
+SEP_CHARS = {'\n', '！', '？', '#', '￥', '%', '，', '。', '、', '|', '!', '?', '#', '$', '%', ',', '\\', '`', '~', ':', '丶', '、'}
 SEP_CHARSTR = '[' + ''.join(SEP_CHARS) + ']'
+
+# 名字分隔符归一化
+SEP_NAMES = {'·': '.', '°': '.', '—': '.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.', '\\': '.', '"': "'",
+             '[': '(', ']': ')', '{': '(', '}': ')'}
+
+
+def ner_text_clean(txt):
+    """对文本进行必要的处理转换,但不应改变文本长度和位置"""
+    txt = ub.sbccase_to_ascii_str2(txt, True, True)
+    txt = ub.char_replace(txt, SEP_NAMES).upper()
+    return txt
 
 
 @unique
