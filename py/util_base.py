@@ -357,12 +357,14 @@ class read_lines_t:
     def open(self, fname, encoding='utf-8'):
         try:
             self.fp = open(fname, 'r', encoding=encoding)
+            self.fname = fname
             return ''
         except Exception as e:
             self.fp = None
             return es(e)
 
     def skip(self, lines=100):
+        """跳过指定行数"""
         if not self.fp:
             return False
 
@@ -372,6 +374,7 @@ class read_lines_t:
         return True
 
     def fetch(self, lines=100):
+        """获取一批行数据"""
         if not self.fp:
             return []
         ret = []
@@ -382,6 +385,7 @@ class read_lines_t:
         return ret
 
     def fetch_all(self):
+        """获取全部行数据"""
         rst = []
         while True:
             lines = self.fetch(100)
@@ -390,19 +394,23 @@ class read_lines_t:
                 break
         return rst
 
-    def loop(self, looper):
+    def loop(self, cb, goto_head=False):
+        """对全部行数据进行遍历调用"""
         if not self.fp:
             return 0
+        if goto_head:
+            self.fp.seek(0, 0)
         rc = 0
         while True:
             l = self.fp.readline()
             if l == '': break
             rc += 1
-            looper(l, rc)
+            cb(l, rc)
 
         return rc
 
     def close(self):
+        """关闭"""
         if self.fp:
             self.fp.close()
             self.fp = None
@@ -483,17 +491,19 @@ lw.appendx([('5',), ('6',)])
 
 
 class lines_writer:
-    def __init__(self, keyIdx=None, sep=','):
+    def __init__(self, keyIdx=None, sep=',', fname=None, mode='a+'):
         self.fp = None
         self.keys = set()
         self.keyIdx = keyIdx
         self.sep = sep
+        if fname:
+            self.open(fname, mode=mode)
 
-    def open(self, fname, encoding='utf-8'):
+    def open(self, fname, encoding='utf-8', mode='a+'):
         if self.fp is not None:
             return True
         try:
-            self.fp = open(fname, 'a+', encoding=encoding)
+            self.fp = open(fname, mode, encoding=encoding)
             self.fp.seek(0, 0)
             for line in self.fp.readlines():
                 line = line.strip()
@@ -517,7 +527,7 @@ class lines_writer:
             return self.appendt(line)
 
     def appendt(self, t):
-        """追加()元组内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
+        """追加(元组或字符串)内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
         if self.fp is None:
             return -1
 
@@ -1138,3 +1148,78 @@ def jacard_ratio(s1, s2):
     if tc == 0:
         return 0
     return sc / tc
+
+
+def take_file_size(fp):
+    """获取指定文件对象的尺寸.返回值:size:int或Exception对象"""
+    try:
+        now = fp.tell()
+        fp.seek(0, 2)
+        size = fp.tell()
+        fp.seek(now, 0)
+        return size
+    except Exception as e:
+        return e
+
+
+class eat_file_size:
+    """文件数据读取增量记录器,与TQDM配合使用"""
+
+    def __init__(self, fp):
+        self.fp = fp
+        self.reset()
+
+    def reset(self, use_tell=False):
+        """读取点记录归零"""
+        self.pos = self.fp.tell() if use_tell else 0
+
+    def total(self):
+        return take_file_size(self.fp)
+
+    def eat(self):
+        """获取自上次调用以来,文件被读取的尺寸增量"""
+        now = self.fp.tell()
+        ret = now - self.pos
+        self.pos = now
+        return ret
+
+
+def dict_reduce(main, data):
+    """将data中的计数结果累积到main中"""
+    for k in data:
+        main[k] = main.get(k, 0) + data[k]
+
+
+def text_file_sort(fname, mode=1, encoding='utf-8'):
+    """对fname文件的内容排序,输出覆盖原文件.
+        排序模式mode:
+            1 - 字符串/升序
+            2 - 字符串/降序
+            3 - 字符串反读/升序
+            4 - 字符串反读/降序
+            5 - (长度,字符串)/升序
+            6 - (长度,字符串)/降序
+            7 - (长度,字符串反读)/升序
+            8 - (长度,字符串反读)/降序
+        返回值:''正常;其他为错误信息.
+    """
+    kf_str_f = lambda x: x
+    kf_str_r = lambda x: x[::-1]
+    kf_str_nf = lambda x: (len(x), x)
+    kf_str_nr = lambda x: (len(x), x[::-1])
+    func_keys = {1: (kf_str_f, False), 2: (kf_str_f, True),
+                 3: (kf_str_r, False), 4: (kf_str_r, True),
+                 5: (kf_str_nf, False), 6: (kf_str_nf, True),
+                 7: (kf_str_nr, False), 8: (kf_str_nr, True)}
+    try:
+        kf = func_keys[mode]
+        fp = open(fname, 'r', encoding=encoding)
+        lines = fp.readlines()
+        fp.close()
+        res = sorted(lines, key=kf[0], reverse=kf[1])
+        fp = open(fname, 'w', encoding=encoding)
+        fp.writelines(res)
+        fp.close()
+        return ''
+    except Exception as e:
+        return ei(e)
