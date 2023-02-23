@@ -2293,6 +2293,7 @@ map_id_areas = {
     450204: ['柳南区'],
     450205: ['柳北区'],
     450206: ['柳江区'],
+    450208: ['柳东新区', '柳州高新技术产业开发区', '柳州高新区', '阳和新区'],
     450222: ['柳城县'],
     450223: ['鹿寨县'],
     450224: ['融安县'],
@@ -3314,7 +3315,7 @@ map_id_areas = {
     650103: ['沙依巴克区'],
     650104: ['新市区'],
     650105: ['水磨沟区'],
-    650106: ['头屯河区'],
+    650106: ['头屯河区', '乌鲁木齐经济技术开发区', '乌鲁木齐经开区', '乌鲁木齐开发区'],
     650107: ['达坂城区'],
     650109: ['米东区'],
     650121: ['乌鲁木齐县'],
@@ -3760,3 +3761,70 @@ def analyse_area_id(txt):
         return mains[0][0]
     else:
         return othrs[0][0]
+
+
+def areas_split(txt, seps=None, skip_head=True, skip_tail=True):
+    """将输入文本行txt按给定的区划分隔符进行拆分.返回值:['区划分段']"""
+    rst = []
+    tlen = len(txt)
+    begin = 0
+    if seps is None:
+        seps = {'省', '市', '区', '县', '州', '盟', '旗', '乡', '村', '镇'}
+
+    def take(begin, end=None):
+        """获取指定范围的文本段,跳过前后可能的括号"""
+        if end is None:
+            end = tlen
+        if txt[begin] in {'(', ')'}:
+            begin += 1
+        if txt[end - 1] in {'(', ')'}:
+            end -= 1
+        rst = txt[begin:end]
+        if rst in {'街道', '社区', '农村', '城市', '乡村', '城乡', '城镇', '都市'}:  # 单纯的分隔符,不输出
+            return ''
+        return rst
+
+    def loop(pos):
+        """从txt的pos开始,查找下一个区划分隔符.返回值:下一个区划分隔符的结束点"""
+        while pos < tlen:
+            if txt[pos:pos + 5] in {'唐市古镇区'}:  # 特例,你咋就不能好好起名字
+                return pos + 5
+            if txt[pos:pos + 4] in {'唐市古镇'}:
+                return pos + 4
+            if txt[pos:pos + 2] in {'街道', '社区', '村村', '镇镇', '市村'}:
+                return pos + 2
+            if txt[pos] in seps:
+                if pos < tlen - 1 and txt[pos + 1] in seps:
+                    return pos + 2
+                return pos + 1
+            pos += 1
+        return tlen
+
+    while begin < tlen:
+        end = loop(begin)
+        seg = take(begin, end)
+        if seg:
+            rst.append(seg)  # 记录当前段内容
+        else:
+            break
+        begin = end
+
+    if skip_head:  # 如果要求跳过头部非地区段(要求进行省市区县合理性检查)
+        while rst:
+            seg = rst[0]
+            if query_ids_by_area(seg) is None:
+                rst.pop(0)  # 则进行前置循环丢弃检查
+            else:
+                break  # 遇到地区段了,结束
+
+    if skip_tail:  # 如果要求丢弃尾部非地区段(要求进行尾部段特征检查)
+        while rst:
+            seg = rst[-1]
+            if seg[-1] not in seps:  # 不是地区名称则丢弃
+                rst.pop(-1)
+            else:
+                break  # 遇到地区了,结束
+
+    return rst
+
+
