@@ -128,7 +128,7 @@ class words_trie_t:
         """查找指定的词汇是否存在.
             返回值:(deep,node)
                 deep=0          - 不匹配:node为root;
-                deep=len(word)  - 匹配:node为{}空字典则为完整匹配,否则为半匹配;
+                deep=len(word)  - node为空字典为完整匹配,否则为不完整匹配;
                 0<deep<len(word)- 部分匹配:node为下级节点
         """
         if not word:
@@ -148,14 +148,3 @@ class words_trie_t:
             deep += 1
             node = node[char]  # 指向下级节点
         return deep, node
-
-
-words = words_trie_t()
-words.add('123')
-words.add('1234')
-words.add('12345')
-words.find('234')
-words.find('12')
-words.find('123')
-words.find('12345')
-words.lookup()

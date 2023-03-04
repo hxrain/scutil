@@ -538,7 +538,10 @@ class lines_writer:
             if isinstance(t, tuple):
                 self.fp.write(self.sep.join(t) + '\n')
             else:
-                self.fp.write(t + '\n')
+                if t[-1] != '\n':
+                    self.fp.write(t + '\n')
+                else:
+                    self.fp.write(t)
             self.keys.add(key)
             return 2
         except Exception as e:
@@ -1220,6 +1223,21 @@ def text_file_sort(fname, mode=1, encoding='utf-8'):
         fp = open(fname, 'w', encoding=encoding)
         fp.writelines(res)
         fp.close()
+        return ''
+    except Exception as e:
+        return ei(e)
+
+
+def text_file_unrepeat(fname, encoding='utf-8'):
+    """对指定的文本文件进行"""
+    try:
+        fp = open(fname, 'r', encoding=encoding)
+        lines = fp.readlines()
+        fp.close()
+        out = lines_writer(sep=None)
+        if not out.open(fname, encoding, mode='w+'):
+            return 'file open fail.'
+        out.appendx(lines)
         return ''
     except Exception as e:
         return ei(e)
