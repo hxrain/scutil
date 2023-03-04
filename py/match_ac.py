@@ -177,6 +177,8 @@ class ac_match_t:
         def cb_max(pos, node):
             """后项最大匹配,记录最后出现的有效结果"""
             node = node.first
+            if node == self.root:
+                return
             b, e, v = pos - node.words, pos, node.end
             while rst and b < rst[-1][1]:  # 新结果的起点小于已有结果的终点
                 rst.pop(-1)  # 踢掉旧结果

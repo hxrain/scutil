@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 
+# 行政区划级别定义
+areas_level = {'省': 1, '自治区': 1,  # 省级
+               '北京市': 1, '天津市': 1, '上海市': 1, '重庆市': 1,  # 直辖市
+               '地区': 2, '市': 2, '州': 2, '盟': 2,  # 地市级(部分'市'为县级市)
+               '区': 3, '县': 3, '旗': 3,  # 区县级
+               '乡': 4, '镇': 5, '村': 6}  # 乡村级
+
 # 行政区划编码映射地区名称
 map_id_areas = {
     # 北京市
@@ -1434,7 +1441,7 @@ map_id_areas = {
     360104: ['青云谱区'],
     360111: ['青山湖区'],
     360112: ['新建区'],
-    360113: ['红谷滩区'],
+    360113: ['红谷滩区', '红谷滩新区'],
     360121: ['南昌县'],
     360123: ['安义县'],
     360124: ['进贤县'],
@@ -1550,7 +1557,7 @@ map_id_areas = {
     370113: ['长清区'],
     370114: ['章丘区'],
     370115: ['济阳区'],
-    370116: ['莱芜区'],
+    370116: ['莱芜区', '莱芜经济开发区', '莱芜高新区', '莱芜经开区'],
     370117: ['钢城区'],
     370124: ['平阴县'],
     370126: ['商河县'],
@@ -1838,7 +1845,7 @@ map_id_areas = {
     411426: ['夏邑县'],
     411481: ['永城市'],
     411500: ['信阳市'],
-    411502: ['浉河区'],
+    411502: ['浉河区', '羊山新区'],
     411503: ['平桥区'],
     411521: ['罗山县'],
     411522: ['光山县'],
@@ -1902,7 +1909,7 @@ map_id_areas = {
     420323: ['竹山县'],
     420324: ['竹溪县'],
     420325: ['房县'],
-    420381: ['丹江口市'],
+    420381: ['丹江口市', '武当山特区', '武当山旅游经济特区'],
     420500: ['宜昌市'],
     420502: ['西陵区'],
     420503: ['伍家岗区'],
@@ -2214,7 +2221,7 @@ map_id_areas = {
     441226: ['德庆县'],
     441284: ['四会市'],
     441300: ['惠州市'],
-    441302: ['惠城区'],
+    441302: ['惠城区', '仲恺高新技术产业开发区', '仲恺高新区'],
     441303: ['惠阳区'],
     441322: ['博罗县'],
     441323: ['惠东县'],
@@ -3656,6 +3663,24 @@ def show_repeats_area_name(area_ids=map_area_ids):
             print(n, ['/'.join(split_ex(id)[0]) for id in ids])
 
 
+def query_first_id(addr, offset=0, max=15):
+    """从addr的首部开始,严格的查找匹配的第一个地域名对应的行政区划代码集合.返回值:(名称,区划代码集合)或('',None)
+        最大遍历限定15个字,是为了匹配最长的地名'积石山保安族东乡族撒拉族自治县'
+    """
+    tlen = len(addr) - offset + 1
+    for pos in range(2, tlen):
+        if pos > max:
+            break
+        area = addr[offset:offset + pos]
+        if area not in map_area_ids:
+            continue
+        if pos < tlen - 1 and addr[offset:offset + pos + 1] in map_area_ids:
+            continue
+
+        return area, map_area_ids[area]
+    return '', None
+
+
 def query_area_ids(addr, min_words=2):
     """查询addr地址串对应的具体的行政区划代码.返回值:[区划id集合]
     """
@@ -3764,7 +3789,7 @@ def analyse_area_id(txt):
 
 
 def areas_split(txt, seps=None, skip_head=True, skip_tail=True):
-    """将输入文本行txt按给定的区划分隔符进行拆分.返回值:['区划分段']"""
+    """将输入文本行txt按给定的区划分隔符进行拆分.返回值:[(begin,end,'区划名称')]"""
     rst = []
     tlen = len(txt)
     begin = 0
@@ -3786,6 +3811,7 @@ def areas_split(txt, seps=None, skip_head=True, skip_tail=True):
 
     def loop(pos):
         """从txt的pos开始,查找下一个区划分隔符.返回值:下一个区划分隔符的结束点"""
+        bpos = pos
         while pos < tlen:
             if txt[pos:pos + 5] in {'唐市古镇区'}:  # 特例,你咋就不能好好起名字
                 return pos + 5
@@ -3793,8 +3819,13 @@ def areas_split(txt, seps=None, skip_head=True, skip_tail=True):
                 return pos + 4
             if txt[pos:pos + 2] in {'街道', '社区', '村村', '镇镇', '市村'}:
                 return pos + 2
-            if txt[pos] in seps:
-                if pos < tlen - 1 and txt[pos + 1] in seps:
+            char = txt[pos]
+            next = txt[pos + 1] if pos < tlen - 1 else ''
+            if char in seps:
+                if pos - bpos <= 1:
+                    pos += 1  # 跳过特殊名称
+                    continue
+                if next in seps and next != char:
                     return pos + 2
                 return pos + 1
             pos += 1
@@ -3803,15 +3834,14 @@ def areas_split(txt, seps=None, skip_head=True, skip_tail=True):
     while begin < tlen:
         end = loop(begin)
         seg = take(begin, end)
-        if seg:
-            rst.append(seg)  # 记录当前段内容
-        else:
+        if not seg:
             break
+        rst.append((begin, end, seg))  # 记录当前段内容
         begin = end
 
     if skip_head:  # 如果要求跳过头部非地区段(要求进行省市区县合理性检查)
         while rst:
-            seg = rst[0]
+            seg = rst[0][2]
             if query_ids_by_area(seg) is None:
                 rst.pop(0)  # 则进行前置循环丢弃检查
             else:
@@ -3819,12 +3849,10 @@ def areas_split(txt, seps=None, skip_head=True, skip_tail=True):
 
     if skip_tail:  # 如果要求丢弃尾部非地区段(要求进行尾部段特征检查)
         while rst:
-            seg = rst[-1]
+            seg = rst[-1][2]
             if seg[-1] not in seps:  # 不是地区名称则丢弃
                 rst.pop(-1)
             else:
                 break  # 遇到地区了,结束
 
     return rst
-
-

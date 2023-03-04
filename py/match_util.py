@@ -136,8 +136,8 @@ def take_match_text(message, matchs):
     return rst
 
 
-def merge_match_segs(mres):
-    """合并匹配分段(对于all匹配结果)得到最终重叠被合并的结果.返回值:[(b,e,v)]"""
+def merge_match_segs(mres, keepback=True):
+    """合并匹配分段(对于all匹配结果)得到最终重叠被合并的结果,keepback告知保持前值还是后值.返回值:[(b,e,v)]"""
     if len(mres) <= 1:
         return mres
     rst = []
@@ -145,7 +145,8 @@ def merge_match_segs(mres):
     for i in range(1, len(mres)):
         nseg = mres[i]
         if nseg[0] <= seg[1]:
-            seg = seg[0], nseg[1], seg[2]  # 合并新旧两个段
+            v = nseg[2] if keepback else seg[2]
+            seg = min(nseg[0], seg[0]), max(nseg[1], seg[1]), v  # 合并新旧两个段
             if i == len(mres) - 1:
                 rst.append(seg)  # 最后一个别忘了
         else:
