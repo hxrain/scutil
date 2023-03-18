@@ -405,7 +405,8 @@ class read_lines_t:
             l = self.fp.readline()
             if l == '': break
             rc += 1
-            cb(l, rc)
+            if cb(l, rc):
+                break
 
         return rc
 
@@ -517,6 +518,8 @@ class lines_writer:
 
     def append(self, line):
         """追加行内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
+        if line is None:
+            return -2
         line = line.strip()
         if line == '': return 0
 
@@ -1228,16 +1231,23 @@ def text_file_sort(fname, mode=1, encoding='utf-8'):
         return ei(e)
 
 
-def text_file_unrepeat(fname, encoding='utf-8'):
-    """对指定的文本文件进行"""
+def text_file_unrepeat(fname, encoding='utf-8', oname=None, cb=None):
+    """对指定的文本文件按行进行排重处理"""
     try:
         fp = open(fname, 'r', encoding=encoding)
         lines = fp.readlines()
         fp.close()
         out = lines_writer(sep=None)
-        if not out.open(fname, encoding, mode='w+'):
+        if oname is None:
+            oname = fname + '.out'
+        if not out.open(oname, encoding, mode='w+'):
             return 'file open fail.'
-        out.appendx(lines)
+        if cb is None:
+            out.appendx(lines)
+        else:
+            for line in lines:
+                txt = cb(line[:-1] if line[-1] == '\n' else line)
+                out.append(txt)
         return ''
     except Exception as e:
         return ei(e)
