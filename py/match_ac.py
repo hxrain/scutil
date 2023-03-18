@@ -2,7 +2,9 @@
 from collections import deque
 from typing import List
 from enum import Enum, unique
+from collections.abc import Iterable
 from match_util import rep_rec_t
+from copy import deepcopy
 
 
 @unique
@@ -54,30 +56,64 @@ class ac_match_t:
             else:
                 return f'"{self.pre_word()}"={self.end}/{list(self.childs.keys())}@<{self.fail}>'
 
-    def __init__(self):
+    def __init__(self, fname=None):
         self.root = self.node_t()
+        if fname:
+            self.dict_load(fname)
 
-    def dict_add(self, keyword, val=delimit, strip=True):
+    def dict_add(self, keyword, val=delimit, strip=True, force=False):
         """添加关键词条到词表
             keyword - 待匹配的关键词
             val - 匹配后对应的替换目标词
             strip - 是否对关键词进行净空处理(可能会导致空格被丢弃)
+            force - 是否强制扩容替换匹配值
+        返回值:
+            None - 关键词已存在,不处理
+            False - 关键词已存在,扩容替换
+            True - 关键词不存在,正常添加
         """
-        word = keyword if not strip else keyword.strip()
-        node = pnode = self.root  # 从根进行节点树的遍历
 
-        for i, char in enumerate(word):  # 遍历关键词的每个字符,构建子节点树
-            if char not in node.childs:  # 如果当前层级的字符未出现在当前节点的下一级
-                node.childs[char] = self.node_t()  # 创建新的子节点
-                node = node.childs[char]  # 得到新的子节点
-                node.words = i + 1  # 当前节点前缀词的长度
-                node.char = char  # 记录节点对应的字符
-                node.parent = pnode  # 记录节点的父节点
+        def add(keyword, val, strip, force):
+            word = keyword if not strip else keyword.strip()
+            node = pnode = self.root  # 从根进行节点树的遍历
+
+            for i, char in enumerate(word):  # 遍历关键词的每个字符,构建子节点树
+                if char not in node.childs:  # 如果当前层级的字符未出现在当前节点的下一级
+                    node.childs[char] = self.node_t()  # 创建新的子节点
+                    node = node.childs[char]  # 得到新的子节点
+                    node.words = i + 1  # 当前节点前缀词的长度
+                    node.char = char  # 记录节点对应的字符
+                    node.parent = pnode  # 记录节点的父节点
+                else:
+                    node = node.childs[char]  # 得到当前层级对应的子节点
+                pnode = node  # 准备进行下一级节点树的处理
+
+            # 最后一级的节点,记录替换值,表示一个单词的正向匹配树构建完成
+            if force:
+                if isinstance(val, Iterable):
+                    if node.end is None:
+                        node.end = deepcopy(val)
+                        return True  # 新值
+                    else:
+                        node.end.update(val)
+                        return False  # 扩容值
+                else:
+                    ret = True if node.end is None else False  # 新值或替换
+                    node.end = val
+                    return ret
             else:
-                node = node.childs[char]  # 得到当前层级对应的子节点
-            pnode = node  # 准备进行下一级节点树的处理
+                if node.end is not None:
+                    return None  # 已存在不处理
+                node.end = val
+                return True  # 新值
 
-        node.end = val  # 最后一级的节点,记录替换值,表示一个单词的正向匹配树构建完成
+        if isinstance(keyword, (tuple, list)):
+            ret = True
+            for word in keyword:
+                ret = ret and add(word, val, strip, force)
+            return ret
+        else:
+            return add(keyword, val, strip, force)
 
     def dict_end(self):
         """在添加词表结束后,构建完整的fail跳转路径.
@@ -188,7 +224,8 @@ class ac_match_t:
             """记录原文字符pos处匹配的节点node的全部可能值"""
             fails = node.get_fails()
             for fail in reversed(fails):
-                rst.append((pos - fail.words, pos, fail.end))
+                if fail != self.root:
+                    rst.append((pos - fail.words, pos, fail.end))
 
         # 根据要求的匹配模式,选取对应的结果记录函数
         if mode == mode_t.max_match:
@@ -213,7 +250,7 @@ class ac_match_t:
         for m in matchs:
             if pos < m[0]:
                 rst.append((pos, m[0], None))
-                pos = m[1]
+            pos = m[1]
             rst.append(m)
 
         last = rst[-1]

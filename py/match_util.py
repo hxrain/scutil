@@ -1,4 +1,6 @@
 # match_dfa和match_ac使用的公共基础功能
+from copy import deepcopy
+
 
 class pos_t:
     """匹配位置信息记录"""
@@ -136,20 +138,128 @@ def take_match_text(message, matchs):
     return rst
 
 
-def merge_match_segs(mres, keepback=True):
+def merge_match_segs(mres, keepback=False):
     """合并匹配分段(对于all匹配结果)得到最终重叠被合并的结果,keepback告知保持前值还是后值.返回值:[(b,e,v)]"""
     if len(mres) <= 1:
         return mres
     rst = []
     seg = mres[0]
+
+    def add(a, b):
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            return a + b
+        if isinstance(a, (set, list, dict)) and isinstance(b, (set, list, dict)):
+            r = deepcopy(a)
+            r.update(b)
+            return r
+        return a
+
     for i in range(1, len(mres)):
         nseg = mres[i]
         if nseg[0] <= seg[1]:
-            v = nseg[2] if keepback else seg[2]
+            v = nseg[2] if keepback else add(nseg[2], seg[2])
             seg = min(nseg[0], seg[0]), max(nseg[1], seg[1]), v  # 合并新旧两个段
-            if i == len(mres) - 1:
-                rst.append(seg)  # 最后一个别忘了
         else:
             rst.append(seg)  # 将结果段保留,准备进行新的合并尝试
             seg = nseg
+
+        if i == len(mres) - 1:
+            rst.append(seg)  # 最后一个别忘了
+
+    return rst
+
+
+def complete_segs(mres, slen, isfull=False):
+    """在总长度为slen的范围内,获取mres分段列表中未包含的部分,或isfull完整列表
+        返回值:[(b,e,v)],rc
+        v is None - 未匹配补充段
+        rc告知补充的数量
+    """
+    pos = 0
+    rst = []
+    rc = 0
+    for seg in mres:
+        if seg[0] != pos:
+            rst.append((pos, seg[0], None))
+            rc += 1
+        pos = seg[1]
+        if isfull:
+            rst.append(seg)
+    if pos != slen:
+        rst.append((pos, slen, None))
+        rc += 1
+    return rst, rc
+
+
+def related_segs(a, b):
+    """
+        分析两个分段a和b的相对关系: + 紧邻; ~ 离开; & 相交; @ 包含; = 相同
+        返回值:
+            'A=B',(a1,a2) - a1=b1,a2=b2 A等于B
+            'A+B',(a1,b2) - a1,a2=b1,b2 A邻右B(B邻左A)
+            'A~B',(a2,b1) - a1,a2,b1,b2 A左离B(B右离A)
+            'A&B',(b1,a2) - a1,b1,a2,b2 A交右B(B交左A)
+            'A@B',(b1,b2) - a1,b1,b2,a2 A包含B
+            'B@A',(a1,a2) - b1,a1,a2,b2 B包含A
+            'B&A',(a1,b2) - b1,a1,b2,a2 B交右A(A交左B)
+            'B~A',(b2,a1) - b1,b2,a1,a2 B左离A(A右离B)
+            'B+A',(b1,a2) - b1,b2=a1,a2 B邻右A(A邻左B)
+    """
+    a1 = a[0]
+    a2 = a[1]
+    b1 = b[0]
+    b2 = b[1]
+    if a1 == b1 and a2 == b2:
+        return 'A=B', (a1, a2)
+    if a2 == b1:
+        return 'A+B', (a1, b2)
+    if a2 < b1:
+        return 'A~B', (a2, b1)
+    if a1 <= b1 < a2:
+        if b2 > a2:
+            if a1 == b1:
+                return 'B@A', (a1, a2)
+            else:
+                return 'A&B', (b1, a2)
+        else:
+            return 'A@B', (b1, b2)
+
+    if b2 == a1:
+        return 'B+A', (b1, a2)
+    if b2 < a1:
+        return 'B~A', (b2, a1)
+    if b1 <= a1 < b2:
+        if a2 > b2:
+            if b1 == a1:
+                return 'A@B', (b1, b2)
+            else:
+                return 'B&A', (a1, b2)
+        else:
+            return 'B@A', (a1, a2)
+    assert False, '!!!'
+
+
+def slen(seg):
+    """计算seg段的长度"""
+    return seg[1] - seg[0]
+
+
+def drop_nesting(segs):
+    """丢弃segs段落列表中被完全包含嵌套的部分"""
+    rst = []
+
+    def chk(seg):
+        while rst:
+            r, s = related_segs(rst[-1], seg)
+            if r == 'A@B':
+                return False
+            elif r == 'B@A':
+                rst.pop(-1)
+            else:
+                return True
+        return True
+
+    for seg in segs:
+        if chk(seg):
+            rst.append(seg)
     return rst
