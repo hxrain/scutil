@@ -202,6 +202,40 @@ def dict_save(fname, dct, encoding=None):
         return False
 
 
+def load_as_set(fname, encoding='utf-8'):
+    """装载文件内容,每行作为一个元素,得到全部元素的集合.返回值:(set(),'')或(None,err)"""
+    try:
+        rst = set()
+        fp = open(fname, 'r', encoding=encoding)
+        for line in fp:
+            if line[-1] == '\n':
+                rst.add(line[:-1])
+            else:
+                rst.add(line)
+        fp.close()
+        return rst, ''
+    except Exception as e:
+        return None, e
+
+
+def load_as_dict(fname, encoding='utf-8'):
+    """装载文件内容,每行内容作为key,行号作为val.返回值:({},'')或(None,err)"""
+    try:
+        rst = {}
+        fp = open(fname, 'r', encoding=encoding)
+        row = 0
+        for line in fp:
+            row += 1
+            if line[-1] == '\n':
+                rst[line[:-1]] = row
+            else:
+                rst[line] = row
+        fp.close()
+        return rst, ''
+    except Exception as e:
+        return None, e
+
+
 # 追加字符串到文件
 def append_line(fname, dat, encoding=None):
     try:
@@ -1249,5 +1283,29 @@ def text_file_unrepeat(fname, encoding='utf-8', oname=None, cb=None):
                 txt = cb(line[:-1] if line[-1] == '\n' else line)
                 out.append(txt)
         return ''
+    except Exception as e:
+        return ei(e)
+
+
+def inc(dct, key, cnt=1):
+    """对指定字典key进行值累加.返回值:累加之前的旧值"""
+    old = dct.get(key, 0)
+    dct[key] = old + cnt
+    return old
+
+
+def text_file_drops(fname, xname, encoding='utf-8', oname=None):
+    """对指定的文本文件fname按行进行xname文件重复内容的排除处理.返回值:''正常,否则为错误信息"""
+    try:
+        exs, err = load_as_set(xname, encoding)
+        if err:
+            return err
+
+        def cb(line):
+            if line in exs:
+                return ''
+            return line
+
+        return text_file_unrepeat(fname, encoding, oname, cb)
     except Exception as e:
         return ei(e)

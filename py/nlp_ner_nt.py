@@ -71,6 +71,7 @@ class nt_parser_t:
     # 数字序号分支归一化
     num_norm = [
         (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)([分号]*[小中厂店部亭号组校院馆台处师村团局园队所站区会厅库])(?![件河乡镇])', 1, __nu_nm.__func__),
+        (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(分公司|公司)', 1, __nu_nm.__func__),
         (r'[第东南西北]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(马路|路|弄|街|里|亩)', 1, __nu_ns.__func__),
         (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)', 1, __nu.__func__),
         (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]{2,})', 1, __nu.__func__),
@@ -140,13 +141,13 @@ class nt_parser_t:
             tags = data['.']
             exts = data['+']
             nobs = data['-']
-            self.matcher.dict_add(k, tags)
+            self.matcher.dict_add(k, tags, force=True)
             for e in exts:
-                r = self.matcher.dict_add(e, tags)
+                r = self.matcher.dict_add(e, tags, force=True)
                 if chk and not r:
                     print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat!')
             for b in nobs:
-                r = self.matcher.dict_add(b, self.tags_ND)
+                r = self.matcher.dict_add(b, self.tags_ND, force=True)
                 if chk and not r:
                     print(f'nt_parser_t.nt_tails-: {k}/{b} is repeat!')
 
@@ -163,20 +164,20 @@ class nt_parser_t:
             lvl = ca.query_aera_level(alst[0])  # 根据正式地名得到行政区划级别
             tags = lvls[lvl]
             for name in alst:
-                self.matcher.dict_add(name, tags)
+                self.matcher.dict_add(name, tags, force=True)
                 aname = ca.drop_area_tail(name, {'省', '市', '区', '县', '州', '盟', '旗'})
                 if name != aname:
-                    self.matcher.dict_add(aname, tags)  # 特定尾缀地区名称,放入简称
+                    self.matcher.dict_add(aname, tags, force=True)  # 特定尾缀地区名称,放入简称
 
         if worlds:
             for state in ca.map_worlds:  # 装入内置的世界主要国家与首都
                 city = ca.map_worlds[state]
-                self.matcher.dict_add(state, self.tags_NS)
-                self.matcher.dict_add(city, self.tags_NS1)
+                self.matcher.dict_add(state, self.tags_NS, force=True)
+                self.matcher.dict_add(city, self.tags_NS1, force=True)
 
-            stats = ['亚太', '东北亚', '东亚', '北美', '环太平洋', '欧洲', '亚洲', '美洲', '非洲', '印度洋', '太平洋', '大西洋', '北欧', '东欧', '西欧']
+            stats = ['亚太', '东北亚', '东亚', '北美', '环太平洋', '欧洲', '亚洲', '美洲', '非洲', '印度洋', '太平洋', '大西洋', '北欧', '东欧', '西欧', '中亚', '南亚','东南亚']
             for state in stats:
-                self.matcher.dict_add(state, self.tags_NS)
+                self.matcher.dict_add(state, self.tags_NS, force=True)
 
         def ns_tags(line):
             """根据地名进行行政级别查询,返回对应的标记"""
@@ -202,7 +203,7 @@ class nt_parser_t:
             self.matcher.dict_end()
         return ret
 
-    def load(self, dicts):
+    def loads(self, dicts):
         """统一装载词典列表dicts=[('类型','路径')].返回值:空串正常,否则为错误信息."""
         rst = []
         for i, d in enumerate(dicts):
@@ -218,6 +219,32 @@ class nt_parser_t:
             if r != '':
                 rst.append(r)
         return ''.join(rst)
+
+    @staticmethod
+    def __merge_bracket(segs, txt):
+        """合并segs段落列表中被左右括号包裹的部分,返回值:结果列表"""
+        rst = []
+        pos = 0
+
+        def is_brackets(a, b):
+            if a == '(' and b == ')':
+                return True
+            if a == '<' and b == '>':
+                return True
+            if a == '"' and b == '"':
+                return True
+            return False
+
+        for seg in segs:  # 对待记录的段落逐一进行检查
+            if seg[0] > 0 and seg[1] < len(txt):
+                p = seg[0] - 1
+                n = seg[1]
+                if is_brackets(txt[p], txt[n]):
+                    rst.append((p, n + 1, deepcopy(seg[2])))  # 当前是"(北京)"这样的括号地区,那么需要进行范围修正
+                    continue
+            rst.append((seg[0], seg[1], deepcopy(seg[2])))  # 记录原有段落,重新构造新元素,规避对原始对象的涂改.
+
+        return rst
 
     @staticmethod
     def __drop_nesting(segs, txt):
@@ -246,20 +273,14 @@ class nt_parser_t:
 
         for seg in segs:  # 对待记录的段落逐一进行检查
             if chk(rst, seg):
-                if seg[0] > 0 and seg[1] < len(txt) and types.equ(seg[2], types.NS):
-                    p = seg[0] - 1
-                    n = seg[1]
-                    if txt[p] == '(' and txt[n] == ')':
-                        rst.append((p, n + 1, deepcopy(seg[2])))  # 当前是"(北京)"这样的括号地区,那么需要进行范围修正
-                        continue
-                rst.append((seg[0], seg[1], deepcopy(seg[2])))  # 记录合法的段落,重新构造新元素,规避对原始对象的涂改.
+                rst.append(seg)  # 记录合法的段落
         return rst
 
     @staticmethod
     def __drop_crossing(segs):
         """丢弃segs段落列表中被交叉重叠的部分"""
         drops = []
-        for i in range(len(segs) - 2, 1, -1):
+        for i in range(len(segs) - 2, 0, -1):
             c = segs[i]  # 当前匹配分段
             p = segs[i - 1]  # 前匹配分段
             n = segs[i + 1]  # 后匹配分段
@@ -321,10 +342,12 @@ class nt_parser_t:
     def query(self, txt, merge=True):
         '''在txt中查找可能的组份段落,merge告知是否合并结果.返回值:[(b,e,{types})]或[]'''
         segs = self.matcher.do_check(txt)  # 按词典进行完全匹配
-        nums = self.query_nu(txt)  # 进行数字序号匹配
-        if nums:
-            self.__merge_nums(segs, nums)
-        mres = self.__drop_nesting(segs, txt)  # 删除重叠嵌套
+        mres = self.__merge_bracket(segs, txt)  # 合并附加括号
+        if not mu.is_full_segs(mres, len(txt)):
+            nums = self.query_nu(txt)  # 进行数字序号匹配
+            if nums:
+                self.__merge_nums(mres, nums)
+        mres = self.__drop_nesting(mres, txt)  # 删除重叠嵌套
         self.__drop_crossing(mres)  # 删除交叉叠加的部分
         return self.__merge_segs(mres) if merge else mres
 

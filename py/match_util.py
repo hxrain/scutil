@@ -191,6 +191,16 @@ def complete_segs(mres, slen, isfull=False):
     return rst, rc
 
 
+def is_full_segs(mres, slen):
+    """判断分段列表mres是否完整的涵盖了slen的长度"""
+    begin = 0
+    for seg in mres:
+        if seg[0] > begin:
+            return False
+        begin = max(begin, seg[1])
+    return begin >= slen
+
+
 def related_segs(a, b):
     """
         分析两个分段a和b的相对关系: + 紧邻; ~ 离开; & 相交; @ 包含; = 相同
