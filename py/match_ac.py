@@ -88,24 +88,29 @@ class ac_match_t:
                     node = node.childs[char]  # 得到当前层级对应的子节点
                 pnode = node  # 准备进行下一级节点树的处理
 
-            # 最后一级的节点,记录替换值,表示一个单词的正向匹配树构建完成
-            if force:
-                if isinstance(val, Iterable):
-                    if node.end is None:
-                        node.end = deepcopy(val)
-                        return True  # 新值
-                    else:
-                        node.end.update(val)
-                        return False  # 扩容值
-                else:
-                    ret = True if node.end is None else False  # 新值或替换
-                    node.end = val
-                    return ret
-            else:
+            # 对最后一级的节点,记录替换值,表示一个单词的正向匹配树构建完成
+
+            if not force:
+                # 不是强制替换,则保持旧值
                 if node.end is not None:
                     return None  # 已存在不处理
                 node.end = val
                 return True  # 新值
+
+            # 不可迭代,新值或替换
+            if not isinstance(val, Iterable):
+                ret = True if node.end is None else False  # 新值或替换
+                node.end = val
+                return ret
+
+            # 新值或迭代扩容
+            if node.end is None:
+                node.end = val
+                return True  # 新值
+            else:
+                node.end = deepcopy(node.end)
+                node.end.update(val)
+                return False  # 扩容值
 
         if isinstance(keyword, (tuple, list)):
             ret = True
