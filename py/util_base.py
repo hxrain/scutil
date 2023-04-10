@@ -202,34 +202,33 @@ def dict_save(fname, dct, encoding=None):
         return False
 
 
-def load_as_set(fname, encoding='utf-8'):
+def load_as_set(fname, encoding='utf-8', rst=None):
     """装载文件内容,每行作为一个元素,得到全部元素的集合.返回值:(set(),'')或(None,err)"""
     try:
-        rst = set()
+        if rst is None:
+            rst = set()
         fp = open(fname, 'r', encoding=encoding)
         for line in fp:
-            if line[-1] == '\n':
-                rst.add(line[:-1])
-            else:
-                rst.add(line)
+            rst.add(line[:-1] if line[-1] == '\n' else line)
         fp.close()
         return rst, ''
     except Exception as e:
         return None, e
 
 
-def load_as_dict(fname, encoding='utf-8'):
+def load_as_dict(fname, encoding='utf-8', rst=None, row_as_key=False):
     """装载文件内容,每行内容作为key,行号作为val.返回值:({},'')或(None,err)"""
     try:
-        rst = {}
+        if rst is None:
+            rst = {}
         fp = open(fname, 'r', encoding=encoding)
         row = 0
         for line in fp:
             row += 1
-            if line[-1] == '\n':
-                rst[line[:-1]] = row
+            if row_as_key:
+                rst[row] = line[:-1] if line[-1] == '\n' else line
             else:
-                rst[line] = row
+                rst[line[:-1] if line[-1] == '\n' else line] = row
         fp.close()
         return rst, ''
     except Exception as e:
