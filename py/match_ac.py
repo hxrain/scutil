@@ -10,8 +10,40 @@ from copy import deepcopy
 @unique
 class mode_t(Enum):
     """匹配结果的记录模式"""
-    max_match = 0  # 后项最大化优先匹配
-    is_all = 1  # 全匹配模式
+
+    @staticmethod
+    def last(rst, pos, node, root):
+        """后项最大匹配,记录最后出现的有效结果"""
+        node = node.first
+        if node == root:
+            return
+        b, e, v = pos - node.words, pos, node.end
+        while rst and b < rst[-1][1]:  # 新结果的起点小于已有结果的终点
+            rst.pop(-1)  # 踢掉旧结果
+        rst.append((b, e, v))
+
+    @staticmethod
+    def all(rst, pos, node, root):
+        """记录原文字符pos处匹配的节点node的全部可能值"""
+        fails = node.get_fails()
+        for fail in reversed(fails):
+            if fail != root:
+                rst.append((pos - fail.words, pos, fail.end))
+
+    @staticmethod
+    def cross(rst, pos, node, root):
+        """交叉保留,丢弃重叠包含的匹配"""
+        node = node.first
+        if node == root:
+            return
+        b, e, v = pos - node.words, pos, node.end
+        while rst and b <= rst[-1][0]:  # 新结果的起点小于已有结果的起点
+            rst.pop(-1)  # 踢掉旧结果
+        rst.append((b, e, v))
+
+    max_match = last.__func__  # 后项最大化优先匹配(交叉碰触被丢弃,仅保留最后出现的最大匹配段)
+    is_all = all.__func__  # 全匹配模式(不丢弃任何匹配,全部记录)
+    keep_cross = cross.__func__  # 交叉保持模式(仅丢弃完全被包含的部分)
 
 
 class ac_match_t:
@@ -214,32 +246,7 @@ class ac_match_t:
     def do_check(self, message, msg_len=None, offset=0, mode: mode_t = mode_t.is_all):
         """对给定的消息进行词条匹配测试,返回值:匹配结果[三元组(begin,end,val)]列表"""
         rst = []
-
-        def cb_max(pos, node):
-            """后项最大匹配,记录最后出现的有效结果"""
-            node = node.first
-            if node == self.root:
-                return
-            b, e, v = pos - node.words, pos, node.end
-            while rst and b < rst[-1][1]:  # 新结果的起点小于已有结果的终点
-                rst.pop(-1)  # 踢掉旧结果
-            rst.append((b, e, v))
-
-        def cb_all(pos, node):
-            """记录原文字符pos处匹配的节点node的全部可能值"""
-            fails = node.get_fails()
-            for fail in reversed(fails):
-                if fail != self.root:
-                    rst.append((pos - fail.words, pos, fail.end))
-
-        # 根据要求的匹配模式,选取对应的结果记录函数
-        if mode == mode_t.max_match:
-            cb = cb_max
-        else:
-            cb = cb_all
-
-        # 执行匹配过程
-        self.do_loop(cb, message, msg_len, offset)
+        self.do_loop(lambda pos, node: mode(rst, pos, node, self.root), message, msg_len, offset)
         return rst
 
     @staticmethod
