@@ -32,11 +32,11 @@ class nt_parser_t:
     tags_NO = {types.NO}  # 单独尾字
     tags_NB = {types.NB}  # 分支机构
     tags_NS = {types.NS}  # 地域名称
-    tags_S1 = {types.NS, types.S1}
-    tags_S2 = {types.NS, types.S2}
-    tags_S3 = {types.NS, types.S3}
-    tags_S4 = {types.NS, types.S4}
-    tags_S5 = {types.NS, types.S5}
+    tags_NS1 = {types.NS, types.NS1}
+    tags_NS2 = {types.NS, types.NS2}
+    tags_NS3 = {types.NS, types.NS3}
+    tags_NS4 = {types.NS, types.NS4}
+    tags_NS5 = {types.NS, types.NS5}
 
     @staticmethod
     def __nu_nm(lst, mres):
@@ -72,17 +72,17 @@ class nt_parser_t:
         (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)([分号]*[小中厂店部亭号组校院馆台处师村团局园队所站区会厅库连])(?![件河乡镇])', 1, __nu_nm.__func__),
         (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(分公司|公司)', 1, __nu_nm.__func__),
         (r'[第东南西北]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(马路|路|弄|街|里|亩)', 1, __nu_ns.__func__),
-        (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)', 1, __nu.__func__),
-        (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]{2,})', 1, __nu.__func__),
+        (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)[号]?', 1, __nu.__func__),
+        (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]{2,})[号]?', 1, __nu.__func__),
     ]
 
     @staticmethod
-    def nums(txt, relst=None):
-        """查找文本txt中出现的数字部分.返回值:[(b,e)]"""
+    def nums(txt, nulst=None):
+        """查找文本txt中出现的数字部分,nulst可给出外部数字模式匹配列表.返回值:[(b,e)]"""
         rst = []
-        if not relst:
-            relst = nt_parser_t.num_norm
-        for pat in relst:
+        if not nulst:
+            nulst = nt_parser_t.num_norm
+        for pat in nulst:
             mres = list(re.finditer(pat[0], txt))
             if not mres:
                 continue
@@ -93,12 +93,12 @@ class nt_parser_t:
         return sorted(rst, key=lambda x: x)
 
     @staticmethod
-    def query_nu(txt, relst=None):
-        """查询txt中的数字相关特征模式,返回值:[b,e,{types}]"""
+    def query_nu(txt, nulst=None):
+        """查询txt中的数字相关特征模式,nulst可给出外部数字模式匹配列表.返回值:[b,e,{types}]"""
         rst = []
-        if not relst:
-            relst = nt_parser_t.num_norm
-        for pat in relst:
+        if not nulst:
+            nulst = nt_parser_t.num_norm
+        for pat in nulst:
             mres = list(re.finditer(pat[0], txt))
             if not mres:
                 continue
@@ -172,9 +172,9 @@ class nt_parser_t:
             self.matcher.dict_end()
         return ret
 
-    def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars={'省', '市', '区', '县', '州', '盟', '旗', '乡', '镇', '村'}):
+    def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars={'省', '市', '区', '县', '州', '盟', '旗', '乡', '镇'}):
         """装载NS尾缀词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
-        lvls = {0: self.tags_NS, 1: self.tags_S1, 2: self.tags_S2, 3: self.tags_S3, 4: self.tags_S4, 5: self.tags_S5}
+        lvls = {0: self.tags_NS, 1: self.tags_NS1, 2: self.tags_NS2, 3: self.tags_NS3, 4: self.tags_NS4, 5: self.tags_NS5}
         for id in ca.map_id_areas:  # 装入内置的行政区划名称
             alst = ca.map_id_areas[id]
             lvl = ca.query_aera_level(alst[0])  # 根据正式地名得到行政区划级别
@@ -191,7 +191,7 @@ class nt_parser_t:
             for state in ca.map_worlds:  # 装入内置的世界主要国家与首都
                 city = ca.map_worlds[state]
                 self.matcher.dict_add(state, self.tags_NS, force=True)
-                self.matcher.dict_add(city, self.tags_S1, force=True)
+                self.matcher.dict_add(city, self.tags_NS1, force=True)
 
             stats = ['亚太', '东北亚', '东亚', '北美', '环太平洋', '欧洲', '亚洲', '美洲', '非洲', '印度洋', '太平洋', '大西洋', '北欧', '东欧', '西欧', '中亚', '南亚', '东南亚']
             for state in stats:
@@ -385,7 +385,7 @@ class nt_parser_t:
             segs.insert(idx, nu)
 
     def parse(self, txt, merge=True, nulst=None):
-        '''在txt中解析可能的组份段落,merge告知是否合并结果.返回值:[(b,e,{types})],[(pseg,rl,seg,cr)]'''
+        '''在txt中解析可能的组份段落,merge告知是否合并结果,nulst可给出外部数字模式匹配列表.返回值:[(b,e,{types})],[(pseg,rl,seg,cr)]'''
         segs = self.matcher.do_check(txt, mode=mac.mode_t.keep_cross)  # 按词典进行完全匹配
         mres = self.merge_bracket(segs, txt)  # 合并附加括号
         if not mu.is_full_segs(mres, len(txt)):
@@ -397,7 +397,7 @@ class nt_parser_t:
         return self.__merge_segs(mres, merge)
 
     def query(self, txt, merge=True, nulst=None, with_useg=False):
-        '''在txt中查找可能的组份段落,merge告知是否合并同类分段.返回值:[(b,e,{types})]或[]'''
+        '''在txt中查找可能的组份段落,merge告知是否合并同类分段,nulst可给出外部数字模式匹配列表.返回值:[(b,e,{types})]或[]'''
         rst, ext = self.parse(txt, merge, nulst)
         if with_useg:
             return mu.complete_segs(rst, len(txt), True)[0]
@@ -419,15 +419,27 @@ class nt_parser_t:
             return None
         return mres[0]
 
-    def pizza(self, txt, nulst=None):
-        """判断txt是否由已知组份完整拼装得到(分段无交叉且无缺口)"""
+    def pizza(self, txt, nulst=None, rsts=None, crwords={'村'}):
+        """判断txt是否由已知组份完整拼装得到(分段无交叉且无缺口),
+            nulst可给出外部数字模式匹配列表
+            rsts可记录匹配的分段结果列表,无论是否完整拼装
+            crwords告知允许交叉叠加的词汇
+            返回值: None - 非完整拼装(有缺口); 0 - 非完整拼装(有交叉); 1 - 完整拼装(无交叉); 2 - 完整拼装(有允许的交叉)
+        """
         mres, clst = self.parse(txt, False, nulst)
-        if not mu.is_full_segs(mres, len(txt)):
-            return None
+        if rsts is not None:
+            fres, urc = mu.complete_segs(mres, len(txt), True)
+            rsts.extend(fres)  # 记录分段结果
+        else:
+            urc = not mu.is_full_segs(mres, len(txt))
+        if urc:
+            return None  # 告知非完整拼装(有缺口)
+
         if len(clst) == 0:
-            return True
+            return 1  # 告知是完整拼装(无交叉)
+
         rl = clst[0][1]
         cr = clst[0][3]
-        if rl == 'A&B' and txt[cr[0]:cr[1]] in {'村'}:
-            return True
-        return False
+        if rl == 'A&B' and txt[cr[0]:cr[1]] in crwords:
+            return 2  # 告知是完整拼装(有交叉)
+        return 0  # 告知非完整拼装(有交叉)
