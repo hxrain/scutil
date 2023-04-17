@@ -46,11 +46,11 @@ def html_drop_tag(txt, tag='', dst='', is_begin=None):
     if tag == '':
         tag = '\w+'
     if is_begin is None:
-        r = r'<\s*%s\s*/\s*>|</\s*%s\s*>|<\s*%s\s[^>]*?>|<\s*%s>' % (tag, tag, tag, tag)
+        r = r'(?<!<)<\s*%s\s*/\s*>|</\s*%s\s*>|(?<!<)<\s*%s\s[^>]*?>|(?<!<)<\s*%s>' % (tag, tag, tag, tag)
     elif is_begin:
-        r = r'<\s*%s\s*/\s*>|<\s*%s\s[^>]*?>|<\s*%s>' % (tag, tag, tag)
+        r = r'(?<!<)<\s*%s\s*/\s*>|(?<!<)<\s*%s\s[^>]*?>|(?<!<)<\s*%s>' % (tag, tag, tag)
     else:
-        r = r'<\s*%s\s*/\s*>|</\s*%s\s*>' % (tag, tag)
+        r = r'(?<!<)<\s*%s\s*/\s*>|</\s*%s\s*>' % (tag, tag)
     return re.sub(r, dst, txt)
 
 
