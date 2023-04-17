@@ -314,7 +314,7 @@ class ac_match_t:
             dst_len = len(m[2])  # 替换的目标长度
             mt_len = len(message[m[0]:m[1]])  # 匹配的内容长度
             old_val = message[m[0]:m[0] + dst_len]  # 目标长度对应的内容
-            if dst_len > mt_len and max_match and old_val == m[2]:
+            if dst_len > mt_len and old_val == m[2]:
                 rst.append(message[m[0]:m[1]])  # 替换的目标与原有值相同,不重复替换
             else:
                 do_rep(m[0], m[1], m[2])
