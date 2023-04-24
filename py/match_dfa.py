@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from match_util import *
 
+
 # DFA前向最大匹配算法
 class dfa_match_t():
     def __init__(self, value_is_list=False, rep_rec=None):
@@ -235,7 +236,6 @@ def do_filter(dfa, message, reps=None, repl="*", max_match=True, isall=False, lr
     rep_rec = rep_rec_t(message, reps, lr_len)
     dfa.rep_rec = rep_rec
     return dfa.do_filter(message, repl, max_match, isall), reps
-
 
 
 if __name__ == '__main__':
