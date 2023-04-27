@@ -189,7 +189,7 @@ class xpath:
 
         try:
             if cnt_str.startswith('<?xml'):
-                cnt_str = re.sub(r'<\?xml\s+version\s*=\s*"\d+.\d+"\s+encoding\s*=\s*".*?"\s*\?\??>', '', cnt_str)  # 剔除xml描述信息,避免字符集编码造成的干扰
+                cnt_str = re.sub(r'<\?xml(\s+version\s*=\s*"\d+.\d+")?(\s+encoding\s*=\s*".*?")?\s*\?\??>', '', cnt_str)  # 剔除xml描述信息,避免字符集编码造成的干扰
                 parser = etree.XMLParser(strip_cdata=False)  # 需要保留CDATA节点
                 self.rootNode = etree.XML(cnt_str, parser)
                 self.mode = 'xml'
@@ -315,6 +315,37 @@ def remove_xpath(xstr, cc_xpaths, fixNode=' '):
                     pn = xp.rootNode
                 pn.remove(node)  # 调用目标节点的父节点,将目标节点删除
         return etree.tostring(xp.rootNode, encoding='unicode', method=xp.mode), ''
+    except Exception as e:
+        return xstr, str(e)
+
+
+def strip_root(xstr, tags=('td', 'tr', 'th'), fixNode=' '):
+    """删除xml内容中nodes列表指定的根节点.返回值:(删除后的结果,错误说明)"""
+    xp = xpath()
+    r, msg = xp.parse(xstr, True, fixNode)
+    if not r or msg:
+        return xstr, 'xml parse error.'
+
+    if xp.mode == 'html':
+        root = xp.rootNode[0]  # xp解析后,html模式一定含有html/body两级节点
+    else:
+        root = etree.Element('xml')
+        root.append(xp.rootNode)
+
+    try:
+        for node in root:  # 对根下的所有节点进行遍历处理
+            while node.tag in tags:
+                if len(node) == 1:
+                    old = node
+                    node = node[0]
+                    old.addnext(node)  # 将子节点添加到待删除父节点的后面
+                    root.remove(old)
+                else:
+                    break
+        if xp.mode == 'html':
+            return etree.tostring(xp.rootNode, encoding='unicode', method=xp.mode), ''
+        else:
+            return etree.tostring(root[0], encoding='unicode', method=xp.mode), ''
     except Exception as e:
         return xstr, str(e)
 
