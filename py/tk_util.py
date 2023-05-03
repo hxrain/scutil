@@ -17,6 +17,21 @@ def make_image(w=1, h=1, c=0xFFFFFF):
 '''
 
 
+def enable_hidpi(root: Tk):
+    """开启HiDPI功能模式"""
+    import ctypes
+
+    # 告诉操作系统使用程序自身的dpi适配
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+
+    # 获取屏幕的缩放因子
+    ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
+    # ScaleFactor = self.root.winfo_fpixels('1i')
+
+    # 设置程序缩放
+    root.tk.call('tk', 'scaling', ScaleFactor / 72)
+
+
 def parse_geometry_size(geo):
     """解析几何位置信息,得到(宽,高,x,y)"""
     m = re.findall(r'(\d+)x(\d+)\+(\d+)\+(\d+)', geo)
@@ -42,8 +57,8 @@ def calc_distance(x1, y1, x2, y2):
 
 def center_window(root, width, height):
     """设定窗口的尺寸,并进行屏幕居中"""
-    screenwidth = root.winfo_screenwidth()
-    screenheight = root.winfo_screenheight()
+    screenwidth = root.winfo_vrootwidth()
+    screenheight = root.winfo_vrootheight()
     size = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
     root.geometry(size)
     root.update()
@@ -534,18 +549,18 @@ def ui_value_set(w, v):
         print('unknown widget type! %s' % type(w).__name__)
 
 
-def ui_value_get(w):
+def ui_value_get(w, dv=''):
     """取出控件的显示内容"""
     if isinstance(w, Entry):
-        return w.get()
+        return w.get() or dv
     elif isinstance(w, Label):
-        return w['text']
+        return w['text'] or dv
     elif isinstance(w, Text):
-        return w.get('1.0', END)
+        return w.get('1.0', END) or dv
     elif isinstance(w, ttk.Combobox):
-        return w.get()
+        return w.get() or dv
     elif isinstance(w, memo_t):
-        return w.ui_txt.get('1.0', END)
+        return w.ui_txt.get('1.0', END) or dv
     else:
         return None
 
