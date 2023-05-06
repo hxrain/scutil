@@ -14,13 +14,16 @@ class mode_t(Enum):
     @staticmethod
     def last(rst, pos, node, root):
         """后项最大匹配,记录最后出现的有效结果"""
-        node = node.first
-        if node == root:
-            return
-        b, e, v = pos - node.words, pos, node.end
-        while rst and b < rst[-1][1]:  # 新结果的起点小于已有结果的终点
-            rst.pop(-1)  # 踢掉旧结果
-        rst.append((b, e, v))
+
+        def rec(node):
+            if node == root:
+                return
+            b, e, v = pos - node.words, pos, node.end
+            while rst and b < rst[-1][1]:  # 新结果的起点小于已有结果的终点
+                rst.pop(-1)  # 踢掉旧结果
+            rst.append((b, e, v))
+
+        rec(node.first)
 
     @staticmethod
     def all(rst, pos, node, root):
@@ -33,13 +36,16 @@ class mode_t(Enum):
     @staticmethod
     def cross(rst, pos, node, root):
         """交叉保留,丢弃重叠包含的匹配"""
-        node = node.first
-        if node == root:
-            return
-        b, e, v = pos - node.words, pos, node.end
-        while rst and b <= rst[-1][0]:  # 新结果的起点小于已有结果的起点
-            rst.pop(-1)  # 踢掉旧结果
-        rst.append((b, e, v))
+
+        def rec(node):
+            if node == root:
+                return
+            b, e, v = pos - node.words, pos, node.end
+            while rst and b <= rst[-1][0]:  # 新结果的起点小于已有结果的起点
+                rst.pop(-1)  # 踢掉旧结果
+            rst.append((b, e, v))
+
+        rec(node.first)
 
     max_match = last.__func__  # 后项最大化优先匹配(交叉碰触被丢弃,仅保留最后出现的最大匹配段)
     is_all = all.__func__  # 全匹配模式(不丢弃任何匹配,全部记录)
@@ -120,7 +126,7 @@ class ac_match_t:
                     node = node.childs[char]  # 得到当前层级对应的子节点
                 pnode = node  # 准备进行下一级节点树的处理
 
-            # 对最后一级的节点,记录替换值,表示一个单词的正向匹配树构建完成
+            # 最后一级节点为端点,记录替换值,表示一个单词的正向匹配树构建完成
 
             if not force:
                 # 不是强制替换,则保持旧值
