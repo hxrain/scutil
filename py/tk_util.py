@@ -17,19 +17,33 @@ def make_image(w=1, h=1, c=0xFFFFFF):
 '''
 
 
-def enable_hidpi(root: Tk):
-    """开启HiDPI功能模式"""
-    import ctypes
+def enable_hidpi(root: Tk, enable=2):
+    """开启HiDPI功能模式,root为TK根对象,
+        enable = 0 不开启
+               = 1 开启
+               = 2 如果默认DPI不是96则开启
+    """
+    if not enable:
+        return None
 
-    # 告诉操作系统使用程序自身的dpi适配
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    try:
+        import ctypes
+        # 设置进程默认 DPI 感知级别
+        try:  # >= win 8.1
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 每个监视器 DPI 感知
+        except:  # win 8.0 or less
+            ctypes.windll.user32.SetProcessDPIAware()
 
-    # 获取屏幕的缩放因子
-    ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
-    # ScaleFactor = self.root.winfo_fpixels('1i')
+        # 获取屏幕的缩放因子
+        ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
+        if enable == 2 and ScaleFactor == 100:
+            return True
 
-    # 设置程序缩放
-    root.tk.call('tk', 'scaling', ScaleFactor / 72)
+        # 设置程序缩放比例
+        root.tk.call('tk', 'scaling', ScaleFactor / 72)
+        return True
+    except:
+        return False
 
 
 def parse_geometry_size(geo):
