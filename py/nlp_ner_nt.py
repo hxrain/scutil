@@ -17,6 +17,7 @@ import china_area_id as ca
 import nlp_ner_hmm as nnh
 import nlp_ner_data as nnd
 from nlp_ner_data import types
+import util_base as ub
 
 
 class nt_parser_t:
@@ -106,11 +107,11 @@ class nt_parser_t:
         ret = sorted(rst, key=lambda x: x[0])
         return nt_parser_t.__merge_segs(ret)[0]
 
-    def __init__(self, inited=True):
+    def __init__(self, light=False):
         self._load_check_cb = None  # 检查词典回调输出函数
         self.matcher = mac.ac_match_t()  # 定义ac匹配树
 
-        if inited:
+        if light:
             self.load_nt(isend=False)
             self.load_ns(isend=True)
 
@@ -172,8 +173,8 @@ class nt_parser_t:
             self.matcher.dict_end()
         return ret
 
-    def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars={'省', '市', '区', '县', '州', '盟', '旗', '乡', '镇'}):
-        """装载NS尾缀词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
+    def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars={'省', '市', '区', '县', '州', '盟', '旗', '乡', '村', '镇'}):
+        """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
         lvls = {0: self.tags_NS, 1: self.tags_NS1, 2: self.tags_NS2, 3: self.tags_NS3, 4: self.tags_NS4, 5: self.tags_NS5}
         for id in ca.map_id_areas:  # 装入内置的行政区划名称
             alst = ca.map_id_areas[id]
@@ -203,6 +204,8 @@ class nt_parser_t:
             return lvls[lvl]
 
         def vals_cb(name):
+            if name[-1] == '!':
+                return name[:-1]  # 特殊地名,不进行尾缀移除处理
             aname = ca.drop_area_tail(name, drops_tailchars)
             if name != aname and aname not in nnd.nt_tail_datas:
                 return (name, aname)
@@ -214,7 +217,7 @@ class nt_parser_t:
         return ret
 
     def load_nz(self, fname, encode='utf-8', isend=True):
-        """装载NZ尾缀词典,返回值:''正常,否则为错误信息."""
+        """装载NZ组份词典,返回值:''正常,否则为错误信息."""
         ret = self.__load(fname, self.tags_NZ, encode)
         if isend:
             self.matcher.dict_end()
@@ -385,7 +388,11 @@ class nt_parser_t:
             segs.insert(idx, nu)
 
     def parse(self, txt, merge=True, nulst=None):
-        '''在txt中解析可能的组份段落,merge告知是否合并结果,nulst可给出外部数字模式匹配列表.返回值:[(b,e,{types})],[(pseg,rl,seg,cr)]'''
+        '''在txt中解析可能的组份段落
+            merge - 告知是否合并同类分段
+            nulst - 可给出外部数字模式匹配列表
+            返回值:(分段列表[(b,e,{types})],分段关系列表[(pseg,rl,nseg,cr)])
+        '''
         segs = self.matcher.do_check(txt, mode=mac.mode_t.keep_cross)  # 按词典进行完全匹配
         mres = self.merge_bracket(segs, txt)  # 合并附加括号
         if not mu.is_full_segs(mres, len(txt)):
@@ -397,7 +404,12 @@ class nt_parser_t:
         return self.__merge_segs(mres, merge)
 
     def query(self, txt, merge=True, nulst=None, with_useg=False):
-        '''在txt中查找可能的组份段落,merge告知是否合并同类分段,nulst可给出外部数字模式匹配列表.返回值:[(b,e,{types})]或[]'''
+        '''在txt中查找可能的组份段落
+            merge - 告知是否合并同类分段
+            nulst - 可给出外部数字模式匹配列表
+            with_useg - 是否进行未使用分段的填充
+            返回值:[(b,e,{types})]或[]
+        '''
         rst, ext = self.parse(txt, merge, nulst)
         if with_useg:
             return mu.complete_segs(rst, len(txt), True)[0]
@@ -443,3 +455,34 @@ class nt_parser_t:
         if rl == 'A&B' and txt[cr[0]:cr[1]] in crwords:
             return 2  # 告知是完整拼装(有交叉)
         return 0  # 告知非完整拼装(有交叉)
+
+    def verify(self, name, segs=None):
+        """对name中出现的多重NT构成进行分组并校验有效性,如附属机构/分支机构/工会
+            segs - 可记录组份分段数据的列表.
+            返回值:分隔点列表[(bpos,epos,types)]
+                  返回的types只有NM与NB两种机构类型
+        """
+        cons, _ = self.parse(name, False)
+        segs, _ = mu.complete_segs(cons, len(name), True, segs)
+        opos = []
+        bpos = 0
+
+        def rec(bpos, epos, stype):
+            opos.append((bpos, epos, stype))
+
+        for i, seg in enumerate(segs):
+            stype = seg[2]
+            epos = seg[1]
+            if types.equ(stype, types.ND):
+                bpos = epos
+            elif types.equ(stype, types.NM) or types.equ(stype, types.NL):
+                rec(bpos, epos, types.NM)
+            elif types.equ(stype, types.NB):
+                rec(bpos, epos, types.NB)
+            elif types.equ(stype, types.NO):
+                if not i:
+                    continue
+                pseg = segs[i - 1]
+                if types.equ(stype, types.NZ) or types.equ(stype, types.NU):
+                    rec(bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`才能作为NT机构
+        return opos
