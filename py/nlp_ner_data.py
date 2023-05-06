@@ -121,28 +121,51 @@ class types(Enum):
 
     @staticmethod
     def equ(v, t):
-        """判断给定的值v是否等同于指定的主要类型type"""
+        """判断给定的值类型v是否等同于目标类型t(多类型时按最大值判断)."""
 
-        def make_set(val):
+        def conv(val):
             if isinstance(val, Iterable):
-                val = max(val)
-            if val.value < types.NF.value:
-                return set()
-            return {types.type(val.value)}
+                val = max(val)  # 如果给定多值则选取最大的
+
+            if isinstance(val, int):
+                if val < types.NF.value:
+                    return None  # 要求不能单独使用行业类别整数
+                return types.type(val)
+            elif isinstance(val, types):
+                if val.value < types.NF.value:
+                    return None  # 要求不能单独使用行业类别
+                return val
+            return None  # 其他未知类型
+
+        return conv(v) == conv(t)
+
+    @staticmethod
+    def joint(v, t):
+        """判断两个类型或类型集是否有相同的类型"""
 
         if v is None:
             return True if t is None else False
 
-        if isinstance(v, types):
-            return types.type(v.value) == types.type(t.value)
-        elif isinstance(v, Iterable):
-            set_t = make_set(t)
-            set_v = make_set(v)
-            if not set_t.isdisjoint(set_v):
-                return True
-        elif isinstance(v, int):
-            return types.type(v) == types.type(t)
-        return False
+        def make_set(val):
+            rst = set()
+
+            def rec(v):
+                if isinstance(v, types) and v.value < types.NF.value:
+                    return
+                elif isinstance(v, int) and v < types.NF.value:
+                    return
+                rst.add(types.type(v))
+
+            if isinstance(val, Iterable):
+                for v in val:
+                    rec(v)
+            else:
+                rec(val)
+            return rst
+
+        set_t = make_set(t)
+        set_v = make_set(v)
+        return not set_t.isdisjoint(set_v)
 
 
 # 常见NT组织形式尾缀数据表
@@ -345,7 +368,7 @@ nt_tails = {
                   '粮店', '油店', '粉店', '肉店', '菜店', '面店', '鸡店', '鸭店', '副食超市', '生鲜超市', '馍房', "奶吧", "水吧", "烤吧", "饼屋", "串店", "汤店", "馒头店", "鸡排店",
                   "奶店", "冰淇淋店", "糕点店", "烘焙店", "凉皮店", "果蔬店", "水饺店", "馍店", '饮舍', "饮吧", "面包坊", "蛋糕坊", "豆腐坊", "食坊", "鸭脖店", "豆腐店", "披萨店", "米店",
                   "粥店", "火烧店", "鲜果店", "饮料店", "调料店", "点心店", "饺子店", "寿司店", "卤味店", "果品店", "小炒店", "面皮店", "砂锅店", "馄饨店", "海鲜店", "生鲜店", "面包房",
-                  "甜品站", "果行", '海鲜港', }},
+                  "甜品站", "果行", '海鲜港', '南饼屋', '南食店'}},
     '酒庄': {'.': {types.NM, types.catering}, '-': {},
            '+': {'酒都', '酒廊', '美酒荟', '红酒庄', '酒肆', '酒池', '酒荘', }},
     # 旅游住宿
@@ -521,13 +544,13 @@ nt_tails = {
                   '蔬菜温室大棚', '养殖地', '橡胶地', '种植地', '总埸', '林埸', '种植示范小区', '营林区', "发展场", "农林发展场", "农业发展场", "蔬菜发展场", '示范农场', '经营林场', '实验林场',
                   '沙果园', '花果园', '油菜园', '沙梨园', '水果场', '果林场', '育苗场', '粮种场', '经济作物示范场', '柑桔场', '草籽繁殖场', '农垦场', '机械林场', '国营林场', '试验林场', '造林场',
                   '防护林场', '茶林场', '粮棉原种场', '园林场', '良种场', '果苗林场', '果苗良种场', '示范繁殖农场', '繁殖农场', '农作物示范良种场', '林木良种场', '林业总场', '茶叶实验场', '果园场',
-                  '桔场', '茶叶示范场', '园艺试验场', '林场区'}},
+                  '桔场', '茶叶示范场', '园艺试验场', '林场区', '林木场'}},
     '养殖场': {'.': {types.NM, types.breeding}, '-': {},
             '+': {'猪场', '羊场', '马场', '鸡场', '养殖基地', '水产养殖场', '猪养殖场', '生猪养殖场', '垦殖场', '牧场', '原种场', '养殖埸', '养殖总埸', '养殖总场', '农牧场', '种羊场',
                   '养殖小区', '养猪小区', '牧业小区', '养殖舍', '犬舍', '猫舍', '鸡舍', '鸽舍', "种养场", "饲养场", "繁育场", "畜牧发展场", "肉牛发展场", "养殖发展场", "种猪场", "进化种猪场",
                   '黄牛良种繁育场', '良种繁育场', '放马场', '畜牧场', '绵羊育种场', '种畜场', '山羊选育场', '选育场', '畜禽良种场', '畜牧农场', '林牧场', '森林牧场', '畜牧良种场', '良繁场'}},
     '肥药站': {'.': {types.NM, types.farming, types.retail}, '-': {},
-            '+': {'肥药部', '农药店', '农药部', '农药门市', '兽药部', '兽药行', '兽药店', '农药站', '兽药站', '农药铺', "农家店", "种子店", "化肥店", "购销店", "谷店",
+            '+': {'肥药部', '肥药店', '农药店', '农药部', '农药门市', '兽药部', '兽药行', '兽药店', '农药站', '兽药站', '农药铺', "农家店", "种子店", "化肥店", "购销店", "谷店",
                   "土肥站", "种苗站", "烟草站", "烟站", "烟叶站", "植保站", '林业站', '林业工作站', "农技站", "水产站", "种子站", "茧站", '兽医站', '畜牧兽医站', "农资部",
                   }},
     '水库': {'.': {types.NM, types.irrigation}, '-': {},
@@ -575,7 +598,7 @@ nt_tails = {
                  '制造工业园区', '承接产业转移集中示范园区', '集中示范园区', '现代产业园区', '生态农业园区', '现代服务业园区', '农副产品加工交易园区', '交易园区', '农业园区', '商务商贸街区', '现代农牧业园区', '农牧业园区',
                  '生物科技产业园区', '农机产业园区', '装备制造产业园区', '现代农业产业园区', '农业产业园区', '家纺产业园区', '现代农业示范园区', '农业示范园区', '能源化工园区', '厂区', '国家农业科技园区',
                  '轻工业园区', '新材料园区', '高新产业园区', '职业教育园区', '循环经济园区', '循环园区', '安置区', '临空综合经济园区', '新兴产业工业园区', '工业示范区', '生态经济园区', '出口创汇示范园区',
-                 '乐器工业园社区', '港务区', '国际港务区', '实验区', '作业区', '加工区', '国际物流加工区', '工业加工区', '出口加工区', '外向型工业加工区', }},
+                 '乐器工业园社区', '港务区', '国际港务区', '实验区', '作业区', '加工区', '国际物流加工区', '工业加工区', '出口加工区', '外向型工业加工区', '销售片区', '零售片区', '营销片区'}},
     '产业园': {'.': {types.NS4, types.NM, types.industry, types.service}, '-': {},
             '+': {'科技产业园', '创业园', '工业园', '软件园', '科技园', '创新园', '示范园', '物流园', '发展园', '绿色产业园', '冶金工业园', '科学园', '北区园', '南区园', '科学工业园', '汽车产业园', '科技创新园',
                   '电子商务产业园', '低碳经济园', '高新产业园', '高新技术产业园', '硅工业园', '农业示范园', '矿化工业园', '煤化工业园', '临空综合经济园', '新兴产业工业园', '高科技园', '创意园'}},
@@ -653,16 +676,34 @@ def is_tail_type(word, types):
     return ''
 
 
-def make_tails_data():
-    """利用内置NT组份表构造直观映射表"""
+def take_tails_by_type(type, with_ext=False):
+    """按类型获取尾缀词表.返回值:{word:types}"""
+    rst = {}
+    for tn in nt_tails:
+        typs = nt_tails[tn]['.']
+        if not types.equ(typs, type):
+            continue
+        rst[tn] = typs
+
+        if not with_ext:
+            continue
+        exts = nt_tails[tn]['+']
+        for en in exts:  # 记录扩展词汇
+            rst[en] = typs
+    return rst
+
+
+def make_tails_data(with_NO=False):
+    """利用内置NT组份表构造{words:types}映射表"""
     rst = {}
     for tn in nt_tails:
         typs = deepcopy(nt_tails[tn]['.'])
 
-        if types.NO not in typs:
-            rst[tn] = typs  # 不记录单字尾缀到映射词表,便于分类查询
+        if not with_NO and types.NO in typs:
+            # 不记录单字尾缀,不记录单字类型,仅记录单字尾缀的扩展词汇
+            typs.remove(types.NO)
         else:
-            typs.remove(types.NO)  # 单字尾缀的扩展词汇,类型集合中不要有单字类型
+            rst[tn] = typs
 
         exts = nt_tails[tn]['+']
         for en in exts:  # 记录扩展词汇
@@ -678,6 +719,25 @@ def make_tails_data():
 
 # 生成tail组份映射表
 nt_tail_datas = make_tails_data()
+
+
+def drop_tail_by_type(txt, type={types.NM, types.NB, types.NL, types.NO}):
+    """尝试丢弃txt中的已知尾缀"""
+
+    def retry(line):
+        for i in range(len(line)):
+            t = line[i:]
+            if t in nt_tail_datas and types.joint(nt_tail_datas[t], type):
+                return line[:i]
+            if t in nt_tails and types.joint(nt_tails[t]['.'], type):
+                return line[:i]
+        return line
+
+    remain = retry(txt)
+    while remain != txt:
+        txt = remain
+        remain = retry(txt)
+    return remain
 
 
 def query_tail_data(tail, with_NO=True):
