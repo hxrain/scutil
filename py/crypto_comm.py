@@ -25,7 +25,7 @@ class padding:
     def _pkcs7_unpadding(self, s):
         """pkcs7去除填充"""
         n = s[-1]
-        if n < self.block_size:
+        if n <= self.block_size:
             return s[0:-n]
         else:
             return s
