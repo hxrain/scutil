@@ -17,19 +17,17 @@ areas_level = {
 
 
 def calc_aera_level(name):
-    """查询指定区域名称对应的行政级别.返回值:0未知;1~6对应级别"""
+    """查询指定区域名称对应的行政级别.返回值:0未知;1~5对应级别"""
     if not name:
         return 0
-    if len(name) > 1 and name in areas_level:
+    if len(name) == 3 and name in areas_level:
         return areas_level[name]
     if name in {'北京', '天津', '上海', '重庆'}:
         return 1
-    if name.endswith('自治区'):
-        return 1
-    if name.endswith('地区'):
-        return 2
-    if name[-1] in areas_level:
-        return areas_level[name[-1]]
+    for p in [-3, -2, -1]:
+        tail=name[p:]
+        if tail in areas_level:
+            return areas_level[tail]
     return 0
 
 
@@ -3867,12 +3865,14 @@ def drop_area_tail(name, tails={'省', '市', '区', '县', '州', '盟', '旗',
         return name
     if name[-2:] in {'新区', '地区', '林区', '矿区', '政区', '市区', '开区', '发区', '业区', '理区', '坝区', '园区'}:
         return name
-    if name[:2] in {'合作', '安居', '安康', '资源', '路桥', '通道'}:
-        return name
     if nlen >= 4 and name[-2:] in {'社区', '街道', '嘎查', '苏木', '新村', '农场', '林场', '牧场', '渔场', '古村'}:
         return name[:-2]
-    if nlen >= 5 and name[-3:] in {'嘎查村', '苏木村', '自治县', '自治州', '自治区'}:
+    if nlen >= 5 and name[-3:] in {'嘎查村', '苏木村', '自治县', '自治州', '自治区', '中心村'}:
         return name[:-3]
+    if nlen >= 6 and name[-4:] in {'中心社区'}:
+        return name[:-4]
+    if name[:2] in {'合作', '安居', '安康', '资源', '路桥', '通道'}:
+        return name
     if name[-1] in tails:
         return name[:-1]
     return name
