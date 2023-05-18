@@ -653,6 +653,20 @@ def save_file(fn, data, encoding='utf-8'):
         return es(e)
 
 
+def save_objs_csv(fn, objs, encoding='utf-8'):
+    """保存对象列表到csv文件fn.返回值:错误消息,空串正常."""
+    try:
+        out = open(fn, 'w+', encoding=encoding)
+        if len(objs):
+            out.write(','.join(objs[0].keys()) + '\n')
+            for d in objs:
+                out.write(','.join(d.values()) + "\n")
+        out.close()
+        return ''
+    except Exception as e:
+        return es(e)
+
+
 # 十六进制串转换为对应的字符
 import binascii
 
@@ -899,6 +913,8 @@ def get_curr_date(fmt='%Y-%m-%d', now=None):
 
 def adj_date_day(datestr, day):
     """对给定的日期串datestr进行天数day增减运算,得到新的日期,ISO串"""
+    if not datestr:
+        datestr = get_curr_date()
     date = datetime.datetime.strptime(datestr, '%Y-%m-%d')
     date += datetime.timedelta(days=day)
     return date.strftime('%Y-%m-%d')
@@ -1308,3 +1324,24 @@ def text_file_drops(fname, xname, encoding='utf-8', oname=None):
         return text_file_unrepeat(fname, encoding, oname, cb)
     except Exception as e:
         return ei(e)
+
+
+def str_ins(txt, val, pos=None):
+    """在txt串的pos位置前插入新值val.
+        pos is None 则在末尾追加
+        返回值:结果串
+    """
+    if pos is None:
+        pos = len(txt)
+    return f'{txt[:pos]}{val}{txt[pos:]}'
+
+
+def str_add(txt, val, pos=None):
+    """在txt串的pos位置后插入新值val.
+        pos is None 则在头部追加
+        返回值:结果串
+    """
+    if pos is None:
+        return f'{val}{txt}'
+    else:
+        return f'{txt[:pos + 1]}{val}{txt[pos + 1:]}'
