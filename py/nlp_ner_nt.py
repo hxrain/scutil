@@ -38,6 +38,7 @@ class nt_parser_t:
     tags_NS3 = {types.NS, types.NS3}
     tags_NS4 = {types.NS, types.NS4}
     tags_NS5 = {types.NS, types.NS5}
+    tags_NSNM = {types.NS, types.NM}
 
     @staticmethod
     def __nu_nm(lst, mres):
@@ -70,7 +71,7 @@ class nt_parser_t:
 
     # 数字序号分支归一化
     num_norm = [
-        (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)([分号]*[小中厂店部亭号组校院馆台处师村团局园队所站区会厅库连])(?![件河乡镇])', 1, __nu_nm.__func__),
+        (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)([分号]*[小中厂店部亭号组校院馆台处师村团局园队所站区会厅库连矿])(?![件河乡镇])', 1, __nu_nm.__func__),
         (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(分公司|公司)', 1, __nu_nm.__func__),
         (r'[第东南西北]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(马路|路|弄|街|里|亩)', 1, __nu_ns.__func__),
         (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)[号]?', 1, __nu.__func__),
@@ -110,6 +111,7 @@ class nt_parser_t:
     def __init__(self, light=False):
         self._load_check_cb = None  # 检查词典回调输出函数
         self.matcher = mac.ac_match_t()  # 定义ac匹配树
+        self._loaded_base_nt = False  # 是否装载过内置NT数据
 
         if light:
             self.load_nt(isend=False)
@@ -117,6 +119,13 @@ class nt_parser_t:
 
     def __load(self, fname, tags, encode='utf-8', vals_cb=None):
         """装载词典文件fname并绑定数据标记tags,返回值:''正常,否则为错误信息."""
+
+        def add(txt, tag):
+            ret = self.matcher.dict_add(txt, tag, force=True)
+            if self._load_check_cb is not None and ret is False:
+                b, e, ctag = self.matcher.do_check(txt)[0]
+                self._load_check_cb(fname, row, txt, tag, ctag.difference(tag))
+
         try:
             row = -1
             with open(fname, 'r', encoding=encode) as fp:
@@ -124,14 +133,14 @@ class nt_parser_t:
                     row += 1
                     if not line:
                         continue
-                    tag = tags(line) if isfunction(tags) else tags
                     txt = line[:-1] if line[-1] == '\n' else line
                     if vals_cb:
-                        txt = vals_cb(txt)
-                    ret = self.matcher.dict_add(txt, tag, force=True)
-                    if self._load_check_cb is not None and ret is False:
-                        b, e, ctag = self.matcher.do_check(txt)[0]
-                        self._load_check_cb(fname, row, txt, tag, ctag.difference(tag))
+                        vals = vals_cb(txt)
+                        for val in vals:
+                            add(val[0], val[1])
+                    else:
+                        tag = tags(txt) if isfunction(tags) else tags
+                        add(txt, tag)
             return ''
         except Exception as e:
             return e
@@ -146,28 +155,31 @@ class nt_parser_t:
     def load_nt(self, fname=None, encode='utf-8', isend=True, with_NO=True, keys=None, debars=None):
         """装载NT尾缀词典,返回值:''正常,否则为错误信息."""
         ret = self.__load(fname, self.tags_NM, encode) if fname else ''
+
         # 初始化构建匹配词表
-        for k in nnd.nt_tails:
-            data = nnd.nt_tails[k]
-            assert '.' in data and '+' in data and '-' in data, data
-            if keys and k not in keys:
-                continue
-            tags = data['.']
-            exts = data['+']
-            nobs = data['-']
-            if len(k) > 1 or (len(k) == 1 and with_NO):
-                if not debars or k not in debars:
-                    self.matcher.dict_add(k, tags, force=True)
-            for e in exts:
-                if debars and e in debars:
+        if not self._loaded_base_nt:
+            for k in nnd.nt_tails:
+                data = nnd.nt_tails[k]
+                assert '.' in data and '+' in data and '-' in data, data
+                if keys and k not in keys:
                     continue
-                r = self.matcher.dict_add(e, tags, force=True)
-                if not r:
-                    print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat!')
-            for b in nobs:
-                r = self.matcher.dict_add(b, self.tags_ND, force=True)
-                if not r:
-                    print(f'nt_parser_t.nt_tails-: {k}/{b} is repeat!')
+                tags = data['.']
+                exts = data['+']
+                nobs = data['-']
+                if len(k) > 1 or (len(k) == 1 and with_NO):
+                    if not debars or k not in debars:
+                        self.matcher.dict_add(k, tags, force=True)
+                for e in exts:
+                    if debars and e in debars:
+                        continue
+                    r = self.matcher.dict_add(e, tags, force=True)
+                    if not r:
+                        print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat!')
+                for b in nobs:
+                    r = self.matcher.dict_add(b, self.tags_ND, force=True)
+                    if not r:
+                        print(f'nt_parser_t.nt_tails-: {k}/{b} is repeat!')
+            self._loaded_base_nt = True
 
         if isend:
             self.matcher.dict_end()
@@ -200,18 +212,20 @@ class nt_parser_t:
 
         def ns_tags(line):
             """根据地名进行行政级别查询,返回对应的标记"""
+            if line[-2:] in {'社区', '林场', '农场', '牧场', '渔场'}:
+                return self.tags_NSNM
             lvl = ca.query_aera_level(line)
             return lvls[lvl]
 
         def vals_cb(name):
             if name[-1] == '!':
-                return name[:-1]  # 特殊地名,不进行尾缀移除处理
+                return [(name[:-1], ns_tags(name[:-1]))]  # 特殊地名,不进行尾缀移除处理
             aname = ca.drop_area_tail(name, drops_tailchars)
             if name != aname and aname not in nnd.nt_tail_datas:
-                return (name, aname)
-            return name
+                return [(name, ns_tags(name)), (aname, self.tags_NN)]
+            return [(name, self.tags_NS)]
 
-        ret = self.__load(fname, ns_tags, encode, vals_cb) if fname else ''
+        ret = self.__load(fname, self.tags_NS, encode, vals_cb) if fname else ''
         if isend:
             self.matcher.dict_end()
         return ret
@@ -289,9 +303,13 @@ class nt_parser_t:
                         break
             else:
                 while rst:
-                    r = mu.related_segs(rst[-1], seg)[0]
+                    last = rst[-1]
+                    r = mu.related_segs(last, seg)[0]
                     if r in {'A@B', 'A=B'}:
-                        return False  # 当前段被包含,不记录
+                        if nnd.types.cmp(last[2], seg[2]) >= 0:
+                            return False  # 当前段被包含且优先级较低,不记录
+                        else:
+                            rst.pop(-1)  # 前一个段落优先级较低,丢弃
                     elif r == 'B@A':
                         rst.pop(-1)  # 前一个段落被包含,丢弃
                     else:
@@ -393,13 +411,44 @@ class nt_parser_t:
             nulst - 可给出外部数字模式匹配列表
             返回值:(分段列表[(b,e,{types})],分段关系列表[(pseg,rl,nseg,cr)])
         '''
-        segs = self.matcher.do_check(txt, mode=mac.mode_t.keep_cross)  # 按词典进行完全匹配
+
+        def cross_ex(rst, pos, node, root):
+            """交叉保留,丢弃重叠包含的匹配"""
+
+            def can_drop_old(n, o):
+                """判断新分段n是否应该踢掉旧分段o:
+                    1 如果新分段的起点小于已有分段的起点
+                    2 新分段与旧分段相交,且新分段的类型优先级更高.
+                """
+                if n[0] < o[0]:
+                    return True
+                if n[0] >= o[1]:
+                    return False
+                return n[0] == o[0] and types.cmp(n[2], o[2]) >= 0
+
+            def rec(node):
+                """记录当前节点对应的匹配分段到结果列表"""
+                if node == root:
+                    return
+                # 当前待记录的新匹配分段
+                seg = pos - node.words, pos, node.end
+                while rst and can_drop_old(seg, rst[-1]):
+                    rst.pop(-1)  # 踢掉旧结果
+                # if rst and seg[1] <= rst[-1][1]:
+                #     return
+                rst.append(seg)
+
+            rec(node.first)
+            if node.first != node.fail and node.fail.end:
+                rec(node.fail)  # 尝试多记录一下可能有用的次级匹配结果,解决(佛山海关/山海关/海关)的问题
+
+        segs = self.matcher.do_check(txt, mode=cross_ex)  # 按词典进行完全匹配
         mres = self.merge_bracket(segs, txt)  # 合并附加括号
         if not mu.is_full_segs(mres, len(txt)):
             nums = self.query_nu(txt, nulst)  # 进行数字序号匹配
             if nums:
                 self.__merge_nums(mres, nums)
-        mres = self.drop_nesting(mres, txt)  # 删除嵌套重叠
+        mres = self.drop_nesting(mres, txt)  # 删除嵌套包含的部分
         self.drop_crossing(mres)  # 删除交叉重叠
         return self.__merge_segs(mres, merge)
 
@@ -475,14 +524,15 @@ class nt_parser_t:
             epos = seg[1]
             if types.equ(stype, types.ND):
                 bpos = epos
-            elif types.equ(stype, types.NM) or types.equ(stype, types.NL):
+            elif types.joint(stype, (types.NM, types.NL)):
                 rec(bpos, epos, types.NM)
             elif types.equ(stype, types.NB):
                 rec(bpos, epos, types.NB)
-            elif types.equ(stype, types.NO):
-                if not i:
-                    continue
+            elif types.equ(stype, types.NO) and i > 0 and i == len(segs) - 1:
                 pseg = segs[i - 1]
-                if types.equ(stype, types.NZ) or types.equ(stype, types.NU):
-                    rec(bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`才能作为NT机构
+                if types.joint(pseg[2], (types.NZ, types.NU, types.NS, types.NN, types.NB)):
+                    rec(bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`/`NS|NO`/`NN|NO`可以作为NT机构
+                elif types.joint(pseg[2], (types.NM, types.NO)):
+                    if name[pseg[1] - 1] != name[seg[0]] or name[seg[0]] in {'店', '站'}:
+                        rec(bpos, epos, types.NM)  # `NM|NO` 不可以为'图书馆馆'/'经销处处',可以是'马店店'/'哈站站',可以作为NT机构
         return opos
