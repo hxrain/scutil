@@ -505,13 +505,13 @@ class nt_parser_t:
             return 2  # 告知是完整拼装(有交叉)
         return 0  # 告知非完整拼装(有交叉)
 
-    def verify(self, name, segs=None):
+    def verify(self, name, segs=None,merge_types=False):
         """对name中出现的多重NT构成进行分组并校验有效性,如附属机构/分支机构/工会
             segs - 可记录组份分段数据的列表.
             返回值:分隔点列表[(bpos,epos,types)]
                   返回的types只有NM与NB两种机构类型
         """
-        cons, _ = self.parse(name, False)
+        cons, _ = self.parse(name, merge_types)
         segs, _ = mu.complete_segs(cons, len(name), True, segs)
         opos = []
         bpos = 0
