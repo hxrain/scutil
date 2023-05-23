@@ -25,6 +25,66 @@ def ei(e: Exception):
     return '%s:\n%s' % (e.__class__.__name__, es)
 
 
+def is_normal_attr(obj, key):
+    """判断对象obj的key对应的属性,是否为简单属性(不是property/不是函数/不是私有属性)"""
+    is_prop = isinstance(getattr(type(obj), key, None), property)
+    is_func_attr = callable(getattr(obj, key))
+    is_private_attr = key.startswith('__')
+    return not (is_func_attr or is_prop or is_private_attr)
+
+
+def is_basic_type(value):
+    """判断指定的值类型,是否为内置的基本类型"""
+    if value is None:
+        return True
+    if type(value) is not type:
+        value = type(value)
+    return value in {int, float, str, bool}
+
+
+class jsonable:
+    """自定义对象的序列化和反序列化功能"""
+
+    @staticmethod
+    def save(obj):
+        """将当前对象完整导出为json对象"""
+
+        def _as_dict(obj, datas):
+            """将obj对象完整递归转换为datas字典数据"""
+            for key in dir(obj):
+                if not is_normal_attr(obj, key):
+                    continue
+                value = getattr(obj, key)
+                if is_basic_type(value):
+                    datas[key] = value
+                else:
+                    datas[key] = {}
+                    _as_dict(value, datas[key])
+            return datas
+
+        return json.dumps(_as_dict(obj, {}), ensure_ascii=False)
+
+    @staticmethod
+    def load(cls, j, *args, **argv):
+        """装载json串或数据字典j到cls类别实例对象中并返回."""
+        obj = cls(*args, **argv)
+
+        def clone(obj, dat):
+            for key in dir(obj):
+                if not is_normal_attr(obj, key):
+                    continue
+                if key not in dat:
+                    continue
+                od = getattr(obj, key)
+                if is_basic_type(od):
+                    setattr(obj, key, dat[key])
+                else:
+                    clone(od, dat[key])
+            return obj
+
+        return clone(obj, json.loads(j, encoding='utf8') if isinstance(j, str) else j)
+
+
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
