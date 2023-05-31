@@ -196,21 +196,31 @@ class driver_t:
         self.idle_cb = None  # loop接收,空闲回调函数
 
     @trying
-    def ver(self, url) -> VersionT:
+    def ver(self, url='http://127.0.0.1:9222/') -> VersionT:
         """查询浏览器版本信息,获得访问端点.
             url - 浏览器调试地址,page端点/http端点/browser端点均可.
             返回值:VersionT或error_t
         """
-        host = up.urlparse(url)[1]
-        url = f'http://{host}/json/version'
+        hostport = up.urlparse(url)[1]
+        url = f'http://{hostport}/json/version'
         rsp = self.__http_take(url)
         if iserror(rsp):
             return rsp
         return jsonable.decode(VersionT, rsp.content.decode('utf-8'))
 
-    @staticmethod
-    def endpoint(uuid, port=9222, host='127.0.0.1'):
-        return f'ws://{host}:{port}/devtools/page/{uuid}'
+    def endpoint(self, uuid, port=None, host=None, type='page'):
+        """使用指定的地址参数,构造访问端点url"""
+        if port is not None or host is not None:  # 给定了任一地址参数
+            port = port or 9222
+            host = host or '127.0.0.1'
+            return f'ws://{host}:{port}/devtools/{type}/{uuid}'
+        elif not self.__ws_url:  # 没给定地址参数,且不存在已知会话地址,完全使用默认值
+            port = 9222
+            host = '127.0.0.1'
+            return f'ws://{host}:{port}/devtools/{type}/{uuid}'
+        else:  # 没给定地址参数,但存在已知会话地址,提取后进行构造
+            hostport = up.urlparse(self.__ws_url)[1]
+            return f'ws://{hostport}/devtools/{type}/{uuid}'
 
     def conn(self, ws_url=None, toBrwser=False, timeout=None):
         """连接ws_url指定的chrome/chromium端点
@@ -251,6 +261,11 @@ class driver_t:
         if self.__websocket:
             self.__websocket.close()
             self.__websocket = None
+
+        self.__session_seq = 0  # 会话交互的递增序号
+        self.__session_http = None  # 访问http的客户端会话对象
+        self.__session_ids = {}  # 'flat'模式使用的sessionId标识与targetId对照表
+        self.__session_sid = None  # 'flat'模式使用的当前会话sessionId
 
     @trying
     def attach(self, targetId=None) -> Target.SessionID:
@@ -293,31 +308,40 @@ class driver_t:
 
         return self.Target.detachFromTarget(sessionId)  # 进行真正的交互动作,解除会话id对应的tab附着关系.
 
-    def listen(self, Event: EventT, callback):
+    def listen(self, Event: EventT, callback, add=True):
         """绑定/解除指定的Event事件类监听器callback.
             Event - 事件类class
             callback - 事件触发的回调函数,原型为
                 def cb_event(drv:driver_t, evt:EventT, sid,tid):
                     pass
-            返回值:None正常,error_t错误.
+            add - 告知是删除还是增加
+            返回值:error_t错误,其他为回调索引号
         """
         if not issubclass(Event, EventT):
-            return error_t("event class should extend by EventT.")
-        key = Event.event
-        if not callback:
-            self.__event_handlers.pop(key)
-            return None
+            return error_t("event class should extend by EventT.", -13)
 
         if not callable(callback):
-            return error_t("event callback should be callable")
+            return error_t("event callback should be callable", -14)
 
-        if key not in self.__event_handlers:
-            self.__event_handlers[key] = ([callback], Event)  # 需要绑定事件对象,便于响应事件时序列化使用
-        else:
-            handles = self.__event_handlers[key][0]
-            if callback not in handles:
-                handles.append(callback)
-        return None
+        key = Event.event
+        if not add:  # 移除事件回调
+            if key not in self.__event_handlers:
+                return error_t(f'Event <{key}> not exists.', -11)
+            handlers = self.__event_handlers[key][1]
+            idx = handlers.find(callback)
+            if idx == -1:
+                return error_t(f'Event <{key}> Callback not exists.', -12)
+            handlers.pop(idx)
+            return idx
+        else:  # 绑定事件回调
+            if key not in self.__event_handlers:
+                self.__event_handlers[key] = (EventT, [])  # {'功能域.事件名称':(事件class类型,[回调函数列表])}
+            handlers = self.__event_handlers[key][1]
+            idx = handlers.find(callback)
+            if idx == -1:
+                idx = len(handlers)
+                handlers.append(callback)
+            return idx
 
     @trying
     def call(self, ReturnType, Command, **args):
@@ -425,7 +449,7 @@ class driver_t:
         if event not in self.__event_handlers:
             return None  # 未绑定的事件不处理
 
-        handlers, cls = self.__event_handlers[event]  # 得到绑定的事件处理器
+        cls, handlers = self.__event_handlers[event]  # 得到绑定的事件处理器
         obj = jsonable.decode(cls, message_json)  # 反序列化事件类别对象
         if sid in self.__session_ids:
             tid = self.__session_ids[sid]
@@ -464,6 +488,3 @@ class driver_t:
             return make_error(e, -8)  # websocket错误
         except Exception as e:
             return make_error(e, -9)  # 其他错误
-
-
-
