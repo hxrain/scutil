@@ -222,6 +222,7 @@ class Tab(object):
 
         reconn = False
         try:
+            self._websocket.settimeout(timeout)
             self._websocket.send(msg_json)  # 发送请求
         except Exception as e:
             reconn = True  # 发送失败则标记,准备重试
