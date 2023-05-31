@@ -102,62 +102,62 @@ class Emulation(DomainT):
 
 
     # func: canEmulate
-    def canEmulate(self) -> canEmulateReturn:
+    def canEmulate(self,**kwargs) -> canEmulateReturn:
         """
             Tells whether emulation is supported.
         Return: canEmulateReturn
         """
-        return self.drv.call(Emulation.canEmulateReturn,'Emulation.canEmulate')
+        return self.drv.call(Emulation.canEmulateReturn,'Emulation.canEmulate',**kwargs)
 
 
     # func: clearDeviceMetricsOverride
-    def clearDeviceMetricsOverride(self):
+    def clearDeviceMetricsOverride(self,**kwargs):
         """
             Clears the overriden device metrics.
         """
-        return self.drv.call(None,'Emulation.clearDeviceMetricsOverride')
+        return self.drv.call(None,'Emulation.clearDeviceMetricsOverride',**kwargs)
 
 
     # func: clearGeolocationOverride
-    def clearGeolocationOverride(self):
+    def clearGeolocationOverride(self,**kwargs):
         """
             Clears the overriden Geolocation Position and Error.
         """
-        return self.drv.call(None,'Emulation.clearGeolocationOverride')
+        return self.drv.call(None,'Emulation.clearGeolocationOverride',**kwargs)
 
 
     # func: resetPageScaleFactor
-    def resetPageScaleFactor(self):
+    def resetPageScaleFactor(self,**kwargs):
         """
             Requests that page scale factor is reset to initial values.
         """
-        return self.drv.call(None,'Emulation.resetPageScaleFactor')
+        return self.drv.call(None,'Emulation.resetPageScaleFactor',**kwargs)
 
 
     # func: setFocusEmulationEnabled
-    def setFocusEmulationEnabled(self,enabled:bool):
+    def setFocusEmulationEnabled(self,enabled:bool, **kwargs):
         """
             Enables or disables simulating a focused and active page.
         Params:
             1. enabled: bool
                 Whether to enable to disable focus emulation.
         """
-        return self.drv.call(None,'Emulation.setFocusEmulationEnabled',enabled=enabled)
+        return self.drv.call(None,'Emulation.setFocusEmulationEnabled',enabled=enabled, **kwargs)
 
 
     # func: setCPUThrottlingRate
-    def setCPUThrottlingRate(self,rate:int):
+    def setCPUThrottlingRate(self,rate:int, **kwargs):
         """
             Enables CPU throttling to emulate slow CPUs.
         Params:
             1. rate: int
                 Throttling rate as a slowdown factor (1 is no throttle, 2 is 2x slowdown, etc).
         """
-        return self.drv.call(None,'Emulation.setCPUThrottlingRate',rate=rate)
+        return self.drv.call(None,'Emulation.setCPUThrottlingRate',rate=rate, **kwargs)
 
 
     # func: setDefaultBackgroundColorOverride
-    def setDefaultBackgroundColorOverride(self,color:DOM.RGBA=None):
+    def setDefaultBackgroundColorOverride(self,color:DOM.RGBA=None, **kwargs):
         """
             Sets or clears an override of the default background color of the frame. This override is used
             if the content does not specify one.
@@ -165,11 +165,11 @@ class Emulation(DomainT):
             1. color: DOM.RGBA (OPTIONAL)
                 RGBA of the default background color. If not specified, any existing override will becleared.
         """
-        return self.drv.call(None,'Emulation.setDefaultBackgroundColorOverride',color=color)
+        return self.drv.call(None,'Emulation.setDefaultBackgroundColorOverride',color=color, **kwargs)
 
 
     # func: setDeviceMetricsOverride
-    def setDeviceMetricsOverride(self,width:int, height:int, deviceScaleFactor:int, mobile:bool, scale:int=None, screenWidth:int=None, screenHeight:int=None, positionX:int=None, positionY:int=None, dontSetVisibleSize:bool=None, screenOrientation:ScreenOrientation=None, viewport:Page.Viewport=None, displayFeature:DisplayFeature=None):
+    def setDeviceMetricsOverride(self,width:int, height:int, deviceScaleFactor:int, mobile:bool, scale:int=None, screenWidth:int=None, screenHeight:int=None, positionX:int=None, positionY:int=None, dontSetVisibleSize:bool=None, screenOrientation:ScreenOrientation=None, viewport:Page.Viewport=None, displayFeature:DisplayFeature=None, **kwargs):
         """
             Overrides the values of device screen dimensions (window.screen.width, window.screen.height,
             window.innerWidth, window.innerHeight, and "device-width"/"device-height"-related CSS media
@@ -202,31 +202,31 @@ class Emulation(DomainT):
             13. displayFeature: DisplayFeature (OPTIONAL)
                 If set, the display feature of a multi-segment screen. If not set, multi-segment supportis turned-off.
         """
-        return self.drv.call(None,'Emulation.setDeviceMetricsOverride',width=width, height=height, deviceScaleFactor=deviceScaleFactor, mobile=mobile, scale=scale, screenWidth=screenWidth, screenHeight=screenHeight, positionX=positionX, positionY=positionY, dontSetVisibleSize=dontSetVisibleSize, screenOrientation=screenOrientation, viewport=viewport, displayFeature=displayFeature)
+        return self.drv.call(None,'Emulation.setDeviceMetricsOverride',width=width, height=height, deviceScaleFactor=deviceScaleFactor, mobile=mobile, scale=scale, screenWidth=screenWidth, screenHeight=screenHeight, positionX=positionX, positionY=positionY, dontSetVisibleSize=dontSetVisibleSize, screenOrientation=screenOrientation, viewport=viewport, displayFeature=displayFeature, **kwargs)
 
 
     # func: setScrollbarsHidden
-    def setScrollbarsHidden(self,hidden:bool):
+    def setScrollbarsHidden(self,hidden:bool, **kwargs):
         """
         Params:
             1. hidden: bool
                 Whether scrollbars should be always hidden.
         """
-        return self.drv.call(None,'Emulation.setScrollbarsHidden',hidden=hidden)
+        return self.drv.call(None,'Emulation.setScrollbarsHidden',hidden=hidden, **kwargs)
 
 
     # func: setDocumentCookieDisabled
-    def setDocumentCookieDisabled(self,disabled:bool):
+    def setDocumentCookieDisabled(self,disabled:bool, **kwargs):
         """
         Params:
             1. disabled: bool
                 Whether document.coookie API should be disabled.
         """
-        return self.drv.call(None,'Emulation.setDocumentCookieDisabled',disabled=disabled)
+        return self.drv.call(None,'Emulation.setDocumentCookieDisabled',disabled=disabled, **kwargs)
 
 
     # func: setEmitTouchEventsForMouse
-    def setEmitTouchEventsForMouse(self,enabled:bool, configuration:str=None):
+    def setEmitTouchEventsForMouse(self,enabled:bool, configuration:str=None, **kwargs):
         """
         Params:
             1. enabled: bool
@@ -235,11 +235,11 @@ class Emulation(DomainT):
             2. configuration: str (OPTIONAL)
                 Touch/gesture events configuration. Default: current platform.
         """
-        return self.drv.call(None,'Emulation.setEmitTouchEventsForMouse',enabled=enabled, configuration=configuration)
+        return self.drv.call(None,'Emulation.setEmitTouchEventsForMouse',enabled=enabled, configuration=configuration, **kwargs)
 
 
     # func: setEmulatedMedia
-    def setEmulatedMedia(self,media:str=None, features:List[MediaFeature]=None):
+    def setEmulatedMedia(self,media:str=None, features:List[MediaFeature]=None, **kwargs):
         """
             Emulates the given media type or media feature for CSS media queries.
         Params:
@@ -248,11 +248,11 @@ class Emulation(DomainT):
             2. features: List[MediaFeature] (OPTIONAL)
                 Media features to emulate.
         """
-        return self.drv.call(None,'Emulation.setEmulatedMedia',media=media, features=features)
+        return self.drv.call(None,'Emulation.setEmulatedMedia',media=media, features=features, **kwargs)
 
 
     # func: setEmulatedVisionDeficiency
-    def setEmulatedVisionDeficiency(self,type:str):
+    def setEmulatedVisionDeficiency(self,type:str, **kwargs):
         """
             Emulates the given vision deficiency.
         Params:
@@ -260,11 +260,11 @@ class Emulation(DomainT):
             1. type: str
                 Vision deficiency to emulate.
         """
-        return self.drv.call(None,'Emulation.setEmulatedVisionDeficiency',type=type)
+        return self.drv.call(None,'Emulation.setEmulatedVisionDeficiency',type=type, **kwargs)
 
 
     # func: setGeolocationOverride
-    def setGeolocationOverride(self,latitude:int=None, longitude:int=None, accuracy:int=None):
+    def setGeolocationOverride(self,latitude:int=None, longitude:int=None, accuracy:int=None, **kwargs):
         """
             Overrides the Geolocation Position or Error. Omitting any of the parameters emulates position
             unavailable.
@@ -276,11 +276,11 @@ class Emulation(DomainT):
             3. accuracy: int (OPTIONAL)
                 Mock accuracy
         """
-        return self.drv.call(None,'Emulation.setGeolocationOverride',latitude=latitude, longitude=longitude, accuracy=accuracy)
+        return self.drv.call(None,'Emulation.setGeolocationOverride',latitude=latitude, longitude=longitude, accuracy=accuracy, **kwargs)
 
 
     # func: setIdleOverride
-    def setIdleOverride(self,isUserActive:bool, isScreenUnlocked:bool):
+    def setIdleOverride(self,isUserActive:bool, isScreenUnlocked:bool, **kwargs):
         """
             Overrides the Idle state.
         Params:
@@ -289,52 +289,52 @@ class Emulation(DomainT):
             2. isScreenUnlocked: bool
                 Mock isScreenUnlocked
         """
-        return self.drv.call(None,'Emulation.setIdleOverride',isUserActive=isUserActive, isScreenUnlocked=isScreenUnlocked)
+        return self.drv.call(None,'Emulation.setIdleOverride',isUserActive=isUserActive, isScreenUnlocked=isScreenUnlocked, **kwargs)
 
 
     # func: clearIdleOverride
-    def clearIdleOverride(self):
+    def clearIdleOverride(self,**kwargs):
         """
             Clears Idle state overrides.
         """
-        return self.drv.call(None,'Emulation.clearIdleOverride')
+        return self.drv.call(None,'Emulation.clearIdleOverride',**kwargs)
 
 
     # func: setNavigatorOverrides
-    def setNavigatorOverrides(self,platform:str):
+    def setNavigatorOverrides(self,platform:str, **kwargs):
         """
             Overrides value returned by the javascript navigator object.
         Params:
             1. platform: str
                 The platform navigator.platform should return.
         """
-        return self.drv.call(None,'Emulation.setNavigatorOverrides',platform=platform)
+        return self.drv.call(None,'Emulation.setNavigatorOverrides',platform=platform, **kwargs)
 
 
     # func: setPageScaleFactor
-    def setPageScaleFactor(self,pageScaleFactor:int):
+    def setPageScaleFactor(self,pageScaleFactor:int, **kwargs):
         """
             Sets a specified page scale factor.
         Params:
             1. pageScaleFactor: int
                 Page scale factor.
         """
-        return self.drv.call(None,'Emulation.setPageScaleFactor',pageScaleFactor=pageScaleFactor)
+        return self.drv.call(None,'Emulation.setPageScaleFactor',pageScaleFactor=pageScaleFactor, **kwargs)
 
 
     # func: setScriptExecutionDisabled
-    def setScriptExecutionDisabled(self,value:bool):
+    def setScriptExecutionDisabled(self,value:bool, **kwargs):
         """
             Switches script execution in the page.
         Params:
             1. value: bool
                 Whether script execution should be disabled in the page.
         """
-        return self.drv.call(None,'Emulation.setScriptExecutionDisabled',value=value)
+        return self.drv.call(None,'Emulation.setScriptExecutionDisabled',value=value, **kwargs)
 
 
     # func: setTouchEmulationEnabled
-    def setTouchEmulationEnabled(self,enabled:bool, maxTouchPoints:int=None):
+    def setTouchEmulationEnabled(self,enabled:bool, maxTouchPoints:int=None, **kwargs):
         """
             Enables touch on platforms which do not support them.
         Params:
@@ -343,7 +343,7 @@ class Emulation(DomainT):
             2. maxTouchPoints: int (OPTIONAL)
                 Maximum touch points supported. Defaults to one.
         """
-        return self.drv.call(None,'Emulation.setTouchEmulationEnabled',enabled=enabled, maxTouchPoints=maxTouchPoints)
+        return self.drv.call(None,'Emulation.setTouchEmulationEnabled',enabled=enabled, maxTouchPoints=maxTouchPoints, **kwargs)
 
 
     # return: setVirtualTimePolicyReturn
@@ -354,7 +354,7 @@ class Emulation(DomainT):
 
 
     # func: setVirtualTimePolicy
-    def setVirtualTimePolicy(self,policy:VirtualTimePolicy, budget:int=None, maxVirtualTimeTaskStarvationCount:int=None, waitForNavigation:bool=None, initialVirtualTime:Network.TimeSinceEpoch=None) -> setVirtualTimePolicyReturn:
+    def setVirtualTimePolicy(self,policy:VirtualTimePolicy, budget:int=None, maxVirtualTimeTaskStarvationCount:int=None, waitForNavigation:bool=None, initialVirtualTime:Network.TimeSinceEpoch=None, **kwargs) -> setVirtualTimePolicyReturn:
         """
             Turns on virtual time for all frames (replacing real-time with a synthetic time source) and sets
             the current virtual time policy.  Note this supersedes any previous time budget.
@@ -370,33 +370,33 @@ class Emulation(DomainT):
                 If set, base::Time::Now will be overriden to initially return this value.
         Return: setVirtualTimePolicyReturn
         """
-        return self.drv.call(Emulation.setVirtualTimePolicyReturn,'Emulation.setVirtualTimePolicy',policy=policy, budget=budget, maxVirtualTimeTaskStarvationCount=maxVirtualTimeTaskStarvationCount, waitForNavigation=waitForNavigation, initialVirtualTime=initialVirtualTime)
+        return self.drv.call(Emulation.setVirtualTimePolicyReturn,'Emulation.setVirtualTimePolicy',policy=policy, budget=budget, maxVirtualTimeTaskStarvationCount=maxVirtualTimeTaskStarvationCount, waitForNavigation=waitForNavigation, initialVirtualTime=initialVirtualTime, **kwargs)
 
 
     # func: setLocaleOverride
-    def setLocaleOverride(self,locale:str=None):
+    def setLocaleOverride(self,locale:str=None, **kwargs):
         """
             Overrides default host system locale with the specified one.
         Params:
             1. locale: str (OPTIONAL)
                 ICU style C locale (e.g. "en_US"). If not specified or empty, disables the override andrestores default host system locale.
         """
-        return self.drv.call(None,'Emulation.setLocaleOverride',locale=locale)
+        return self.drv.call(None,'Emulation.setLocaleOverride',locale=locale, **kwargs)
 
 
     # func: setTimezoneOverride
-    def setTimezoneOverride(self,timezoneId:str):
+    def setTimezoneOverride(self,timezoneId:str, **kwargs):
         """
             Overrides default host system timezone with the specified one.
         Params:
             1. timezoneId: str
                 The timezone identifier. If empty, disables the override andrestores default host system timezone.
         """
-        return self.drv.call(None,'Emulation.setTimezoneOverride',timezoneId=timezoneId)
+        return self.drv.call(None,'Emulation.setTimezoneOverride',timezoneId=timezoneId, **kwargs)
 
 
     # func: setVisibleSize
-    def setVisibleSize(self,width:int, height:int):
+    def setVisibleSize(self,width:int, height:int, **kwargs):
         """
             Resizes the frame/viewport of the page. Note that this does not affect the frame's container
             (e.g. browser window). Can be used to produce screenshots of the specified size. Not supported
@@ -407,11 +407,11 @@ class Emulation(DomainT):
             2. height: int
                 Frame height (DIP).
         """
-        return self.drv.call(None,'Emulation.setVisibleSize',width=width, height=height)
+        return self.drv.call(None,'Emulation.setVisibleSize',width=width, height=height, **kwargs)
 
 
     # func: setUserAgentOverride
-    def setUserAgentOverride(self,userAgent:str, acceptLanguage:str=None, platform:str=None, userAgentMetadata:UserAgentMetadata=None):
+    def setUserAgentOverride(self,userAgent:str, acceptLanguage:str=None, platform:str=None, userAgentMetadata:UserAgentMetadata=None, **kwargs):
         """
             Allows overriding user agent with the given string.
         Params:
@@ -424,7 +424,7 @@ class Emulation(DomainT):
             4. userAgentMetadata: UserAgentMetadata (OPTIONAL)
                 To be sent in Sec-CH-UA-* headers and returned in navigator.userAgentData
         """
-        return self.drv.call(None,'Emulation.setUserAgentOverride',userAgent=userAgent, acceptLanguage=acceptLanguage, platform=platform, userAgentMetadata=userAgentMetadata)
+        return self.drv.call(None,'Emulation.setUserAgentOverride',userAgent=userAgent, acceptLanguage=acceptLanguage, platform=platform, userAgentMetadata=userAgentMetadata, **kwargs)
 
 
 

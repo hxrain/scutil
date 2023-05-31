@@ -163,7 +163,7 @@ class paused(EventT):
         # Pause reason.
         self.reason: str = str
         # OPTIONAL, Object containing break-specific auxiliary properties.
-        self.data: any = any
+        self.data: str = str
         # OPTIONAL, Hit breakpoints IDs
         self.hitBreakpoints: List[str] = [str]
         # OPTIONAL, Async stack trace, if any.
@@ -208,7 +208,7 @@ class scriptFailedToParse(EventT):
         # Content hash of the script.
         self.hash: str = str
         # OPTIONAL, Embedder-specific auxiliary data.
-        self.executionContextAuxData: any = any
+        self.executionContextAuxData: str = str
         # OPTIONAL, URL of source map associated with script (if any).
         self.sourceMapURL: str = str
         # OPTIONAL, True, if this script has sourceURL.
@@ -252,7 +252,7 @@ class scriptParsed(EventT):
         # Content hash of the script.
         self.hash: str = str
         # OPTIONAL, Embedder-specific auxiliary data.
-        self.executionContextAuxData: any = any
+        self.executionContextAuxData: str = str
         # OPTIONAL, True, if this script is generated as a result of the live edit operation.
         self.isLiveEdit: bool = bool
         # OPTIONAL, URL of source map associated with script (if any).
@@ -289,7 +289,7 @@ class Debugger(DomainT):
 
 
     # func: continueToLocation
-    def continueToLocation(self,location:Location, targetCallFrames:str=None):
+    def continueToLocation(self,location:Location, targetCallFrames:str=None, **kwargs):
         """
             Continues execution until specific location is reached.
         Params:
@@ -298,15 +298,15 @@ class Debugger(DomainT):
             targetCallFramesEnums = ['any', 'current']
             2. targetCallFrames: str (OPTIONAL)
         """
-        return self.drv.call(None,'Debugger.continueToLocation',location=location, targetCallFrames=targetCallFrames)
+        return self.drv.call(None,'Debugger.continueToLocation',location=location, targetCallFrames=targetCallFrames, **kwargs)
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disables debugger for given page.
         """
-        return self.drv.call(None,'Debugger.disable')
+        return self.drv.call(None,'Debugger.disable',**kwargs)
 
 
     # return: enableReturn
@@ -317,7 +317,7 @@ class Debugger(DomainT):
 
 
     # func: enable
-    def enable(self,maxScriptsCacheSize:int=None) -> enableReturn:
+    def enable(self,maxScriptsCacheSize:int=None, **kwargs) -> enableReturn:
         """
             Enables debugger for the given page. Clients should not assume that the debugging has been
             enabled until the result for this command is received.
@@ -326,7 +326,7 @@ class Debugger(DomainT):
                 The maximum size in bytes of collected scripts (not referenced by other heap objects)the debugger can hold. Puts no limit if paramter is omitted.
         Return: enableReturn
         """
-        return self.drv.call(Debugger.enableReturn,'Debugger.enable',maxScriptsCacheSize=maxScriptsCacheSize)
+        return self.drv.call(Debugger.enableReturn,'Debugger.enable',maxScriptsCacheSize=maxScriptsCacheSize, **kwargs)
 
 
     # return: evaluateOnCallFrameReturn
@@ -339,7 +339,7 @@ class Debugger(DomainT):
 
 
     # func: evaluateOnCallFrame
-    def evaluateOnCallFrame(self,callFrameId:CallFrameId, expression:str, objectGroup:str=None, includeCommandLineAPI:bool=None, silent:bool=None, returnByValue:bool=None, generatePreview:bool=None, throwOnSideEffect:bool=None, timeout:Runtime.TimeDelta=None) -> evaluateOnCallFrameReturn:
+    def evaluateOnCallFrame(self,callFrameId:CallFrameId, expression:str, objectGroup:str=None, includeCommandLineAPI:bool=None, silent:bool=None, returnByValue:bool=None, generatePreview:bool=None, throwOnSideEffect:bool=None, timeout:Runtime.TimeDelta=None, **kwargs) -> evaluateOnCallFrameReturn:
         """
             Evaluates expression on a given call frame.
         Params:
@@ -363,7 +363,7 @@ class Debugger(DomainT):
                 Terminate execution after timing out (number of milliseconds).
         Return: evaluateOnCallFrameReturn
         """
-        return self.drv.call(Debugger.evaluateOnCallFrameReturn,'Debugger.evaluateOnCallFrame',callFrameId=callFrameId, expression=expression, objectGroup=objectGroup, includeCommandLineAPI=includeCommandLineAPI, silent=silent, returnByValue=returnByValue, generatePreview=generatePreview, throwOnSideEffect=throwOnSideEffect, timeout=timeout)
+        return self.drv.call(Debugger.evaluateOnCallFrameReturn,'Debugger.evaluateOnCallFrame',callFrameId=callFrameId, expression=expression, objectGroup=objectGroup, includeCommandLineAPI=includeCommandLineAPI, silent=silent, returnByValue=returnByValue, generatePreview=generatePreview, throwOnSideEffect=throwOnSideEffect, timeout=timeout, **kwargs)
 
 
     # return: executeWasmEvaluatorReturn
@@ -376,7 +376,7 @@ class Debugger(DomainT):
 
 
     # func: executeWasmEvaluator
-    def executeWasmEvaluator(self,callFrameId:CallFrameId, evaluator:str, timeout:Runtime.TimeDelta=None) -> executeWasmEvaluatorReturn:
+    def executeWasmEvaluator(self,callFrameId:CallFrameId, evaluator:str, timeout:Runtime.TimeDelta=None, **kwargs) -> executeWasmEvaluatorReturn:
         """
             Execute a Wasm Evaluator module on a given call frame.
         Params:
@@ -388,7 +388,7 @@ class Debugger(DomainT):
                 Terminate execution after timing out (number of milliseconds).
         Return: executeWasmEvaluatorReturn
         """
-        return self.drv.call(Debugger.executeWasmEvaluatorReturn,'Debugger.executeWasmEvaluator',callFrameId=callFrameId, evaluator=evaluator, timeout=timeout)
+        return self.drv.call(Debugger.executeWasmEvaluatorReturn,'Debugger.executeWasmEvaluator',callFrameId=callFrameId, evaluator=evaluator, timeout=timeout, **kwargs)
 
 
     # return: getPossibleBreakpointsReturn
@@ -399,7 +399,7 @@ class Debugger(DomainT):
 
 
     # func: getPossibleBreakpoints
-    def getPossibleBreakpoints(self,start:Location, end:Location=None, restrictToFunction:bool=None) -> getPossibleBreakpointsReturn:
+    def getPossibleBreakpoints(self,start:Location, end:Location=None, restrictToFunction:bool=None, **kwargs) -> getPossibleBreakpointsReturn:
         """
             Returns possible locations for breakpoint. scriptId in start and end range locations should be
             the same.
@@ -412,7 +412,7 @@ class Debugger(DomainT):
                 Only consider locations which are in the same (non-nested) function as start.
         Return: getPossibleBreakpointsReturn
         """
-        return self.drv.call(Debugger.getPossibleBreakpointsReturn,'Debugger.getPossibleBreakpoints',start=start, end=end, restrictToFunction=restrictToFunction)
+        return self.drv.call(Debugger.getPossibleBreakpointsReturn,'Debugger.getPossibleBreakpoints',start=start, end=end, restrictToFunction=restrictToFunction, **kwargs)
 
 
     # return: getScriptSourceReturn
@@ -425,7 +425,7 @@ class Debugger(DomainT):
 
 
     # func: getScriptSource
-    def getScriptSource(self,scriptId:Runtime.ScriptId) -> getScriptSourceReturn:
+    def getScriptSource(self,scriptId:Runtime.ScriptId, **kwargs) -> getScriptSourceReturn:
         """
             Returns source for the script with given id.
         Params:
@@ -433,7 +433,7 @@ class Debugger(DomainT):
                 Id of the script to get source for.
         Return: getScriptSourceReturn
         """
-        return self.drv.call(Debugger.getScriptSourceReturn,'Debugger.getScriptSource',scriptId=scriptId)
+        return self.drv.call(Debugger.getScriptSourceReturn,'Debugger.getScriptSource',scriptId=scriptId, **kwargs)
 
 
     # return: getWasmBytecodeReturn
@@ -444,7 +444,7 @@ class Debugger(DomainT):
 
 
     # func: getWasmBytecode
-    def getWasmBytecode(self,scriptId:Runtime.ScriptId) -> getWasmBytecodeReturn:
+    def getWasmBytecode(self,scriptId:Runtime.ScriptId, **kwargs) -> getWasmBytecodeReturn:
         """
             This command is deprecated. Use getScriptSource instead.
         Params:
@@ -452,7 +452,7 @@ class Debugger(DomainT):
                 Id of the Wasm script to get source for.
         Return: getWasmBytecodeReturn
         """
-        return self.drv.call(Debugger.getWasmBytecodeReturn,'Debugger.getWasmBytecode',scriptId=scriptId)
+        return self.drv.call(Debugger.getWasmBytecodeReturn,'Debugger.getWasmBytecode',scriptId=scriptId, **kwargs)
 
 
     # return: getStackTraceReturn
@@ -463,42 +463,42 @@ class Debugger(DomainT):
 
 
     # func: getStackTrace
-    def getStackTrace(self,stackTraceId:Runtime.StackTraceId) -> getStackTraceReturn:
+    def getStackTrace(self,stackTraceId:Runtime.StackTraceId, **kwargs) -> getStackTraceReturn:
         """
             Returns stack trace with given `stackTraceId`.
         Params:
             1. stackTraceId: Runtime.StackTraceId
         Return: getStackTraceReturn
         """
-        return self.drv.call(Debugger.getStackTraceReturn,'Debugger.getStackTrace',stackTraceId=stackTraceId)
+        return self.drv.call(Debugger.getStackTraceReturn,'Debugger.getStackTrace',stackTraceId=stackTraceId, **kwargs)
 
 
     # func: pause
-    def pause(self):
+    def pause(self,**kwargs):
         """
             Stops on the next JavaScript statement.
         """
-        return self.drv.call(None,'Debugger.pause')
+        return self.drv.call(None,'Debugger.pause',**kwargs)
 
 
     # func: pauseOnAsyncCall
-    def pauseOnAsyncCall(self,parentStackTraceId:Runtime.StackTraceId):
+    def pauseOnAsyncCall(self,parentStackTraceId:Runtime.StackTraceId, **kwargs):
         """
         Params:
             1. parentStackTraceId: Runtime.StackTraceId
                 Debugger will pause when async call with given stack trace is started.
         """
-        return self.drv.call(None,'Debugger.pauseOnAsyncCall',parentStackTraceId=parentStackTraceId)
+        return self.drv.call(None,'Debugger.pauseOnAsyncCall',parentStackTraceId=parentStackTraceId, **kwargs)
 
 
     # func: removeBreakpoint
-    def removeBreakpoint(self,breakpointId:BreakpointId):
+    def removeBreakpoint(self,breakpointId:BreakpointId, **kwargs):
         """
             Removes JavaScript breakpoint.
         Params:
             1. breakpointId: BreakpointId
         """
-        return self.drv.call(None,'Debugger.removeBreakpoint',breakpointId=breakpointId)
+        return self.drv.call(None,'Debugger.removeBreakpoint',breakpointId=breakpointId, **kwargs)
 
 
     # return: restartFrameReturn
@@ -513,7 +513,7 @@ class Debugger(DomainT):
 
 
     # func: restartFrame
-    def restartFrame(self,callFrameId:CallFrameId) -> restartFrameReturn:
+    def restartFrame(self,callFrameId:CallFrameId, **kwargs) -> restartFrameReturn:
         """
             Restarts particular call frame from the beginning.
         Params:
@@ -521,18 +521,18 @@ class Debugger(DomainT):
                 Call frame identifier to evaluate on.
         Return: restartFrameReturn
         """
-        return self.drv.call(Debugger.restartFrameReturn,'Debugger.restartFrame',callFrameId=callFrameId)
+        return self.drv.call(Debugger.restartFrameReturn,'Debugger.restartFrame',callFrameId=callFrameId, **kwargs)
 
 
     # func: resume
-    def resume(self,terminateOnResume:bool=None):
+    def resume(self,terminateOnResume:bool=None, **kwargs):
         """
             Resumes JavaScript execution.
         Params:
             1. terminateOnResume: bool (OPTIONAL)
                 Set to true to terminate execution upon resuming execution. In contrastto Runtime.terminateExecution, this will allows to execute furtherJavaScript (i.e. via evaluation) until execution of the paused codeis actually resumed, at which point termination is triggered.If execution is currently not paused, this parameter has no effect.
         """
-        return self.drv.call(None,'Debugger.resume',terminateOnResume=terminateOnResume)
+        return self.drv.call(None,'Debugger.resume',terminateOnResume=terminateOnResume, **kwargs)
 
 
     # return: searchInContentReturn
@@ -543,7 +543,7 @@ class Debugger(DomainT):
 
 
     # func: searchInContent
-    def searchInContent(self,scriptId:Runtime.ScriptId, query:str, caseSensitive:bool=None, isRegex:bool=None) -> searchInContentReturn:
+    def searchInContent(self,scriptId:Runtime.ScriptId, query:str, caseSensitive:bool=None, isRegex:bool=None, **kwargs) -> searchInContentReturn:
         """
             Searches for given string in script content.
         Params:
@@ -557,22 +557,22 @@ class Debugger(DomainT):
                 If true, treats string parameter as regex.
         Return: searchInContentReturn
         """
-        return self.drv.call(Debugger.searchInContentReturn,'Debugger.searchInContent',scriptId=scriptId, query=query, caseSensitive=caseSensitive, isRegex=isRegex)
+        return self.drv.call(Debugger.searchInContentReturn,'Debugger.searchInContent',scriptId=scriptId, query=query, caseSensitive=caseSensitive, isRegex=isRegex, **kwargs)
 
 
     # func: setAsyncCallStackDepth
-    def setAsyncCallStackDepth(self,maxDepth:int):
+    def setAsyncCallStackDepth(self,maxDepth:int, **kwargs):
         """
             Enables or disables async call stacks tracking.
         Params:
             1. maxDepth: int
                 Maximum depth of async call stacks. Setting to `0` will effectively disable collecting asynccall stacks (default).
         """
-        return self.drv.call(None,'Debugger.setAsyncCallStackDepth',maxDepth=maxDepth)
+        return self.drv.call(None,'Debugger.setAsyncCallStackDepth',maxDepth=maxDepth, **kwargs)
 
 
     # func: setBlackboxPatterns
-    def setBlackboxPatterns(self,patterns:List[str]):
+    def setBlackboxPatterns(self,patterns:List[str], **kwargs):
         """
             Replace previous blackbox patterns with passed ones. Forces backend to skip stepping/pausing in
             scripts with url matching one of the patterns. VM will try to leave blackboxed script by
@@ -581,11 +581,11 @@ class Debugger(DomainT):
             1. patterns: List[str]
                 Array of regexps that will be used to check script url for blackbox state.
         """
-        return self.drv.call(None,'Debugger.setBlackboxPatterns',patterns=patterns)
+        return self.drv.call(None,'Debugger.setBlackboxPatterns',patterns=patterns, **kwargs)
 
 
     # func: setBlackboxedRanges
-    def setBlackboxedRanges(self,scriptId:Runtime.ScriptId, positions:List[ScriptPosition]):
+    def setBlackboxedRanges(self,scriptId:Runtime.ScriptId, positions:List[ScriptPosition], **kwargs):
         """
             Makes backend skip steps in the script in blackboxed ranges. VM will try leave blacklisted
             scripts by performing 'step in' several times, finally resorting to 'step out' if unsuccessful.
@@ -596,7 +596,7 @@ class Debugger(DomainT):
                 Id of the script.
             2. positions: List[ScriptPosition]
         """
-        return self.drv.call(None,'Debugger.setBlackboxedRanges',scriptId=scriptId, positions=positions)
+        return self.drv.call(None,'Debugger.setBlackboxedRanges',scriptId=scriptId, positions=positions, **kwargs)
 
 
     # return: setBreakpointReturn
@@ -609,7 +609,7 @@ class Debugger(DomainT):
 
 
     # func: setBreakpoint
-    def setBreakpoint(self,location:Location, condition:str=None) -> setBreakpointReturn:
+    def setBreakpoint(self,location:Location, condition:str=None, **kwargs) -> setBreakpointReturn:
         """
             Sets JavaScript breakpoint at a given location.
         Params:
@@ -619,7 +619,7 @@ class Debugger(DomainT):
                 Expression to use as a breakpoint condition. When specified, debugger will only stop on thebreakpoint if this expression evaluates to true.
         Return: setBreakpointReturn
         """
-        return self.drv.call(Debugger.setBreakpointReturn,'Debugger.setBreakpoint',location=location, condition=condition)
+        return self.drv.call(Debugger.setBreakpointReturn,'Debugger.setBreakpoint',location=location, condition=condition, **kwargs)
 
 
     # return: setInstrumentationBreakpointReturn
@@ -630,7 +630,7 @@ class Debugger(DomainT):
 
 
     # func: setInstrumentationBreakpoint
-    def setInstrumentationBreakpoint(self,instrumentation:str) -> setInstrumentationBreakpointReturn:
+    def setInstrumentationBreakpoint(self,instrumentation:str, **kwargs) -> setInstrumentationBreakpointReturn:
         """
             Sets instrumentation breakpoint.
         Params:
@@ -639,7 +639,7 @@ class Debugger(DomainT):
                 Instrumentation name.
         Return: setInstrumentationBreakpointReturn
         """
-        return self.drv.call(Debugger.setInstrumentationBreakpointReturn,'Debugger.setInstrumentationBreakpoint',instrumentation=instrumentation)
+        return self.drv.call(Debugger.setInstrumentationBreakpointReturn,'Debugger.setInstrumentationBreakpoint',instrumentation=instrumentation, **kwargs)
 
 
     # return: setBreakpointByUrlReturn
@@ -652,7 +652,7 @@ class Debugger(DomainT):
 
 
     # func: setBreakpointByUrl
-    def setBreakpointByUrl(self,lineNumber:int, url:str=None, urlRegex:str=None, scriptHash:str=None, columnNumber:int=None, condition:str=None) -> setBreakpointByUrlReturn:
+    def setBreakpointByUrl(self,lineNumber:int, url:str=None, urlRegex:str=None, scriptHash:str=None, columnNumber:int=None, condition:str=None, **kwargs) -> setBreakpointByUrlReturn:
         """
             Sets JavaScript breakpoint at given location specified either by URL or URL regex. Once this
             command is issued, all existing parsed scripts will have breakpoints resolved and returned in
@@ -673,7 +673,7 @@ class Debugger(DomainT):
                 Expression to use as a breakpoint condition. When specified, debugger will only stop on thebreakpoint if this expression evaluates to true.
         Return: setBreakpointByUrlReturn
         """
-        return self.drv.call(Debugger.setBreakpointByUrlReturn,'Debugger.setBreakpointByUrl',lineNumber=lineNumber, url=url, urlRegex=urlRegex, scriptHash=scriptHash, columnNumber=columnNumber, condition=condition)
+        return self.drv.call(Debugger.setBreakpointByUrlReturn,'Debugger.setBreakpointByUrl',lineNumber=lineNumber, url=url, urlRegex=urlRegex, scriptHash=scriptHash, columnNumber=columnNumber, condition=condition, **kwargs)
 
 
     # return: setBreakpointOnFunctionCallReturn
@@ -684,7 +684,7 @@ class Debugger(DomainT):
 
 
     # func: setBreakpointOnFunctionCall
-    def setBreakpointOnFunctionCall(self,objectId:Runtime.RemoteObjectId, condition:str=None) -> setBreakpointOnFunctionCallReturn:
+    def setBreakpointOnFunctionCall(self,objectId:Runtime.RemoteObjectId, condition:str=None, **kwargs) -> setBreakpointOnFunctionCallReturn:
         """
             Sets JavaScript breakpoint before each call to the given function.
             If another function was created from the same source as a given one,
@@ -696,22 +696,22 @@ class Debugger(DomainT):
                 Expression to use as a breakpoint condition. When specified, debugger willstop on the breakpoint if this expression evaluates to true.
         Return: setBreakpointOnFunctionCallReturn
         """
-        return self.drv.call(Debugger.setBreakpointOnFunctionCallReturn,'Debugger.setBreakpointOnFunctionCall',objectId=objectId, condition=condition)
+        return self.drv.call(Debugger.setBreakpointOnFunctionCallReturn,'Debugger.setBreakpointOnFunctionCall',objectId=objectId, condition=condition, **kwargs)
 
 
     # func: setBreakpointsActive
-    def setBreakpointsActive(self,active:bool):
+    def setBreakpointsActive(self,active:bool, **kwargs):
         """
             Activates / deactivates all breakpoints on the page.
         Params:
             1. active: bool
                 New value for breakpoints active state.
         """
-        return self.drv.call(None,'Debugger.setBreakpointsActive',active=active)
+        return self.drv.call(None,'Debugger.setBreakpointsActive',active=active, **kwargs)
 
 
     # func: setPauseOnExceptions
-    def setPauseOnExceptions(self,state:str):
+    def setPauseOnExceptions(self,state:str, **kwargs):
         """
             Defines pause on exceptions state. Can be set to stop on all exceptions, uncaught exceptions or
             no exceptions. Initial pause on exceptions state is `none`.
@@ -720,18 +720,18 @@ class Debugger(DomainT):
             1. state: str
                 Pause on exceptions mode.
         """
-        return self.drv.call(None,'Debugger.setPauseOnExceptions',state=state)
+        return self.drv.call(None,'Debugger.setPauseOnExceptions',state=state, **kwargs)
 
 
     # func: setReturnValue
-    def setReturnValue(self,newValue:Runtime.CallArgument):
+    def setReturnValue(self,newValue:Runtime.CallArgument, **kwargs):
         """
             Changes return value in top frame. Available only at return break position.
         Params:
             1. newValue: Runtime.CallArgument
                 New return value.
         """
-        return self.drv.call(None,'Debugger.setReturnValue',newValue=newValue)
+        return self.drv.call(None,'Debugger.setReturnValue',newValue=newValue, **kwargs)
 
 
     # return: setScriptSourceReturn
@@ -750,7 +750,7 @@ class Debugger(DomainT):
 
 
     # func: setScriptSource
-    def setScriptSource(self,scriptId:Runtime.ScriptId, scriptSource:str, dryRun:bool=None) -> setScriptSourceReturn:
+    def setScriptSource(self,scriptId:Runtime.ScriptId, scriptSource:str, dryRun:bool=None, **kwargs) -> setScriptSourceReturn:
         """
             Edits JavaScript source live.
         Params:
@@ -762,22 +762,22 @@ class Debugger(DomainT):
                 If true the change will not actually be applied. Dry run may be used to get resultdescription without actually modifying the code.
         Return: setScriptSourceReturn
         """
-        return self.drv.call(Debugger.setScriptSourceReturn,'Debugger.setScriptSource',scriptId=scriptId, scriptSource=scriptSource, dryRun=dryRun)
+        return self.drv.call(Debugger.setScriptSourceReturn,'Debugger.setScriptSource',scriptId=scriptId, scriptSource=scriptSource, dryRun=dryRun, **kwargs)
 
 
     # func: setSkipAllPauses
-    def setSkipAllPauses(self,skip:bool):
+    def setSkipAllPauses(self,skip:bool, **kwargs):
         """
             Makes page not interrupt on any pauses (breakpoint, exception, dom exception etc).
         Params:
             1. skip: bool
                 New value for skip pauses state.
         """
-        return self.drv.call(None,'Debugger.setSkipAllPauses',skip=skip)
+        return self.drv.call(None,'Debugger.setSkipAllPauses',skip=skip, **kwargs)
 
 
     # func: setVariableValue
-    def setVariableValue(self,scopeNumber:int, variableName:str, newValue:Runtime.CallArgument, callFrameId:CallFrameId):
+    def setVariableValue(self,scopeNumber:int, variableName:str, newValue:Runtime.CallArgument, callFrameId:CallFrameId, **kwargs):
         """
             Changes value of variable in a callframe. Object-based scopes are not supported and must be
             mutated manually.
@@ -791,11 +791,11 @@ class Debugger(DomainT):
             4. callFrameId: CallFrameId
                 Id of callframe that holds variable.
         """
-        return self.drv.call(None,'Debugger.setVariableValue',scopeNumber=scopeNumber, variableName=variableName, newValue=newValue, callFrameId=callFrameId)
+        return self.drv.call(None,'Debugger.setVariableValue',scopeNumber=scopeNumber, variableName=variableName, newValue=newValue, callFrameId=callFrameId, **kwargs)
 
 
     # func: stepInto
-    def stepInto(self,breakOnAsyncCall:bool=None, skipList:List[LocationRange]=None):
+    def stepInto(self,breakOnAsyncCall:bool=None, skipList:List[LocationRange]=None, **kwargs):
         """
             Steps into the function call.
         Params:
@@ -804,26 +804,26 @@ class Debugger(DomainT):
             2. skipList: List[LocationRange] (OPTIONAL)
                 The skipList specifies location ranges that should be skipped on step into.
         """
-        return self.drv.call(None,'Debugger.stepInto',breakOnAsyncCall=breakOnAsyncCall, skipList=skipList)
+        return self.drv.call(None,'Debugger.stepInto',breakOnAsyncCall=breakOnAsyncCall, skipList=skipList, **kwargs)
 
 
     # func: stepOut
-    def stepOut(self):
+    def stepOut(self,**kwargs):
         """
             Steps out of the function call.
         """
-        return self.drv.call(None,'Debugger.stepOut')
+        return self.drv.call(None,'Debugger.stepOut',**kwargs)
 
 
     # func: stepOver
-    def stepOver(self,skipList:List[LocationRange]=None):
+    def stepOver(self,skipList:List[LocationRange]=None, **kwargs):
         """
             Steps over the statement.
         Params:
             1. skipList: List[LocationRange] (OPTIONAL)
                 The skipList specifies location ranges that should be skipped on step over.
         """
-        return self.drv.call(None,'Debugger.stepOver',skipList=skipList)
+        return self.drv.call(None,'Debugger.stepOver',skipList=skipList, **kwargs)
 
 
 

@@ -60,7 +60,7 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
     def take_type(data):
         """根据描述数据对象,分析对应py中的数据类型"""
         type = data.get('type')
-        maps = {'integer': 'int', 'string': 'str', 'object': 'class', 'number': 'int', 'boolean': 'bool', 'binary': 'str', 'any': 'any'}
+        maps = {'integer': 'int', 'string': 'str', 'object': 'class', 'number': 'int', 'boolean': 'bool', 'binary': 'str', 'any': 'str'}
         if type in maps:
             return maps[type]
         elif type == 'array':
@@ -79,7 +79,7 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
         desc = data.get('description', name).strip()
         type = take_type(data)
         enum = data.get('enum', None)
-        if type in {'int', 'str', 'bool', 'any'}:  # 输出简单类型
+        if type in {'int', 'str', 'bool'}:  # 输出简单类型
             desc = desc.replace('\n', '')
             rec(f'''# typing: {desc}''')
             rec(f'''{name} = {type}''')
@@ -177,10 +177,11 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
             poptl = prop.get('optional')
             args.append(f'{pname}:{ptype}{"=None" if poptl else ""}')
             argv.append(f'{pname}={pname}')
+        args.append('**kwargs')
+        argv.append('**kwargs')
         # 生成函数方法声明
         rec(f'''# func: {name}''', 1)
-        args = f""",{', '.join(args)}""" if args else ''
-        rec(f'''def {name}(self{args}){rtstr}:''', 1)
+        rec(f'''def {name}(self,{', '.join(args)}){rtstr}:''', 1)
         # 生成函数方法描述
         rec(f'''"""''', 2)
         if desc:
@@ -204,9 +205,8 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
             rec(f'''Return: {rtype}''', 2)
         rec(f'''"""''', 2)
         # 生成底层转发调用
-        argv = f""",{', '.join(argv)}""" if argv else ''
         retv = f"""{domainName}.{rtype}""" if rtype else 'None'
-        rec(f'''return self.drv.call({retv},'{domainName}.{name}'{argv})''', 2)
+        rec(f'''return self.drv.call({retv},'{domainName}.{name}',{', '.join(argv)})''', 2)
         rec()
 
     def make_drv_init(domains):

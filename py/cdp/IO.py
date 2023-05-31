@@ -19,14 +19,14 @@ class IO(DomainT):
 
 
     # func: close
-    def close(self,handle:StreamHandle):
+    def close(self,handle:StreamHandle, **kwargs):
         """
             Close the stream, discard any temporary backing storage.
         Params:
             1. handle: StreamHandle
                 Handle of the stream to close.
         """
-        return self.drv.call(None,'IO.close',handle=handle)
+        return self.drv.call(None,'IO.close',handle=handle, **kwargs)
 
 
     # return: readReturn
@@ -41,7 +41,7 @@ class IO(DomainT):
 
 
     # func: read
-    def read(self,handle:StreamHandle, offset:int=None, size:int=None) -> readReturn:
+    def read(self,handle:StreamHandle, offset:int=None, size:int=None, **kwargs) -> readReturn:
         """
             Read a chunk of the stream
         Params:
@@ -53,7 +53,7 @@ class IO(DomainT):
                 Maximum number of bytes to read (left upon the agent discretion if not specified).
         Return: readReturn
         """
-        return self.drv.call(IO.readReturn,'IO.read',handle=handle, offset=offset, size=size)
+        return self.drv.call(IO.readReturn,'IO.read',handle=handle, offset=offset, size=size, **kwargs)
 
 
     # return: resolveBlobReturn
@@ -64,7 +64,7 @@ class IO(DomainT):
 
 
     # func: resolveBlob
-    def resolveBlob(self,objectId:Runtime.RemoteObjectId) -> resolveBlobReturn:
+    def resolveBlob(self,objectId:Runtime.RemoteObjectId, **kwargs) -> resolveBlobReturn:
         """
             Return UUID of Blob object specified by a remote object id.
         Params:
@@ -72,7 +72,7 @@ class IO(DomainT):
                 Object id of a Blob object wrapper.
         Return: resolveBlobReturn
         """
-        return self.drv.call(IO.resolveBlobReturn,'IO.resolveBlob',objectId=objectId)
+        return self.drv.call(IO.resolveBlobReturn,'IO.resolveBlob',objectId=objectId, **kwargs)
 
 
 

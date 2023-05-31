@@ -6,29 +6,56 @@
 from typing import List
 
 
-class TypingT:
-    """数据类型基类"""
+class BaseT:
+    """基础类"""
 
     def __init__(self):
         pass
 
+    # def __str__(self):
+    #     return str(self.__dict__)
 
-class EventT:
-    """事件类型基类"""
+    def __repr__(self):
+        return str(self.__dict__)
+
+
+class TypingT(BaseT):
+    """数据类"""
+
+
+class EventT(BaseT):
+    """事件类"""
+
+
+class ReturnT(BaseT):
+    """返回值类"""
+
+
+class DomainT(BaseT):
+    """功能域类"""
+
+
+class ErrorT(BaseT):
+    """CDP错误消息类"""
 
     def __init__(self):
-        pass
+        self.code: int = int
+        self.message: str = str
+
+    def info(self, msg=None):
+        if not msg:
+            msg = ErrorT
+        return f'ErrorT/{self.code}/{self.message}'
 
 
-class ReturnT:
-    """返回值类型基类"""
+class VersionT(BaseT):
+    """浏览器版本信息"""
+    underline = '-'  # 下划线需要转义为横线
 
     def __init__(self):
-        pass
-
-
-class DomainT:
-    """功能域类型基类"""
-
-    def __init__(self):
-        pass
+        self.Protocol_Version: str = str
+        self.Browser: str = str
+        self.WebKit_Version: str = str
+        self.User_Agent: str = str
+        self.V8_Version: str = str
+        self.webSocketDebuggerUrl: str = str  # Browser endpoint URL

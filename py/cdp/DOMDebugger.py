@@ -58,7 +58,7 @@ class DOMDebugger(DomainT):
 
 
     # func: getEventListeners
-    def getEventListeners(self,objectId:Runtime.RemoteObjectId, depth:int=None, pierce:bool=None) -> getEventListenersReturn:
+    def getEventListeners(self,objectId:Runtime.RemoteObjectId, depth:int=None, pierce:bool=None, **kwargs) -> getEventListenersReturn:
         """
             Returns event listeners of the given object.
         Params:
@@ -70,11 +70,11 @@ class DOMDebugger(DomainT):
                 Whether or not iframes and shadow roots should be traversed when returning the subtree(default is false). Reports listeners for all contexts if pierce is enabled.
         Return: getEventListenersReturn
         """
-        return self.drv.call(DOMDebugger.getEventListenersReturn,'DOMDebugger.getEventListeners',objectId=objectId, depth=depth, pierce=pierce)
+        return self.drv.call(DOMDebugger.getEventListenersReturn,'DOMDebugger.getEventListeners',objectId=objectId, depth=depth, pierce=pierce, **kwargs)
 
 
     # func: removeDOMBreakpoint
-    def removeDOMBreakpoint(self,nodeId:DOM.NodeId, type:DOMBreakpointType):
+    def removeDOMBreakpoint(self,nodeId:DOM.NodeId, type:DOMBreakpointType, **kwargs):
         """
             Removes DOM breakpoint that was set using `setDOMBreakpoint`.
         Params:
@@ -83,11 +83,11 @@ class DOMDebugger(DomainT):
             2. type: DOMBreakpointType
                 Type of the breakpoint to remove.
         """
-        return self.drv.call(None,'DOMDebugger.removeDOMBreakpoint',nodeId=nodeId, type=type)
+        return self.drv.call(None,'DOMDebugger.removeDOMBreakpoint',nodeId=nodeId, type=type, **kwargs)
 
 
     # func: removeEventListenerBreakpoint
-    def removeEventListenerBreakpoint(self,eventName:str, targetName:str=None):
+    def removeEventListenerBreakpoint(self,eventName:str, targetName:str=None, **kwargs):
         """
             Removes breakpoint on particular DOM event.
         Params:
@@ -96,33 +96,33 @@ class DOMDebugger(DomainT):
             2. targetName: str (OPTIONAL)
                 EventTarget interface name.
         """
-        return self.drv.call(None,'DOMDebugger.removeEventListenerBreakpoint',eventName=eventName, targetName=targetName)
+        return self.drv.call(None,'DOMDebugger.removeEventListenerBreakpoint',eventName=eventName, targetName=targetName, **kwargs)
 
 
     # func: removeInstrumentationBreakpoint
-    def removeInstrumentationBreakpoint(self,eventName:str):
+    def removeInstrumentationBreakpoint(self,eventName:str, **kwargs):
         """
             Removes breakpoint on particular native event.
         Params:
             1. eventName: str
                 Instrumentation name to stop on.
         """
-        return self.drv.call(None,'DOMDebugger.removeInstrumentationBreakpoint',eventName=eventName)
+        return self.drv.call(None,'DOMDebugger.removeInstrumentationBreakpoint',eventName=eventName, **kwargs)
 
 
     # func: removeXHRBreakpoint
-    def removeXHRBreakpoint(self,url:str):
+    def removeXHRBreakpoint(self,url:str, **kwargs):
         """
             Removes breakpoint from XMLHttpRequest.
         Params:
             1. url: str
                 Resource URL substring.
         """
-        return self.drv.call(None,'DOMDebugger.removeXHRBreakpoint',url=url)
+        return self.drv.call(None,'DOMDebugger.removeXHRBreakpoint',url=url, **kwargs)
 
 
     # func: setDOMBreakpoint
-    def setDOMBreakpoint(self,nodeId:DOM.NodeId, type:DOMBreakpointType):
+    def setDOMBreakpoint(self,nodeId:DOM.NodeId, type:DOMBreakpointType, **kwargs):
         """
             Sets breakpoint on particular operation with DOM.
         Params:
@@ -131,11 +131,11 @@ class DOMDebugger(DomainT):
             2. type: DOMBreakpointType
                 Type of the operation to stop upon.
         """
-        return self.drv.call(None,'DOMDebugger.setDOMBreakpoint',nodeId=nodeId, type=type)
+        return self.drv.call(None,'DOMDebugger.setDOMBreakpoint',nodeId=nodeId, type=type, **kwargs)
 
 
     # func: setEventListenerBreakpoint
-    def setEventListenerBreakpoint(self,eventName:str, targetName:str=None):
+    def setEventListenerBreakpoint(self,eventName:str, targetName:str=None, **kwargs):
         """
             Sets breakpoint on particular DOM event.
         Params:
@@ -144,29 +144,29 @@ class DOMDebugger(DomainT):
             2. targetName: str (OPTIONAL)
                 EventTarget interface name to stop on. If equal to `"*"` or not provided, will stop on anyEventTarget.
         """
-        return self.drv.call(None,'DOMDebugger.setEventListenerBreakpoint',eventName=eventName, targetName=targetName)
+        return self.drv.call(None,'DOMDebugger.setEventListenerBreakpoint',eventName=eventName, targetName=targetName, **kwargs)
 
 
     # func: setInstrumentationBreakpoint
-    def setInstrumentationBreakpoint(self,eventName:str):
+    def setInstrumentationBreakpoint(self,eventName:str, **kwargs):
         """
             Sets breakpoint on particular native event.
         Params:
             1. eventName: str
                 Instrumentation name to stop on.
         """
-        return self.drv.call(None,'DOMDebugger.setInstrumentationBreakpoint',eventName=eventName)
+        return self.drv.call(None,'DOMDebugger.setInstrumentationBreakpoint',eventName=eventName, **kwargs)
 
 
     # func: setXHRBreakpoint
-    def setXHRBreakpoint(self,url:str):
+    def setXHRBreakpoint(self,url:str, **kwargs):
         """
             Sets breakpoint on XMLHttpRequest.
         Params:
             1. url: str
                 Resource URL substring. All XHRs having this substring in the URL will get stopped upon.
         """
-        return self.drv.call(None,'DOMDebugger.setXHRBreakpoint',url=url)
+        return self.drv.call(None,'DOMDebugger.setXHRBreakpoint',url=url, **kwargs)
 
 
 

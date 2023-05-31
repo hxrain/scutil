@@ -27,7 +27,7 @@ class RemoteObject(TypingT):
         # OPTIONAL, Object class (constructor) name. Specified for `object` type values only.
         self.className: str = str
         # OPTIONAL, Remote object value in case of primitive values or JSON values (if it was requested).
-        self.value: any = any
+        self.value: str = str
         # OPTIONAL, Primitive value which can not be JSON-stringified does not have `value`, but gets thisproperty.
         self.unserializableValue: UnserializableValue = UnserializableValue
         # OPTIONAL, String representation of the object.
@@ -166,7 +166,7 @@ class CallArgument(TypingT):
     """
     def __init__(self):
         # OPTIONAL, Primitive value or serializable javascript object.
-        self.value: any = any
+        self.value: str = str
         # OPTIONAL, Primitive value which can not be JSON-stringified.
         self.unserializableValue: UnserializableValue = UnserializableValue
         # OPTIONAL, Remote object handle.
@@ -190,7 +190,7 @@ class ExecutionContextDescription(TypingT):
         # Human readable name describing given context.
         self.name: str = str
         # OPTIONAL, Embedder-specific auxiliary data.
-        self.auxData: any = any
+        self.auxData: str = str
 
 
 # object: ExceptionDetails
@@ -370,7 +370,7 @@ class inspectRequested(EventT):
         # object
         self.object: RemoteObject = RemoteObject
         # hints
-        self.hints: any = any
+        self.hints: str = str
 
 
 # ================================================================================
@@ -398,7 +398,7 @@ class Runtime(DomainT):
 
 
     # func: awaitPromise
-    def awaitPromise(self,promiseObjectId:RemoteObjectId, returnByValue:bool=None, generatePreview:bool=None) -> awaitPromiseReturn:
+    def awaitPromise(self,promiseObjectId:RemoteObjectId, returnByValue:bool=None, generatePreview:bool=None, **kwargs) -> awaitPromiseReturn:
         """
             Add handler to promise with given promise object id.
         Params:
@@ -410,7 +410,7 @@ class Runtime(DomainT):
                 Whether preview should be generated for the result.
         Return: awaitPromiseReturn
         """
-        return self.drv.call(Runtime.awaitPromiseReturn,'Runtime.awaitPromise',promiseObjectId=promiseObjectId, returnByValue=returnByValue, generatePreview=generatePreview)
+        return self.drv.call(Runtime.awaitPromiseReturn,'Runtime.awaitPromise',promiseObjectId=promiseObjectId, returnByValue=returnByValue, generatePreview=generatePreview, **kwargs)
 
 
     # return: callFunctionOnReturn
@@ -423,7 +423,7 @@ class Runtime(DomainT):
 
 
     # func: callFunctionOn
-    def callFunctionOn(self,functionDeclaration:str, objectId:RemoteObjectId=None, arguments:List[CallArgument]=None, silent:bool=None, returnByValue:bool=None, generatePreview:bool=None, userGesture:bool=None, awaitPromise:bool=None, executionContextId:ExecutionContextId=None, objectGroup:str=None) -> callFunctionOnReturn:
+    def callFunctionOn(self,functionDeclaration:str, objectId:RemoteObjectId=None, arguments:List[CallArgument]=None, silent:bool=None, returnByValue:bool=None, generatePreview:bool=None, userGesture:bool=None, awaitPromise:bool=None, executionContextId:ExecutionContextId=None, objectGroup:str=None, **kwargs) -> callFunctionOnReturn:
         """
             Calls function with given declaration on the given object. Object group of the result is
             inherited from the target object.
@@ -450,7 +450,7 @@ class Runtime(DomainT):
                 Symbolic group name that can be used to release multiple objects. If objectGroup is notspecified and objectId is, objectGroup will be inherited from object.
         Return: callFunctionOnReturn
         """
-        return self.drv.call(Runtime.callFunctionOnReturn,'Runtime.callFunctionOn',functionDeclaration=functionDeclaration, objectId=objectId, arguments=arguments, silent=silent, returnByValue=returnByValue, generatePreview=generatePreview, userGesture=userGesture, awaitPromise=awaitPromise, executionContextId=executionContextId, objectGroup=objectGroup)
+        return self.drv.call(Runtime.callFunctionOnReturn,'Runtime.callFunctionOn',functionDeclaration=functionDeclaration, objectId=objectId, arguments=arguments, silent=silent, returnByValue=returnByValue, generatePreview=generatePreview, userGesture=userGesture, awaitPromise=awaitPromise, executionContextId=executionContextId, objectGroup=objectGroup, **kwargs)
 
 
     # return: compileScriptReturn
@@ -463,7 +463,7 @@ class Runtime(DomainT):
 
 
     # func: compileScript
-    def compileScript(self,expression:str, sourceURL:str, persistScript:bool, executionContextId:ExecutionContextId=None) -> compileScriptReturn:
+    def compileScript(self,expression:str, sourceURL:str, persistScript:bool, executionContextId:ExecutionContextId=None, **kwargs) -> compileScriptReturn:
         """
             Compiles expression.
         Params:
@@ -477,33 +477,33 @@ class Runtime(DomainT):
                 Specifies in which execution context to perform script run. If the parameter is omitted theevaluation will be performed in the context of the inspected page.
         Return: compileScriptReturn
         """
-        return self.drv.call(Runtime.compileScriptReturn,'Runtime.compileScript',expression=expression, sourceURL=sourceURL, persistScript=persistScript, executionContextId=executionContextId)
+        return self.drv.call(Runtime.compileScriptReturn,'Runtime.compileScript',expression=expression, sourceURL=sourceURL, persistScript=persistScript, executionContextId=executionContextId, **kwargs)
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disables reporting of execution contexts creation.
         """
-        return self.drv.call(None,'Runtime.disable')
+        return self.drv.call(None,'Runtime.disable',**kwargs)
 
 
     # func: discardConsoleEntries
-    def discardConsoleEntries(self):
+    def discardConsoleEntries(self,**kwargs):
         """
             Discards collected exceptions and console API calls.
         """
-        return self.drv.call(None,'Runtime.discardConsoleEntries')
+        return self.drv.call(None,'Runtime.discardConsoleEntries',**kwargs)
 
 
     # func: enable
-    def enable(self):
+    def enable(self,**kwargs):
         """
             Enables reporting of execution contexts creation by means of `executionContextCreated` event.
             When the reporting gets enabled the event will be sent immediately for each existing execution
             context.
         """
-        return self.drv.call(None,'Runtime.enable')
+        return self.drv.call(None,'Runtime.enable',**kwargs)
 
 
     # return: evaluateReturn
@@ -516,7 +516,7 @@ class Runtime(DomainT):
 
 
     # func: evaluate
-    def evaluate(self,expression:str, objectGroup:str=None, includeCommandLineAPI:bool=None, silent:bool=None, contextId:ExecutionContextId=None, returnByValue:bool=None, generatePreview:bool=None, userGesture:bool=None, awaitPromise:bool=None, throwOnSideEffect:bool=None, timeout:TimeDelta=None, disableBreaks:bool=None, replMode:bool=None, allowUnsafeEvalBlockedByCSP:bool=None) -> evaluateReturn:
+    def evaluate(self,expression:str, objectGroup:str=None, includeCommandLineAPI:bool=None, silent:bool=None, contextId:ExecutionContextId=None, returnByValue:bool=None, generatePreview:bool=None, userGesture:bool=None, awaitPromise:bool=None, throwOnSideEffect:bool=None, timeout:TimeDelta=None, disableBreaks:bool=None, replMode:bool=None, allowUnsafeEvalBlockedByCSP:bool=None, **kwargs) -> evaluateReturn:
         """
             Evaluates expression on global object.
         Params:
@@ -550,7 +550,7 @@ class Runtime(DomainT):
                 The Content Security Policy (CSP) for the target might block 'unsafe-eval'which includes eval(), Function(), setTimeout() and setInterval()when called with non-callable arguments. This flag bypasses CSP for thisevaluation and allows unsafe-eval. Defaults to true.
         Return: evaluateReturn
         """
-        return self.drv.call(Runtime.evaluateReturn,'Runtime.evaluate',expression=expression, objectGroup=objectGroup, includeCommandLineAPI=includeCommandLineAPI, silent=silent, contextId=contextId, returnByValue=returnByValue, generatePreview=generatePreview, userGesture=userGesture, awaitPromise=awaitPromise, throwOnSideEffect=throwOnSideEffect, timeout=timeout, disableBreaks=disableBreaks, replMode=replMode, allowUnsafeEvalBlockedByCSP=allowUnsafeEvalBlockedByCSP)
+        return self.drv.call(Runtime.evaluateReturn,'Runtime.evaluate',expression=expression, objectGroup=objectGroup, includeCommandLineAPI=includeCommandLineAPI, silent=silent, contextId=contextId, returnByValue=returnByValue, generatePreview=generatePreview, userGesture=userGesture, awaitPromise=awaitPromise, throwOnSideEffect=throwOnSideEffect, timeout=timeout, disableBreaks=disableBreaks, replMode=replMode, allowUnsafeEvalBlockedByCSP=allowUnsafeEvalBlockedByCSP, **kwargs)
 
 
     # return: getIsolateIdReturn
@@ -561,12 +561,12 @@ class Runtime(DomainT):
 
 
     # func: getIsolateId
-    def getIsolateId(self) -> getIsolateIdReturn:
+    def getIsolateId(self,**kwargs) -> getIsolateIdReturn:
         """
             Returns the isolate id.
         Return: getIsolateIdReturn
         """
-        return self.drv.call(Runtime.getIsolateIdReturn,'Runtime.getIsolateId')
+        return self.drv.call(Runtime.getIsolateIdReturn,'Runtime.getIsolateId',**kwargs)
 
 
     # return: getHeapUsageReturn
@@ -579,13 +579,13 @@ class Runtime(DomainT):
 
 
     # func: getHeapUsage
-    def getHeapUsage(self) -> getHeapUsageReturn:
+    def getHeapUsage(self,**kwargs) -> getHeapUsageReturn:
         """
             Returns the JavaScript heap usage.
             It is the total usage of the corresponding isolate not scoped to a particular Runtime.
         Return: getHeapUsageReturn
         """
-        return self.drv.call(Runtime.getHeapUsageReturn,'Runtime.getHeapUsage')
+        return self.drv.call(Runtime.getHeapUsageReturn,'Runtime.getHeapUsage',**kwargs)
 
 
     # return: getPropertiesReturn
@@ -602,7 +602,7 @@ class Runtime(DomainT):
 
 
     # func: getProperties
-    def getProperties(self,objectId:RemoteObjectId, ownProperties:bool=None, accessorPropertiesOnly:bool=None, generatePreview:bool=None) -> getPropertiesReturn:
+    def getProperties(self,objectId:RemoteObjectId, ownProperties:bool=None, accessorPropertiesOnly:bool=None, generatePreview:bool=None, **kwargs) -> getPropertiesReturn:
         """
             Returns properties of a given object. Object group of the result is inherited from the target
             object.
@@ -617,7 +617,7 @@ class Runtime(DomainT):
                 Whether preview should be generated for the results.
         Return: getPropertiesReturn
         """
-        return self.drv.call(Runtime.getPropertiesReturn,'Runtime.getProperties',objectId=objectId, ownProperties=ownProperties, accessorPropertiesOnly=accessorPropertiesOnly, generatePreview=generatePreview)
+        return self.drv.call(Runtime.getPropertiesReturn,'Runtime.getProperties',objectId=objectId, ownProperties=ownProperties, accessorPropertiesOnly=accessorPropertiesOnly, generatePreview=generatePreview, **kwargs)
 
 
     # return: globalLexicalScopeNamesReturn
@@ -628,7 +628,7 @@ class Runtime(DomainT):
 
 
     # func: globalLexicalScopeNames
-    def globalLexicalScopeNames(self,executionContextId:ExecutionContextId=None) -> globalLexicalScopeNamesReturn:
+    def globalLexicalScopeNames(self,executionContextId:ExecutionContextId=None, **kwargs) -> globalLexicalScopeNamesReturn:
         """
             Returns all let, const and class variables from global scope.
         Params:
@@ -636,7 +636,7 @@ class Runtime(DomainT):
                 Specifies in which execution context to lookup global scope variables.
         Return: globalLexicalScopeNamesReturn
         """
-        return self.drv.call(Runtime.globalLexicalScopeNamesReturn,'Runtime.globalLexicalScopeNames',executionContextId=executionContextId)
+        return self.drv.call(Runtime.globalLexicalScopeNamesReturn,'Runtime.globalLexicalScopeNames',executionContextId=executionContextId, **kwargs)
 
 
     # return: queryObjectsReturn
@@ -647,7 +647,7 @@ class Runtime(DomainT):
 
 
     # func: queryObjects
-    def queryObjects(self,prototypeObjectId:RemoteObjectId, objectGroup:str=None) -> queryObjectsReturn:
+    def queryObjects(self,prototypeObjectId:RemoteObjectId, objectGroup:str=None, **kwargs) -> queryObjectsReturn:
         """
         Params:
             1. prototypeObjectId: RemoteObjectId
@@ -656,37 +656,37 @@ class Runtime(DomainT):
                 Symbolic group name that can be used to release the results.
         Return: queryObjectsReturn
         """
-        return self.drv.call(Runtime.queryObjectsReturn,'Runtime.queryObjects',prototypeObjectId=prototypeObjectId, objectGroup=objectGroup)
+        return self.drv.call(Runtime.queryObjectsReturn,'Runtime.queryObjects',prototypeObjectId=prototypeObjectId, objectGroup=objectGroup, **kwargs)
 
 
     # func: releaseObject
-    def releaseObject(self,objectId:RemoteObjectId):
+    def releaseObject(self,objectId:RemoteObjectId, **kwargs):
         """
             Releases remote object with given id.
         Params:
             1. objectId: RemoteObjectId
                 Identifier of the object to release.
         """
-        return self.drv.call(None,'Runtime.releaseObject',objectId=objectId)
+        return self.drv.call(None,'Runtime.releaseObject',objectId=objectId, **kwargs)
 
 
     # func: releaseObjectGroup
-    def releaseObjectGroup(self,objectGroup:str):
+    def releaseObjectGroup(self,objectGroup:str, **kwargs):
         """
             Releases all remote objects that belong to a given group.
         Params:
             1. objectGroup: str
                 Symbolic object group name.
         """
-        return self.drv.call(None,'Runtime.releaseObjectGroup',objectGroup=objectGroup)
+        return self.drv.call(None,'Runtime.releaseObjectGroup',objectGroup=objectGroup, **kwargs)
 
 
     # func: runIfWaitingForDebugger
-    def runIfWaitingForDebugger(self):
+    def runIfWaitingForDebugger(self,**kwargs):
         """
             Tells inspected instance to run if it was waiting for debugger to attach.
         """
-        return self.drv.call(None,'Runtime.runIfWaitingForDebugger')
+        return self.drv.call(None,'Runtime.runIfWaitingForDebugger',**kwargs)
 
 
     # return: runScriptReturn
@@ -699,7 +699,7 @@ class Runtime(DomainT):
 
 
     # func: runScript
-    def runScript(self,scriptId:ScriptId, executionContextId:ExecutionContextId=None, objectGroup:str=None, silent:bool=None, includeCommandLineAPI:bool=None, returnByValue:bool=None, generatePreview:bool=None, awaitPromise:bool=None) -> runScriptReturn:
+    def runScript(self,scriptId:ScriptId, executionContextId:ExecutionContextId=None, objectGroup:str=None, silent:bool=None, includeCommandLineAPI:bool=None, returnByValue:bool=None, generatePreview:bool=None, awaitPromise:bool=None, **kwargs) -> runScriptReturn:
         """
             Runs script with given id in a given context.
         Params:
@@ -721,49 +721,49 @@ class Runtime(DomainT):
                 Whether execution should `await` for resulting value and return once awaited promise isresolved.
         Return: runScriptReturn
         """
-        return self.drv.call(Runtime.runScriptReturn,'Runtime.runScript',scriptId=scriptId, executionContextId=executionContextId, objectGroup=objectGroup, silent=silent, includeCommandLineAPI=includeCommandLineAPI, returnByValue=returnByValue, generatePreview=generatePreview, awaitPromise=awaitPromise)
+        return self.drv.call(Runtime.runScriptReturn,'Runtime.runScript',scriptId=scriptId, executionContextId=executionContextId, objectGroup=objectGroup, silent=silent, includeCommandLineAPI=includeCommandLineAPI, returnByValue=returnByValue, generatePreview=generatePreview, awaitPromise=awaitPromise, **kwargs)
 
 
     # func: setAsyncCallStackDepth
-    def setAsyncCallStackDepth(self,maxDepth:int):
+    def setAsyncCallStackDepth(self,maxDepth:int, **kwargs):
         """
             Enables or disables async call stacks tracking.
         Params:
             1. maxDepth: int
                 Maximum depth of async call stacks. Setting to `0` will effectively disable collecting asynccall stacks (default).
         """
-        return self.drv.call(None,'Runtime.setAsyncCallStackDepth',maxDepth=maxDepth)
+        return self.drv.call(None,'Runtime.setAsyncCallStackDepth',maxDepth=maxDepth, **kwargs)
 
 
     # func: setCustomObjectFormatterEnabled
-    def setCustomObjectFormatterEnabled(self,enabled:bool):
+    def setCustomObjectFormatterEnabled(self,enabled:bool, **kwargs):
         """
         Params:
             1. enabled: bool
         """
-        return self.drv.call(None,'Runtime.setCustomObjectFormatterEnabled',enabled=enabled)
+        return self.drv.call(None,'Runtime.setCustomObjectFormatterEnabled',enabled=enabled, **kwargs)
 
 
     # func: setMaxCallStackSizeToCapture
-    def setMaxCallStackSizeToCapture(self,size:int):
+    def setMaxCallStackSizeToCapture(self,size:int, **kwargs):
         """
         Params:
             1. size: int
         """
-        return self.drv.call(None,'Runtime.setMaxCallStackSizeToCapture',size=size)
+        return self.drv.call(None,'Runtime.setMaxCallStackSizeToCapture',size=size, **kwargs)
 
 
     # func: terminateExecution
-    def terminateExecution(self):
+    def terminateExecution(self,**kwargs):
         """
             Terminate current or next JavaScript execution.
             Will cancel the termination when the outer-most script execution ends.
         """
-        return self.drv.call(None,'Runtime.terminateExecution')
+        return self.drv.call(None,'Runtime.terminateExecution',**kwargs)
 
 
     # func: addBinding
-    def addBinding(self,name:str, executionContextId:ExecutionContextId=None):
+    def addBinding(self,name:str, executionContextId:ExecutionContextId=None, **kwargs):
         """
             If executionContextId is empty, adds binding with the given name on the
             global objects of all inspected contexts, including those created later,
@@ -777,18 +777,18 @@ class Runtime(DomainT):
             1. name: str
             2. executionContextId: ExecutionContextId (OPTIONAL)
         """
-        return self.drv.call(None,'Runtime.addBinding',name=name, executionContextId=executionContextId)
+        return self.drv.call(None,'Runtime.addBinding',name=name, executionContextId=executionContextId, **kwargs)
 
 
     # func: removeBinding
-    def removeBinding(self,name:str):
+    def removeBinding(self,name:str, **kwargs):
         """
             This method does not remove binding function from global object but
             unsubscribes current runtime agent from Runtime.bindingCalled notifications.
         Params:
             1. name: str
         """
-        return self.drv.call(None,'Runtime.removeBinding',name=name)
+        return self.drv.call(None,'Runtime.removeBinding',name=name, **kwargs)
 
 
 

@@ -39,15 +39,15 @@ class Performance(DomainT):
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disable collecting and reporting metrics.
         """
-        return self.drv.call(None,'Performance.disable')
+        return self.drv.call(None,'Performance.disable',**kwargs)
 
 
     # func: enable
-    def enable(self,timeDomain:str=None):
+    def enable(self,timeDomain:str=None, **kwargs):
         """
             Enable collecting and reporting metrics.
         Params:
@@ -55,11 +55,11 @@ class Performance(DomainT):
             1. timeDomain: str (OPTIONAL)
                 Time domain to use for collecting and reporting duration metrics.
         """
-        return self.drv.call(None,'Performance.enable',timeDomain=timeDomain)
+        return self.drv.call(None,'Performance.enable',timeDomain=timeDomain, **kwargs)
 
 
     # func: setTimeDomain
-    def setTimeDomain(self,timeDomain:str):
+    def setTimeDomain(self,timeDomain:str, **kwargs):
         """
             Sets time domain to use for collecting and reporting duration metrics.
             Note that this must be called before enabling metrics collection. Calling
@@ -69,7 +69,7 @@ class Performance(DomainT):
             1. timeDomain: str
                 Time domain
         """
-        return self.drv.call(None,'Performance.setTimeDomain',timeDomain=timeDomain)
+        return self.drv.call(None,'Performance.setTimeDomain',timeDomain=timeDomain, **kwargs)
 
 
     # return: getMetricsReturn
@@ -80,12 +80,12 @@ class Performance(DomainT):
 
 
     # func: getMetrics
-    def getMetrics(self) -> getMetricsReturn:
+    def getMetrics(self,**kwargs) -> getMetricsReturn:
         """
             Retrieve current values of run-time metrics.
         Return: getMetricsReturn
         """
-        return self.drv.call(Performance.getMetricsReturn,'Performance.getMetrics')
+        return self.drv.call(Performance.getMetricsReturn,'Performance.getMetrics',**kwargs)
 
 
 

@@ -105,7 +105,7 @@ class Browser(DomainT):
 
 
     # func: setPermission
-    def setPermission(self,permission:PermissionDescriptor, setting:PermissionSetting, origin:str=None, browserContextId:BrowserContextID=None):
+    def setPermission(self,permission:PermissionDescriptor, setting:PermissionSetting, origin:str=None, browserContextId:BrowserContextID=None, **kwargs):
         """
             Set permission settings for given origin.
         Params:
@@ -118,11 +118,11 @@ class Browser(DomainT):
             4. browserContextId: BrowserContextID (OPTIONAL)
                 Context to override. When omitted, default browser context is used.
         """
-        return self.drv.call(None,'Browser.setPermission',permission=permission, setting=setting, origin=origin, browserContextId=browserContextId)
+        return self.drv.call(None,'Browser.setPermission',permission=permission, setting=setting, origin=origin, browserContextId=browserContextId, **kwargs)
 
 
     # func: grantPermissions
-    def grantPermissions(self,permissions:List[PermissionType], origin:str=None, browserContextId:BrowserContextID=None):
+    def grantPermissions(self,permissions:List[PermissionType], origin:str=None, browserContextId:BrowserContextID=None, **kwargs):
         """
             Grant specific permissions to the given origin and reject all others.
         Params:
@@ -132,22 +132,22 @@ class Browser(DomainT):
             3. browserContextId: BrowserContextID (OPTIONAL)
                 BrowserContext to override permissions. When omitted, default browser context is used.
         """
-        return self.drv.call(None,'Browser.grantPermissions',permissions=permissions, origin=origin, browserContextId=browserContextId)
+        return self.drv.call(None,'Browser.grantPermissions',permissions=permissions, origin=origin, browserContextId=browserContextId, **kwargs)
 
 
     # func: resetPermissions
-    def resetPermissions(self,browserContextId:BrowserContextID=None):
+    def resetPermissions(self,browserContextId:BrowserContextID=None, **kwargs):
         """
             Reset all permission management for all origins.
         Params:
             1. browserContextId: BrowserContextID (OPTIONAL)
                 BrowserContext to reset permissions. When omitted, default browser context is used.
         """
-        return self.drv.call(None,'Browser.resetPermissions',browserContextId=browserContextId)
+        return self.drv.call(None,'Browser.resetPermissions',browserContextId=browserContextId, **kwargs)
 
 
     # func: setDownloadBehavior
-    def setDownloadBehavior(self,behavior:str, browserContextId:BrowserContextID=None, downloadPath:str=None):
+    def setDownloadBehavior(self,behavior:str, browserContextId:BrowserContextID=None, downloadPath:str=None, **kwargs):
         """
             Set the behavior when downloading a file.
         Params:
@@ -159,31 +159,31 @@ class Browser(DomainT):
             3. downloadPath: str (OPTIONAL)
                 The default path to save downloaded files to. This is requred if behavior is set to 'allow'or 'allowAndName'.
         """
-        return self.drv.call(None,'Browser.setDownloadBehavior',behavior=behavior, browserContextId=browserContextId, downloadPath=downloadPath)
+        return self.drv.call(None,'Browser.setDownloadBehavior',behavior=behavior, browserContextId=browserContextId, downloadPath=downloadPath, **kwargs)
 
 
     # func: close
-    def close(self):
+    def close(self,**kwargs):
         """
             Close browser gracefully.
         """
-        return self.drv.call(None,'Browser.close')
+        return self.drv.call(None,'Browser.close',**kwargs)
 
 
     # func: crash
-    def crash(self):
+    def crash(self,**kwargs):
         """
             Crashes browser on the main thread.
         """
-        return self.drv.call(None,'Browser.crash')
+        return self.drv.call(None,'Browser.crash',**kwargs)
 
 
     # func: crashGpuProcess
-    def crashGpuProcess(self):
+    def crashGpuProcess(self,**kwargs):
         """
             Crashes GPU process.
         """
-        return self.drv.call(None,'Browser.crashGpuProcess')
+        return self.drv.call(None,'Browser.crashGpuProcess',**kwargs)
 
 
     # return: getVersionReturn
@@ -202,12 +202,12 @@ class Browser(DomainT):
 
 
     # func: getVersion
-    def getVersion(self) -> getVersionReturn:
+    def getVersion(self,**kwargs) -> getVersionReturn:
         """
             Returns version information.
         Return: getVersionReturn
         """
-        return self.drv.call(Browser.getVersionReturn,'Browser.getVersion')
+        return self.drv.call(Browser.getVersionReturn,'Browser.getVersion',**kwargs)
 
 
     # return: getBrowserCommandLineReturn
@@ -218,13 +218,13 @@ class Browser(DomainT):
 
 
     # func: getBrowserCommandLine
-    def getBrowserCommandLine(self) -> getBrowserCommandLineReturn:
+    def getBrowserCommandLine(self,**kwargs) -> getBrowserCommandLineReturn:
         """
             Returns the command line switches for the browser process if, and only if
             --enable-automation is on the commandline.
         Return: getBrowserCommandLineReturn
         """
-        return self.drv.call(Browser.getBrowserCommandLineReturn,'Browser.getBrowserCommandLine')
+        return self.drv.call(Browser.getBrowserCommandLineReturn,'Browser.getBrowserCommandLine',**kwargs)
 
 
     # return: getHistogramsReturn
@@ -235,7 +235,7 @@ class Browser(DomainT):
 
 
     # func: getHistograms
-    def getHistograms(self,query:str=None, delta:bool=None) -> getHistogramsReturn:
+    def getHistograms(self,query:str=None, delta:bool=None, **kwargs) -> getHistogramsReturn:
         """
             Get Chrome histograms.
         Params:
@@ -245,7 +245,7 @@ class Browser(DomainT):
                 If true, retrieve delta since last call.
         Return: getHistogramsReturn
         """
-        return self.drv.call(Browser.getHistogramsReturn,'Browser.getHistograms',query=query, delta=delta)
+        return self.drv.call(Browser.getHistogramsReturn,'Browser.getHistograms',query=query, delta=delta, **kwargs)
 
 
     # return: getHistogramReturn
@@ -256,7 +256,7 @@ class Browser(DomainT):
 
 
     # func: getHistogram
-    def getHistogram(self,name:str, delta:bool=None) -> getHistogramReturn:
+    def getHistogram(self,name:str, delta:bool=None, **kwargs) -> getHistogramReturn:
         """
             Get a Chrome histogram by name.
         Params:
@@ -266,7 +266,7 @@ class Browser(DomainT):
                 If true, retrieve delta since last call.
         Return: getHistogramReturn
         """
-        return self.drv.call(Browser.getHistogramReturn,'Browser.getHistogram',name=name, delta=delta)
+        return self.drv.call(Browser.getHistogramReturn,'Browser.getHistogram',name=name, delta=delta, **kwargs)
 
 
     # return: getWindowBoundsReturn
@@ -277,7 +277,7 @@ class Browser(DomainT):
 
 
     # func: getWindowBounds
-    def getWindowBounds(self,windowId:WindowID) -> getWindowBoundsReturn:
+    def getWindowBounds(self,windowId:WindowID, **kwargs) -> getWindowBoundsReturn:
         """
             Get position and size of the browser window.
         Params:
@@ -285,7 +285,7 @@ class Browser(DomainT):
                 Browser window id.
         Return: getWindowBoundsReturn
         """
-        return self.drv.call(Browser.getWindowBoundsReturn,'Browser.getWindowBounds',windowId=windowId)
+        return self.drv.call(Browser.getWindowBoundsReturn,'Browser.getWindowBounds',windowId=windowId, **kwargs)
 
 
     # return: getWindowForTargetReturn
@@ -298,7 +298,7 @@ class Browser(DomainT):
 
 
     # func: getWindowForTarget
-    def getWindowForTarget(self,targetId:Target.TargetID=None) -> getWindowForTargetReturn:
+    def getWindowForTarget(self,targetId:Target.TargetID=None, **kwargs) -> getWindowForTargetReturn:
         """
             Get the browser window that contains the devtools target.
         Params:
@@ -306,11 +306,11 @@ class Browser(DomainT):
                 Devtools agent host id. If called as a part of the session, associated targetId is used.
         Return: getWindowForTargetReturn
         """
-        return self.drv.call(Browser.getWindowForTargetReturn,'Browser.getWindowForTarget',targetId=targetId)
+        return self.drv.call(Browser.getWindowForTargetReturn,'Browser.getWindowForTarget',targetId=targetId, **kwargs)
 
 
     # func: setWindowBounds
-    def setWindowBounds(self,windowId:WindowID, bounds:Bounds):
+    def setWindowBounds(self,windowId:WindowID, bounds:Bounds, **kwargs):
         """
             Set position and/or size of the browser window.
         Params:
@@ -319,11 +319,11 @@ class Browser(DomainT):
             2. bounds: Bounds
                 New window bounds. The 'minimized', 'maximized' and 'fullscreen' states cannot be combinedwith 'left', 'top', 'width' or 'height'. Leaves unspecified fields unchanged.
         """
-        return self.drv.call(None,'Browser.setWindowBounds',windowId=windowId, bounds=bounds)
+        return self.drv.call(None,'Browser.setWindowBounds',windowId=windowId, bounds=bounds, **kwargs)
 
 
     # func: setDockTile
-    def setDockTile(self,badgeLabel:str=None, image:str=None):
+    def setDockTile(self,badgeLabel:str=None, image:str=None, **kwargs):
         """
             Set dock tile details, platform-specific.
         Params:
@@ -331,7 +331,7 @@ class Browser(DomainT):
             2. image: str (OPTIONAL)
                 Png encoded image.
         """
-        return self.drv.call(None,'Browser.setDockTile',badgeLabel=badgeLabel, image=image)
+        return self.drv.call(None,'Browser.setDockTile',badgeLabel=badgeLabel, image=image, **kwargs)
 
 
 

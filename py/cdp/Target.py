@@ -124,13 +124,13 @@ class Target(DomainT):
 
 
     # func: activateTarget
-    def activateTarget(self,targetId:TargetID):
+    def activateTarget(self,targetId:TargetID, **kwargs):
         """
             Activates (focuses) the target.
         Params:
             1. targetId: TargetID
         """
-        return self.drv.call(None,'Target.activateTarget',targetId=targetId)
+        return self.drv.call(None,'Target.activateTarget',targetId=targetId, **kwargs)
 
 
     # return: attachToTargetReturn
@@ -141,7 +141,7 @@ class Target(DomainT):
 
 
     # func: attachToTarget
-    def attachToTarget(self,targetId:TargetID, flatten:bool=None) -> attachToTargetReturn:
+    def attachToTarget(self,targetId:TargetID, flatten:bool=None, **kwargs) -> attachToTargetReturn:
         """
             Attaches to the target with given id.
         Params:
@@ -150,7 +150,7 @@ class Target(DomainT):
                 Enables "flat" access to the session via specifying sessionId attribute in the commands.We plan to make this the default, deprecate non-flattened mode,and eventually retire it. See crbug.com/991325.
         Return: attachToTargetReturn
         """
-        return self.drv.call(Target.attachToTargetReturn,'Target.attachToTarget',targetId=targetId, flatten=flatten)
+        return self.drv.call(Target.attachToTargetReturn,'Target.attachToTarget',targetId=targetId, flatten=flatten, **kwargs)
 
 
     # return: attachToBrowserTargetReturn
@@ -161,12 +161,12 @@ class Target(DomainT):
 
 
     # func: attachToBrowserTarget
-    def attachToBrowserTarget(self) -> attachToBrowserTargetReturn:
+    def attachToBrowserTarget(self,**kwargs) -> attachToBrowserTargetReturn:
         """
             Attaches to the browser target, only uses flat sessionId mode.
         Return: attachToBrowserTargetReturn
         """
-        return self.drv.call(Target.attachToBrowserTargetReturn,'Target.attachToBrowserTarget')
+        return self.drv.call(Target.attachToBrowserTargetReturn,'Target.attachToBrowserTarget',**kwargs)
 
 
     # return: closeTargetReturn
@@ -177,18 +177,18 @@ class Target(DomainT):
 
 
     # func: closeTarget
-    def closeTarget(self,targetId:TargetID) -> closeTargetReturn:
+    def closeTarget(self,targetId:TargetID, **kwargs) -> closeTargetReturn:
         """
             Closes the target. If the target is a page that gets closed too.
         Params:
             1. targetId: TargetID
         Return: closeTargetReturn
         """
-        return self.drv.call(Target.closeTargetReturn,'Target.closeTarget',targetId=targetId)
+        return self.drv.call(Target.closeTargetReturn,'Target.closeTarget',targetId=targetId, **kwargs)
 
 
     # func: exposeDevToolsProtocol
-    def exposeDevToolsProtocol(self,targetId:TargetID, bindingName:str=None):
+    def exposeDevToolsProtocol(self,targetId:TargetID, bindingName:str=None, **kwargs):
         """
             Inject object to the target's main frame that provides a communication
             channel with browser target.
@@ -205,7 +205,7 @@ class Target(DomainT):
             2. bindingName: str (OPTIONAL)
                 Binding name, 'cdp' if not specified.
         """
-        return self.drv.call(None,'Target.exposeDevToolsProtocol',targetId=targetId, bindingName=bindingName)
+        return self.drv.call(None,'Target.exposeDevToolsProtocol',targetId=targetId, bindingName=bindingName, **kwargs)
 
 
     # return: createBrowserContextReturn
@@ -216,7 +216,7 @@ class Target(DomainT):
 
 
     # func: createBrowserContext
-    def createBrowserContext(self,disposeOnDetach:bool=None, proxyServer:str=None, proxyBypassList:str=None) -> createBrowserContextReturn:
+    def createBrowserContext(self,disposeOnDetach:bool=None, proxyServer:str=None, proxyBypassList:str=None, **kwargs) -> createBrowserContextReturn:
         """
             Creates a new empty BrowserContext. Similar to an incognito profile but you can have more than
             one.
@@ -229,7 +229,7 @@ class Target(DomainT):
                 Proxy bypass list, similar to the one passed to --proxy-bypass-list
         Return: createBrowserContextReturn
         """
-        return self.drv.call(Target.createBrowserContextReturn,'Target.createBrowserContext',disposeOnDetach=disposeOnDetach, proxyServer=proxyServer, proxyBypassList=proxyBypassList)
+        return self.drv.call(Target.createBrowserContextReturn,'Target.createBrowserContext',disposeOnDetach=disposeOnDetach, proxyServer=proxyServer, proxyBypassList=proxyBypassList, **kwargs)
 
 
     # return: getBrowserContextsReturn
@@ -240,12 +240,12 @@ class Target(DomainT):
 
 
     # func: getBrowserContexts
-    def getBrowserContexts(self) -> getBrowserContextsReturn:
+    def getBrowserContexts(self,**kwargs) -> getBrowserContextsReturn:
         """
             Returns all browser contexts created with `Target.createBrowserContext` method.
         Return: getBrowserContextsReturn
         """
-        return self.drv.call(Target.getBrowserContextsReturn,'Target.getBrowserContexts')
+        return self.drv.call(Target.getBrowserContextsReturn,'Target.getBrowserContexts',**kwargs)
 
 
     # return: createTargetReturn
@@ -256,7 +256,7 @@ class Target(DomainT):
 
 
     # func: createTarget
-    def createTarget(self,url:str, width:int=None, height:int=None, browserContextId:Browser.BrowserContextID=None, enableBeginFrameControl:bool=None, newWindow:bool=None, background:bool=None) -> createTargetReturn:
+    def createTarget(self,url:str, width:int=None, height:int=None, browserContextId:Browser.BrowserContextID=None, enableBeginFrameControl:bool=None, newWindow:bool=None, background:bool=None, **kwargs) -> createTargetReturn:
         """
             Creates a new page.
         Params:
@@ -276,11 +276,11 @@ class Target(DomainT):
                 Whether to create the target in background or foreground (chrome-only,false by default).
         Return: createTargetReturn
         """
-        return self.drv.call(Target.createTargetReturn,'Target.createTarget',url=url, width=width, height=height, browserContextId=browserContextId, enableBeginFrameControl=enableBeginFrameControl, newWindow=newWindow, background=background)
+        return self.drv.call(Target.createTargetReturn,'Target.createTarget',url=url, width=width, height=height, browserContextId=browserContextId, enableBeginFrameControl=enableBeginFrameControl, newWindow=newWindow, background=background, **kwargs)
 
 
     # func: detachFromTarget
-    def detachFromTarget(self,sessionId:SessionID=None, targetId:TargetID=None):
+    def detachFromTarget(self,sessionId:SessionID=None, targetId:TargetID=None, **kwargs):
         """
             Detaches session with given id.
         Params:
@@ -289,18 +289,18 @@ class Target(DomainT):
             2. targetId: TargetID (OPTIONAL)
                 Deprecated.
         """
-        return self.drv.call(None,'Target.detachFromTarget',sessionId=sessionId, targetId=targetId)
+        return self.drv.call(None,'Target.detachFromTarget',sessionId=sessionId, targetId=targetId, **kwargs)
 
 
     # func: disposeBrowserContext
-    def disposeBrowserContext(self,browserContextId:Browser.BrowserContextID):
+    def disposeBrowserContext(self,browserContextId:Browser.BrowserContextID, **kwargs):
         """
             Deletes a BrowserContext. All the belonging pages will be closed without calling their
             beforeunload hooks.
         Params:
             1. browserContextId: Browser.BrowserContextID
         """
-        return self.drv.call(None,'Target.disposeBrowserContext',browserContextId=browserContextId)
+        return self.drv.call(None,'Target.disposeBrowserContext',browserContextId=browserContextId, **kwargs)
 
 
     # return: getTargetInfoReturn
@@ -311,14 +311,14 @@ class Target(DomainT):
 
 
     # func: getTargetInfo
-    def getTargetInfo(self,targetId:TargetID=None) -> getTargetInfoReturn:
+    def getTargetInfo(self,targetId:TargetID=None, **kwargs) -> getTargetInfoReturn:
         """
             Returns information about a target.
         Params:
             1. targetId: TargetID (OPTIONAL)
         Return: getTargetInfoReturn
         """
-        return self.drv.call(Target.getTargetInfoReturn,'Target.getTargetInfo',targetId=targetId)
+        return self.drv.call(Target.getTargetInfoReturn,'Target.getTargetInfo',targetId=targetId, **kwargs)
 
 
     # return: getTargetsReturn
@@ -329,16 +329,16 @@ class Target(DomainT):
 
 
     # func: getTargets
-    def getTargets(self) -> getTargetsReturn:
+    def getTargets(self,**kwargs) -> getTargetsReturn:
         """
             Retrieves a list of available targets.
         Return: getTargetsReturn
         """
-        return self.drv.call(Target.getTargetsReturn,'Target.getTargets')
+        return self.drv.call(Target.getTargetsReturn,'Target.getTargets',**kwargs)
 
 
     # func: sendMessageToTarget
-    def sendMessageToTarget(self,message:str, sessionId:SessionID=None, targetId:TargetID=None):
+    def sendMessageToTarget(self,message:str, sessionId:SessionID=None, targetId:TargetID=None, **kwargs):
         """
             Sends protocol message over session with given id.
             Consider using flat mode instead; see commands attachToTarget, setAutoAttach,
@@ -350,11 +350,11 @@ class Target(DomainT):
             3. targetId: TargetID (OPTIONAL)
                 Deprecated.
         """
-        return self.drv.call(None,'Target.sendMessageToTarget',message=message, sessionId=sessionId, targetId=targetId)
+        return self.drv.call(None,'Target.sendMessageToTarget',message=message, sessionId=sessionId, targetId=targetId, **kwargs)
 
 
     # func: setAutoAttach
-    def setAutoAttach(self,autoAttach:bool, waitForDebuggerOnStart:bool, flatten:bool=None):
+    def setAutoAttach(self,autoAttach:bool, waitForDebuggerOnStart:bool, flatten:bool=None, **kwargs):
         """
             Controls whether to automatically attach to new targets which are considered to be related to
             this one. When turned on, attaches to all existing related targets as well. When turned off,
@@ -367,11 +367,11 @@ class Target(DomainT):
             3. flatten: bool (OPTIONAL)
                 Enables "flat" access to the session via specifying sessionId attribute in the commands.We plan to make this the default, deprecate non-flattened mode,and eventually retire it. See crbug.com/991325.
         """
-        return self.drv.call(None,'Target.setAutoAttach',autoAttach=autoAttach, waitForDebuggerOnStart=waitForDebuggerOnStart, flatten=flatten)
+        return self.drv.call(None,'Target.setAutoAttach',autoAttach=autoAttach, waitForDebuggerOnStart=waitForDebuggerOnStart, flatten=flatten, **kwargs)
 
 
     # func: setDiscoverTargets
-    def setDiscoverTargets(self,discover:bool):
+    def setDiscoverTargets(self,discover:bool, **kwargs):
         """
             Controls whether to discover available targets and notify via
             `targetCreated/targetInfoChanged/targetDestroyed` events.
@@ -379,11 +379,11 @@ class Target(DomainT):
             1. discover: bool
                 Whether to discover available targets.
         """
-        return self.drv.call(None,'Target.setDiscoverTargets',discover=discover)
+        return self.drv.call(None,'Target.setDiscoverTargets',discover=discover, **kwargs)
 
 
     # func: setRemoteLocations
-    def setRemoteLocations(self,locations:List[RemoteLocation]):
+    def setRemoteLocations(self,locations:List[RemoteLocation], **kwargs):
         """
             Enables target discovery for the specified locations, when `setDiscoverTargets` was set to
             `true`.
@@ -391,7 +391,7 @@ class Target(DomainT):
             1. locations: List[RemoteLocation]
                 List of remote locations.
         """
-        return self.drv.call(None,'Target.setRemoteLocations',locations=locations)
+        return self.drv.call(None,'Target.setRemoteLocations',locations=locations, **kwargs)
 
 
 

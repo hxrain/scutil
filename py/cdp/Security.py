@@ -191,34 +191,34 @@ class Security(DomainT):
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disables tracking security state changes.
         """
-        return self.drv.call(None,'Security.disable')
+        return self.drv.call(None,'Security.disable',**kwargs)
 
 
     # func: enable
-    def enable(self):
+    def enable(self,**kwargs):
         """
             Enables tracking security state changes.
         """
-        return self.drv.call(None,'Security.enable')
+        return self.drv.call(None,'Security.enable',**kwargs)
 
 
     # func: setIgnoreCertificateErrors
-    def setIgnoreCertificateErrors(self,ignore:bool):
+    def setIgnoreCertificateErrors(self,ignore:bool, **kwargs):
         """
             Enable/disable whether all certificate errors should be ignored.
         Params:
             1. ignore: bool
                 If true, all certificate errors will be ignored.
         """
-        return self.drv.call(None,'Security.setIgnoreCertificateErrors',ignore=ignore)
+        return self.drv.call(None,'Security.setIgnoreCertificateErrors',ignore=ignore, **kwargs)
 
 
     # func: handleCertificateError
-    def handleCertificateError(self,eventId:int, action:CertificateErrorAction):
+    def handleCertificateError(self,eventId:int, action:CertificateErrorAction, **kwargs):
         """
             Handles a certificate error that fired a certificateError event.
         Params:
@@ -227,11 +227,11 @@ class Security(DomainT):
             2. action: CertificateErrorAction
                 The action to take on the certificate error.
         """
-        return self.drv.call(None,'Security.handleCertificateError',eventId=eventId, action=action)
+        return self.drv.call(None,'Security.handleCertificateError',eventId=eventId, action=action, **kwargs)
 
 
     # func: setOverrideCertificateErrors
-    def setOverrideCertificateErrors(self,override:bool):
+    def setOverrideCertificateErrors(self,override:bool, **kwargs):
         """
             Enable/disable overriding certificate errors. If enabled, all certificate error events need to
             be handled by the DevTools client and should be answered with `handleCertificateError` commands.
@@ -239,7 +239,7 @@ class Security(DomainT):
             1. override: bool
                 If true, certificate errors will be overridden.
         """
-        return self.drv.call(None,'Security.setOverrideCertificateErrors',override=override)
+        return self.drv.call(None,'Security.setOverrideCertificateErrors',override=override, **kwargs)
 
 
 

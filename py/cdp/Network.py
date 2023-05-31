@@ -881,12 +881,12 @@ class Network(DomainT):
 
 
     # func: canClearBrowserCache
-    def canClearBrowserCache(self) -> canClearBrowserCacheReturn:
+    def canClearBrowserCache(self,**kwargs) -> canClearBrowserCacheReturn:
         """
             Tells whether clearing browser cache is supported.
         Return: canClearBrowserCacheReturn
         """
-        return self.drv.call(Network.canClearBrowserCacheReturn,'Network.canClearBrowserCache')
+        return self.drv.call(Network.canClearBrowserCacheReturn,'Network.canClearBrowserCache',**kwargs)
 
 
     # return: canClearBrowserCookiesReturn
@@ -897,12 +897,12 @@ class Network(DomainT):
 
 
     # func: canClearBrowserCookies
-    def canClearBrowserCookies(self) -> canClearBrowserCookiesReturn:
+    def canClearBrowserCookies(self,**kwargs) -> canClearBrowserCookiesReturn:
         """
             Tells whether clearing browser cookies is supported.
         Return: canClearBrowserCookiesReturn
         """
-        return self.drv.call(Network.canClearBrowserCookiesReturn,'Network.canClearBrowserCookies')
+        return self.drv.call(Network.canClearBrowserCookiesReturn,'Network.canClearBrowserCookies',**kwargs)
 
 
     # return: canEmulateNetworkConditionsReturn
@@ -913,32 +913,32 @@ class Network(DomainT):
 
 
     # func: canEmulateNetworkConditions
-    def canEmulateNetworkConditions(self) -> canEmulateNetworkConditionsReturn:
+    def canEmulateNetworkConditions(self,**kwargs) -> canEmulateNetworkConditionsReturn:
         """
             Tells whether emulation of network conditions is supported.
         Return: canEmulateNetworkConditionsReturn
         """
-        return self.drv.call(Network.canEmulateNetworkConditionsReturn,'Network.canEmulateNetworkConditions')
+        return self.drv.call(Network.canEmulateNetworkConditionsReturn,'Network.canEmulateNetworkConditions',**kwargs)
 
 
     # func: clearBrowserCache
-    def clearBrowserCache(self):
+    def clearBrowserCache(self,**kwargs):
         """
             Clears browser cache.
         """
-        return self.drv.call(None,'Network.clearBrowserCache')
+        return self.drv.call(None,'Network.clearBrowserCache',**kwargs)
 
 
     # func: clearBrowserCookies
-    def clearBrowserCookies(self):
+    def clearBrowserCookies(self,**kwargs):
         """
             Clears browser cookies.
         """
-        return self.drv.call(None,'Network.clearBrowserCookies')
+        return self.drv.call(None,'Network.clearBrowserCookies',**kwargs)
 
 
     # func: continueInterceptedRequest
-    def continueInterceptedRequest(self,interceptionId:InterceptionId, errorReason:ErrorReason=None, rawResponse:str=None, url:str=None, method:str=None, postData:str=None, headers:Headers=None, authChallengeResponse:AuthChallengeResponse=None):
+    def continueInterceptedRequest(self,interceptionId:InterceptionId, errorReason:ErrorReason=None, rawResponse:str=None, url:str=None, method:str=None, postData:str=None, headers:Headers=None, authChallengeResponse:AuthChallengeResponse=None, **kwargs):
         """
             Response to Network.requestIntercepted which either modifies the request to continue with any
             modifications, or blocks it, or completes it with the provided response bytes. If a network
@@ -962,11 +962,11 @@ class Network(DomainT):
             8. authChallengeResponse: AuthChallengeResponse (OPTIONAL)
                 Response to a requestIntercepted with an authChallenge. Must not be set otherwise.
         """
-        return self.drv.call(None,'Network.continueInterceptedRequest',interceptionId=interceptionId, errorReason=errorReason, rawResponse=rawResponse, url=url, method=method, postData=postData, headers=headers, authChallengeResponse=authChallengeResponse)
+        return self.drv.call(None,'Network.continueInterceptedRequest',interceptionId=interceptionId, errorReason=errorReason, rawResponse=rawResponse, url=url, method=method, postData=postData, headers=headers, authChallengeResponse=authChallengeResponse, **kwargs)
 
 
     # func: deleteCookies
-    def deleteCookies(self,name:str, url:str=None, domain:str=None, path:str=None):
+    def deleteCookies(self,name:str, url:str=None, domain:str=None, path:str=None, **kwargs):
         """
             Deletes browser cookies with matching name and url or domain/path pair.
         Params:
@@ -979,19 +979,19 @@ class Network(DomainT):
             4. path: str (OPTIONAL)
                 If specified, deletes only cookies with the exact path.
         """
-        return self.drv.call(None,'Network.deleteCookies',name=name, url=url, domain=domain, path=path)
+        return self.drv.call(None,'Network.deleteCookies',name=name, url=url, domain=domain, path=path, **kwargs)
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disables network tracking, prevents network events from being sent to the client.
         """
-        return self.drv.call(None,'Network.disable')
+        return self.drv.call(None,'Network.disable',**kwargs)
 
 
     # func: emulateNetworkConditions
-    def emulateNetworkConditions(self,offline:bool, latency:int, downloadThroughput:int, uploadThroughput:int, connectionType:ConnectionType=None):
+    def emulateNetworkConditions(self,offline:bool, latency:int, downloadThroughput:int, uploadThroughput:int, connectionType:ConnectionType=None, **kwargs):
         """
             Activates emulation of network conditions.
         Params:
@@ -1006,11 +1006,11 @@ class Network(DomainT):
             5. connectionType: ConnectionType (OPTIONAL)
                 Connection type if known.
         """
-        return self.drv.call(None,'Network.emulateNetworkConditions',offline=offline, latency=latency, downloadThroughput=downloadThroughput, uploadThroughput=uploadThroughput, connectionType=connectionType)
+        return self.drv.call(None,'Network.emulateNetworkConditions',offline=offline, latency=latency, downloadThroughput=downloadThroughput, uploadThroughput=uploadThroughput, connectionType=connectionType, **kwargs)
 
 
     # func: enable
-    def enable(self,maxTotalBufferSize:int=None, maxResourceBufferSize:int=None, maxPostDataSize:int=None):
+    def enable(self,maxTotalBufferSize:int=None, maxResourceBufferSize:int=None, maxPostDataSize:int=None, **kwargs):
         """
             Enables network tracking, network events will now be delivered to the client.
         Params:
@@ -1021,7 +1021,7 @@ class Network(DomainT):
             3. maxPostDataSize: int (OPTIONAL)
                 Longest post body size (in bytes) that would be included in requestWillBeSent notification
         """
-        return self.drv.call(None,'Network.enable',maxTotalBufferSize=maxTotalBufferSize, maxResourceBufferSize=maxResourceBufferSize, maxPostDataSize=maxPostDataSize)
+        return self.drv.call(None,'Network.enable',maxTotalBufferSize=maxTotalBufferSize, maxResourceBufferSize=maxResourceBufferSize, maxPostDataSize=maxPostDataSize, **kwargs)
 
 
     # return: getAllCookiesReturn
@@ -1032,13 +1032,13 @@ class Network(DomainT):
 
 
     # func: getAllCookies
-    def getAllCookies(self) -> getAllCookiesReturn:
+    def getAllCookies(self,**kwargs) -> getAllCookiesReturn:
         """
             Returns all browser cookies. Depending on the backend support, will return detailed cookie
             information in the `cookies` field.
         Return: getAllCookiesReturn
         """
-        return self.drv.call(Network.getAllCookiesReturn,'Network.getAllCookies')
+        return self.drv.call(Network.getAllCookiesReturn,'Network.getAllCookies',**kwargs)
 
 
     # return: getCertificateReturn
@@ -1049,7 +1049,7 @@ class Network(DomainT):
 
 
     # func: getCertificate
-    def getCertificate(self,origin:str) -> getCertificateReturn:
+    def getCertificate(self,origin:str, **kwargs) -> getCertificateReturn:
         """
             Returns the DER-encoded certificate.
         Params:
@@ -1057,7 +1057,7 @@ class Network(DomainT):
                 Origin to get certificate for.
         Return: getCertificateReturn
         """
-        return self.drv.call(Network.getCertificateReturn,'Network.getCertificate',origin=origin)
+        return self.drv.call(Network.getCertificateReturn,'Network.getCertificate',origin=origin, **kwargs)
 
 
     # return: getCookiesReturn
@@ -1068,7 +1068,7 @@ class Network(DomainT):
 
 
     # func: getCookies
-    def getCookies(self,urls:List[str]=None) -> getCookiesReturn:
+    def getCookies(self,urls:List[str]=None, **kwargs) -> getCookiesReturn:
         """
             Returns all browser cookies for the current URL. Depending on the backend support, will return
             detailed cookie information in the `cookies` field.
@@ -1077,7 +1077,7 @@ class Network(DomainT):
                 The list of URLs for which applicable cookies will be fetched.If not specified, it's assumed to be set to the list containingthe URLs of the page and all of its subframes.
         Return: getCookiesReturn
         """
-        return self.drv.call(Network.getCookiesReturn,'Network.getCookies',urls=urls)
+        return self.drv.call(Network.getCookiesReturn,'Network.getCookies',urls=urls, **kwargs)
 
 
     # return: getResponseBodyReturn
@@ -1090,7 +1090,7 @@ class Network(DomainT):
 
 
     # func: getResponseBody
-    def getResponseBody(self,requestId:RequestId) -> getResponseBodyReturn:
+    def getResponseBody(self,requestId:RequestId, **kwargs) -> getResponseBodyReturn:
         """
             Returns content served for the given request.
         Params:
@@ -1098,7 +1098,7 @@ class Network(DomainT):
                 Identifier of the network request to get content for.
         Return: getResponseBodyReturn
         """
-        return self.drv.call(Network.getResponseBodyReturn,'Network.getResponseBody',requestId=requestId)
+        return self.drv.call(Network.getResponseBodyReturn,'Network.getResponseBody',requestId=requestId, **kwargs)
 
 
     # return: getRequestPostDataReturn
@@ -1109,7 +1109,7 @@ class Network(DomainT):
 
 
     # func: getRequestPostData
-    def getRequestPostData(self,requestId:RequestId) -> getRequestPostDataReturn:
+    def getRequestPostData(self,requestId:RequestId, **kwargs) -> getRequestPostDataReturn:
         """
             Returns post data sent with the request. Returns an error when no data was sent with the request.
         Params:
@@ -1117,7 +1117,7 @@ class Network(DomainT):
                 Identifier of the network request to get content for.
         Return: getRequestPostDataReturn
         """
-        return self.drv.call(Network.getRequestPostDataReturn,'Network.getRequestPostData',requestId=requestId)
+        return self.drv.call(Network.getRequestPostDataReturn,'Network.getRequestPostData',requestId=requestId, **kwargs)
 
 
     # return: getResponseBodyForInterceptionReturn
@@ -1130,7 +1130,7 @@ class Network(DomainT):
 
 
     # func: getResponseBodyForInterception
-    def getResponseBodyForInterception(self,interceptionId:InterceptionId) -> getResponseBodyForInterceptionReturn:
+    def getResponseBodyForInterception(self,interceptionId:InterceptionId, **kwargs) -> getResponseBodyForInterceptionReturn:
         """
             Returns content served for the given currently intercepted request.
         Params:
@@ -1138,7 +1138,7 @@ class Network(DomainT):
                 Identifier for the intercepted request to get body for.
         Return: getResponseBodyForInterceptionReturn
         """
-        return self.drv.call(Network.getResponseBodyForInterceptionReturn,'Network.getResponseBodyForInterception',interceptionId=interceptionId)
+        return self.drv.call(Network.getResponseBodyForInterceptionReturn,'Network.getResponseBodyForInterception',interceptionId=interceptionId, **kwargs)
 
 
     # return: takeResponseBodyForInterceptionAsStreamReturn
@@ -1149,7 +1149,7 @@ class Network(DomainT):
 
 
     # func: takeResponseBodyForInterceptionAsStream
-    def takeResponseBodyForInterceptionAsStream(self,interceptionId:InterceptionId) -> takeResponseBodyForInterceptionAsStreamReturn:
+    def takeResponseBodyForInterceptionAsStream(self,interceptionId:InterceptionId, **kwargs) -> takeResponseBodyForInterceptionAsStreamReturn:
         """
             Returns a handle to the stream representing the response body. Note that after this command,
             the intercepted request can't be continued as is -- you either need to cancel it or to provide
@@ -1159,11 +1159,11 @@ class Network(DomainT):
             1. interceptionId: InterceptionId
         Return: takeResponseBodyForInterceptionAsStreamReturn
         """
-        return self.drv.call(Network.takeResponseBodyForInterceptionAsStreamReturn,'Network.takeResponseBodyForInterceptionAsStream',interceptionId=interceptionId)
+        return self.drv.call(Network.takeResponseBodyForInterceptionAsStreamReturn,'Network.takeResponseBodyForInterceptionAsStream',interceptionId=interceptionId, **kwargs)
 
 
     # func: replayXHR
-    def replayXHR(self,requestId:RequestId):
+    def replayXHR(self,requestId:RequestId, **kwargs):
         """
             This method sends a new XMLHttpRequest which is identical to the original one. The following
             parameters should be identical: method, url, async, request body, extra headers, withCredentials
@@ -1172,7 +1172,7 @@ class Network(DomainT):
             1. requestId: RequestId
                 Identifier of XHR to replay.
         """
-        return self.drv.call(None,'Network.replayXHR',requestId=requestId)
+        return self.drv.call(None,'Network.replayXHR',requestId=requestId, **kwargs)
 
 
     # return: searchInResponseBodyReturn
@@ -1183,7 +1183,7 @@ class Network(DomainT):
 
 
     # func: searchInResponseBody
-    def searchInResponseBody(self,requestId:RequestId, query:str, caseSensitive:bool=None, isRegex:bool=None) -> searchInResponseBodyReturn:
+    def searchInResponseBody(self,requestId:RequestId, query:str, caseSensitive:bool=None, isRegex:bool=None, **kwargs) -> searchInResponseBodyReturn:
         """
             Searches for given string in response content.
         Params:
@@ -1197,40 +1197,40 @@ class Network(DomainT):
                 If true, treats string parameter as regex.
         Return: searchInResponseBodyReturn
         """
-        return self.drv.call(Network.searchInResponseBodyReturn,'Network.searchInResponseBody',requestId=requestId, query=query, caseSensitive=caseSensitive, isRegex=isRegex)
+        return self.drv.call(Network.searchInResponseBodyReturn,'Network.searchInResponseBody',requestId=requestId, query=query, caseSensitive=caseSensitive, isRegex=isRegex, **kwargs)
 
 
     # func: setBlockedURLs
-    def setBlockedURLs(self,urls:List[str]):
+    def setBlockedURLs(self,urls:List[str], **kwargs):
         """
             Blocks URLs from loading.
         Params:
             1. urls: List[str]
                 URL patterns to block. Wildcards ('*') are allowed.
         """
-        return self.drv.call(None,'Network.setBlockedURLs',urls=urls)
+        return self.drv.call(None,'Network.setBlockedURLs',urls=urls, **kwargs)
 
 
     # func: setBypassServiceWorker
-    def setBypassServiceWorker(self,bypass:bool):
+    def setBypassServiceWorker(self,bypass:bool, **kwargs):
         """
             Toggles ignoring of service worker for each request.
         Params:
             1. bypass: bool
                 Bypass service worker and load from network.
         """
-        return self.drv.call(None,'Network.setBypassServiceWorker',bypass=bypass)
+        return self.drv.call(None,'Network.setBypassServiceWorker',bypass=bypass, **kwargs)
 
 
     # func: setCacheDisabled
-    def setCacheDisabled(self,cacheDisabled:bool):
+    def setCacheDisabled(self,cacheDisabled:bool, **kwargs):
         """
             Toggles ignoring cache for each request. If `true`, cache will not be used.
         Params:
             1. cacheDisabled: bool
                 Cache disabled state.
         """
-        return self.drv.call(None,'Network.setCacheDisabled',cacheDisabled=cacheDisabled)
+        return self.drv.call(None,'Network.setCacheDisabled',cacheDisabled=cacheDisabled, **kwargs)
 
 
     # return: setCookieReturn
@@ -1241,7 +1241,7 @@ class Network(DomainT):
 
 
     # func: setCookie
-    def setCookie(self,name:str, value:str, url:str=None, domain:str=None, path:str=None, secure:bool=None, httpOnly:bool=None, sameSite:CookieSameSite=None, expires:TimeSinceEpoch=None, priority:CookiePriority=None) -> setCookieReturn:
+    def setCookie(self,name:str, value:str, url:str=None, domain:str=None, path:str=None, secure:bool=None, httpOnly:bool=None, sameSite:CookieSameSite=None, expires:TimeSinceEpoch=None, priority:CookiePriority=None, **kwargs) -> setCookieReturn:
         """
             Sets a cookie with the given cookie data; may overwrite equivalent cookies if they exist.
         Params:
@@ -1267,22 +1267,22 @@ class Network(DomainT):
                 Cookie Priority type.
         Return: setCookieReturn
         """
-        return self.drv.call(Network.setCookieReturn,'Network.setCookie',name=name, value=value, url=url, domain=domain, path=path, secure=secure, httpOnly=httpOnly, sameSite=sameSite, expires=expires, priority=priority)
+        return self.drv.call(Network.setCookieReturn,'Network.setCookie',name=name, value=value, url=url, domain=domain, path=path, secure=secure, httpOnly=httpOnly, sameSite=sameSite, expires=expires, priority=priority, **kwargs)
 
 
     # func: setCookies
-    def setCookies(self,cookies:List[CookieParam]):
+    def setCookies(self,cookies:List[CookieParam], **kwargs):
         """
             Sets given cookies.
         Params:
             1. cookies: List[CookieParam]
                 Cookies to be set.
         """
-        return self.drv.call(None,'Network.setCookies',cookies=cookies)
+        return self.drv.call(None,'Network.setCookies',cookies=cookies, **kwargs)
 
 
     # func: setDataSizeLimitsForTest
-    def setDataSizeLimitsForTest(self,maxTotalSize:int, maxResourceSize:int):
+    def setDataSizeLimitsForTest(self,maxTotalSize:int, maxResourceSize:int, **kwargs):
         """
             For testing.
         Params:
@@ -1291,22 +1291,22 @@ class Network(DomainT):
             2. maxResourceSize: int
                 Maximum per-resource size.
         """
-        return self.drv.call(None,'Network.setDataSizeLimitsForTest',maxTotalSize=maxTotalSize, maxResourceSize=maxResourceSize)
+        return self.drv.call(None,'Network.setDataSizeLimitsForTest',maxTotalSize=maxTotalSize, maxResourceSize=maxResourceSize, **kwargs)
 
 
     # func: setExtraHTTPHeaders
-    def setExtraHTTPHeaders(self,headers:Headers):
+    def setExtraHTTPHeaders(self,headers:Headers, **kwargs):
         """
             Specifies whether to always send extra HTTP headers with the requests from this page.
         Params:
             1. headers: Headers
                 Map with extra HTTP headers.
         """
-        return self.drv.call(None,'Network.setExtraHTTPHeaders',headers=headers)
+        return self.drv.call(None,'Network.setExtraHTTPHeaders',headers=headers, **kwargs)
 
 
     # func: setRequestInterception
-    def setRequestInterception(self,patterns:List[RequestPattern]):
+    def setRequestInterception(self,patterns:List[RequestPattern], **kwargs):
         """
             Sets the requests to intercept that match the provided patterns and optionally resource types.
             Deprecated, please use Fetch.enable instead.
@@ -1314,11 +1314,11 @@ class Network(DomainT):
             1. patterns: List[RequestPattern]
                 Requests matching any of these patterns will be forwarded and wait for the correspondingcontinueInterceptedRequest call.
         """
-        return self.drv.call(None,'Network.setRequestInterception',patterns=patterns)
+        return self.drv.call(None,'Network.setRequestInterception',patterns=patterns, **kwargs)
 
 
     # func: setUserAgentOverride
-    def setUserAgentOverride(self,userAgent:str, acceptLanguage:str=None, platform:str=None, userAgentMetadata:Emulation.UserAgentMetadata=None):
+    def setUserAgentOverride(self,userAgent:str, acceptLanguage:str=None, platform:str=None, userAgentMetadata:Emulation.UserAgentMetadata=None, **kwargs):
         """
             Allows overriding user agent with the given string.
         Params:
@@ -1331,7 +1331,7 @@ class Network(DomainT):
             4. userAgentMetadata: Emulation.UserAgentMetadata (OPTIONAL)
                 To be sent in Sec-CH-UA-* headers and returned in navigator.userAgentData
         """
-        return self.drv.call(None,'Network.setUserAgentOverride',userAgent=userAgent, acceptLanguage=acceptLanguage, platform=platform, userAgentMetadata=userAgentMetadata)
+        return self.drv.call(None,'Network.setUserAgentOverride',userAgent=userAgent, acceptLanguage=acceptLanguage, platform=platform, userAgentMetadata=userAgentMetadata, **kwargs)
 
 
     # return: getSecurityIsolationStatusReturn
@@ -1342,7 +1342,7 @@ class Network(DomainT):
 
 
     # func: getSecurityIsolationStatus
-    def getSecurityIsolationStatus(self,frameId:Page.FrameId=None) -> getSecurityIsolationStatusReturn:
+    def getSecurityIsolationStatus(self,frameId:Page.FrameId=None, **kwargs) -> getSecurityIsolationStatusReturn:
         """
             Returns information about the COEP/COOP isolation status.
         Params:
@@ -1350,7 +1350,7 @@ class Network(DomainT):
                 If no frameId is provided, the status of the target is provided.
         Return: getSecurityIsolationStatusReturn
         """
-        return self.drv.call(Network.getSecurityIsolationStatusReturn,'Network.getSecurityIsolationStatus',frameId=frameId)
+        return self.drv.call(Network.getSecurityIsolationStatusReturn,'Network.getSecurityIsolationStatus',frameId=frameId, **kwargs)
 
 
 

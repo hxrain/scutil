@@ -50,7 +50,7 @@ class Input(DomainT):
 
 
     # func: dispatchKeyEvent
-    def dispatchKeyEvent(self,type:str, modifiers:int=None, timestamp:TimeSinceEpoch=None, text:str=None, unmodifiedText:str=None, keyIdentifier:str=None, code:str=None, key:str=None, windowsVirtualKeyCode:int=None, nativeVirtualKeyCode:int=None, autoRepeat:bool=None, isKeypad:bool=None, isSystemKey:bool=None, location:int=None, commands:List[str]=None):
+    def dispatchKeyEvent(self,type:str, modifiers:int=None, timestamp:TimeSinceEpoch=None, text:str=None, unmodifiedText:str=None, keyIdentifier:str=None, code:str=None, key:str=None, windowsVirtualKeyCode:int=None, nativeVirtualKeyCode:int=None, autoRepeat:bool=None, isKeypad:bool=None, isSystemKey:bool=None, location:int=None, commands:List[str]=None, **kwargs):
         """
             Dispatches a key event to the page.
         Params:
@@ -86,11 +86,11 @@ class Input(DomainT):
             15. commands: List[str] (OPTIONAL)
                 Editing commands to send with the key event (e.g., 'selectAll') (default: []).These are related to but not equal the command names used in `document.execCommand` and NSStandardKeyBindingResponding.See https://source.chromium.org/chromium/chromium/src/+/master:third_party/blink/renderer/core/editing/commands/editor_command_names.h for valid command names.
         """
-        return self.drv.call(None,'Input.dispatchKeyEvent',type=type, modifiers=modifiers, timestamp=timestamp, text=text, unmodifiedText=unmodifiedText, keyIdentifier=keyIdentifier, code=code, key=key, windowsVirtualKeyCode=windowsVirtualKeyCode, nativeVirtualKeyCode=nativeVirtualKeyCode, autoRepeat=autoRepeat, isKeypad=isKeypad, isSystemKey=isSystemKey, location=location, commands=commands)
+        return self.drv.call(None,'Input.dispatchKeyEvent',type=type, modifiers=modifiers, timestamp=timestamp, text=text, unmodifiedText=unmodifiedText, keyIdentifier=keyIdentifier, code=code, key=key, windowsVirtualKeyCode=windowsVirtualKeyCode, nativeVirtualKeyCode=nativeVirtualKeyCode, autoRepeat=autoRepeat, isKeypad=isKeypad, isSystemKey=isSystemKey, location=location, commands=commands, **kwargs)
 
 
     # func: insertText
-    def insertText(self,text:str):
+    def insertText(self,text:str, **kwargs):
         """
             This method emulates inserting text that doesn't come from a key press,
             for example an emoji keyboard or an IME.
@@ -98,11 +98,11 @@ class Input(DomainT):
             1. text: str
                 The text to insert.
         """
-        return self.drv.call(None,'Input.insertText',text=text)
+        return self.drv.call(None,'Input.insertText',text=text, **kwargs)
 
 
     # func: dispatchMouseEvent
-    def dispatchMouseEvent(self,type:str, x:int, y:int, modifiers:int=None, timestamp:TimeSinceEpoch=None, button:MouseButton=None, buttons:int=None, clickCount:int=None, deltaX:int=None, deltaY:int=None, pointerType:str=None):
+    def dispatchMouseEvent(self,type:str, x:int, y:int, modifiers:int=None, timestamp:TimeSinceEpoch=None, button:MouseButton=None, buttons:int=None, clickCount:int=None, deltaX:int=None, deltaY:int=None, pointerType:str=None, **kwargs):
         """
             Dispatches a mouse event to the page.
         Params:
@@ -131,11 +131,11 @@ class Input(DomainT):
             11. pointerType: str (OPTIONAL)
                 Pointer type (default: "mouse").
         """
-        return self.drv.call(None,'Input.dispatchMouseEvent',type=type, x=x, y=y, modifiers=modifiers, timestamp=timestamp, button=button, buttons=buttons, clickCount=clickCount, deltaX=deltaX, deltaY=deltaY, pointerType=pointerType)
+        return self.drv.call(None,'Input.dispatchMouseEvent',type=type, x=x, y=y, modifiers=modifiers, timestamp=timestamp, button=button, buttons=buttons, clickCount=clickCount, deltaX=deltaX, deltaY=deltaY, pointerType=pointerType, **kwargs)
 
 
     # func: dispatchTouchEvent
-    def dispatchTouchEvent(self,type:str, touchPoints:List[TouchPoint], modifiers:int=None, timestamp:TimeSinceEpoch=None):
+    def dispatchTouchEvent(self,type:str, touchPoints:List[TouchPoint], modifiers:int=None, timestamp:TimeSinceEpoch=None, **kwargs):
         """
             Dispatches a touch event to the page.
         Params:
@@ -149,11 +149,11 @@ class Input(DomainT):
             4. timestamp: TimeSinceEpoch (OPTIONAL)
                 Time at which the event occurred.
         """
-        return self.drv.call(None,'Input.dispatchTouchEvent',type=type, touchPoints=touchPoints, modifiers=modifiers, timestamp=timestamp)
+        return self.drv.call(None,'Input.dispatchTouchEvent',type=type, touchPoints=touchPoints, modifiers=modifiers, timestamp=timestamp, **kwargs)
 
 
     # func: emulateTouchFromMouseEvent
-    def emulateTouchFromMouseEvent(self,type:str, x:int, y:int, button:MouseButton, timestamp:TimeSinceEpoch=None, deltaX:int=None, deltaY:int=None, modifiers:int=None, clickCount:int=None):
+    def emulateTouchFromMouseEvent(self,type:str, x:int, y:int, button:MouseButton, timestamp:TimeSinceEpoch=None, deltaX:int=None, deltaY:int=None, modifiers:int=None, clickCount:int=None, **kwargs):
         """
             Emulates touch event from the mouse event parameters.
         Params:
@@ -177,22 +177,22 @@ class Input(DomainT):
             9. clickCount: int (OPTIONAL)
                 Number of times the mouse button was clicked (default: 0).
         """
-        return self.drv.call(None,'Input.emulateTouchFromMouseEvent',type=type, x=x, y=y, button=button, timestamp=timestamp, deltaX=deltaX, deltaY=deltaY, modifiers=modifiers, clickCount=clickCount)
+        return self.drv.call(None,'Input.emulateTouchFromMouseEvent',type=type, x=x, y=y, button=button, timestamp=timestamp, deltaX=deltaX, deltaY=deltaY, modifiers=modifiers, clickCount=clickCount, **kwargs)
 
 
     # func: setIgnoreInputEvents
-    def setIgnoreInputEvents(self,ignore:bool):
+    def setIgnoreInputEvents(self,ignore:bool, **kwargs):
         """
             Ignores input events (useful while auditing page).
         Params:
             1. ignore: bool
                 Ignores input events processing when set to true.
         """
-        return self.drv.call(None,'Input.setIgnoreInputEvents',ignore=ignore)
+        return self.drv.call(None,'Input.setIgnoreInputEvents',ignore=ignore, **kwargs)
 
 
     # func: synthesizePinchGesture
-    def synthesizePinchGesture(self,x:int, y:int, scaleFactor:int, relativeSpeed:int=None, gestureSourceType:GestureSourceType=None):
+    def synthesizePinchGesture(self,x:int, y:int, scaleFactor:int, relativeSpeed:int=None, gestureSourceType:GestureSourceType=None, **kwargs):
         """
             Synthesizes a pinch gesture over a time period by issuing appropriate touch events.
         Params:
@@ -207,11 +207,11 @@ class Input(DomainT):
             5. gestureSourceType: GestureSourceType (OPTIONAL)
                 Which type of input events to be generated (default: 'default', which queries the platformfor the preferred input type).
         """
-        return self.drv.call(None,'Input.synthesizePinchGesture',x=x, y=y, scaleFactor=scaleFactor, relativeSpeed=relativeSpeed, gestureSourceType=gestureSourceType)
+        return self.drv.call(None,'Input.synthesizePinchGesture',x=x, y=y, scaleFactor=scaleFactor, relativeSpeed=relativeSpeed, gestureSourceType=gestureSourceType, **kwargs)
 
 
     # func: synthesizeScrollGesture
-    def synthesizeScrollGesture(self,x:int, y:int, xDistance:int=None, yDistance:int=None, xOverscroll:int=None, yOverscroll:int=None, preventFling:bool=None, speed:int=None, gestureSourceType:GestureSourceType=None, repeatCount:int=None, repeatDelayMs:int=None, interactionMarkerName:str=None):
+    def synthesizeScrollGesture(self,x:int, y:int, xDistance:int=None, yDistance:int=None, xOverscroll:int=None, yOverscroll:int=None, preventFling:bool=None, speed:int=None, gestureSourceType:GestureSourceType=None, repeatCount:int=None, repeatDelayMs:int=None, interactionMarkerName:str=None, **kwargs):
         """
             Synthesizes a scroll gesture over a time period by issuing appropriate touch events.
         Params:
@@ -240,11 +240,11 @@ class Input(DomainT):
             12. interactionMarkerName: str (OPTIONAL)
                 The name of the interaction markers to generate, if not empty (default: "").
         """
-        return self.drv.call(None,'Input.synthesizeScrollGesture',x=x, y=y, xDistance=xDistance, yDistance=yDistance, xOverscroll=xOverscroll, yOverscroll=yOverscroll, preventFling=preventFling, speed=speed, gestureSourceType=gestureSourceType, repeatCount=repeatCount, repeatDelayMs=repeatDelayMs, interactionMarkerName=interactionMarkerName)
+        return self.drv.call(None,'Input.synthesizeScrollGesture',x=x, y=y, xDistance=xDistance, yDistance=yDistance, xOverscroll=xOverscroll, yOverscroll=yOverscroll, preventFling=preventFling, speed=speed, gestureSourceType=gestureSourceType, repeatCount=repeatCount, repeatDelayMs=repeatDelayMs, interactionMarkerName=interactionMarkerName, **kwargs)
 
 
     # func: synthesizeTapGesture
-    def synthesizeTapGesture(self,x:int, y:int, duration:int=None, tapCount:int=None, gestureSourceType:GestureSourceType=None):
+    def synthesizeTapGesture(self,x:int, y:int, duration:int=None, tapCount:int=None, gestureSourceType:GestureSourceType=None, **kwargs):
         """
             Synthesizes a tap gesture over a time period by issuing appropriate touch events.
         Params:
@@ -259,7 +259,7 @@ class Input(DomainT):
             5. gestureSourceType: GestureSourceType (OPTIONAL)
                 Which type of input events to be generated (default: 'default', which queries the platformfor the preferred input type).
         """
-        return self.drv.call(None,'Input.synthesizeTapGesture',x=x, y=y, duration=duration, tapCount=tapCount, gestureSourceType=gestureSourceType)
+        return self.drv.call(None,'Input.synthesizeTapGesture',x=x, y=y, duration=duration, tapCount=tapCount, gestureSourceType=gestureSourceType, **kwargs)
 
 
 

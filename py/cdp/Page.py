@@ -531,14 +531,14 @@ class Page(DomainT):
 
 
     # func: addScriptToEvaluateOnLoad
-    def addScriptToEvaluateOnLoad(self,scriptSource:str) -> addScriptToEvaluateOnLoadReturn:
+    def addScriptToEvaluateOnLoad(self,scriptSource:str, **kwargs) -> addScriptToEvaluateOnLoadReturn:
         """
             Deprecated, please use addScriptToEvaluateOnNewDocument instead.
         Params:
             1. scriptSource: str
         Return: addScriptToEvaluateOnLoadReturn
         """
-        return self.drv.call(Page.addScriptToEvaluateOnLoadReturn,'Page.addScriptToEvaluateOnLoad',scriptSource=scriptSource)
+        return self.drv.call(Page.addScriptToEvaluateOnLoadReturn,'Page.addScriptToEvaluateOnLoad',scriptSource=scriptSource, **kwargs)
 
 
     # return: addScriptToEvaluateOnNewDocumentReturn
@@ -549,7 +549,7 @@ class Page(DomainT):
 
 
     # func: addScriptToEvaluateOnNewDocument
-    def addScriptToEvaluateOnNewDocument(self,source:str, worldName:str=None) -> addScriptToEvaluateOnNewDocumentReturn:
+    def addScriptToEvaluateOnNewDocument(self,source:str, worldName:str=None, **kwargs) -> addScriptToEvaluateOnNewDocumentReturn:
         """
             Evaluates given script in every frame upon creation (before loading frame's scripts).
         Params:
@@ -558,15 +558,15 @@ class Page(DomainT):
                 If specified, creates an isolated world with the given name and evaluates given script in it.This world name will be used as the ExecutionContextDescription::name when the correspondingevent is emitted.
         Return: addScriptToEvaluateOnNewDocumentReturn
         """
-        return self.drv.call(Page.addScriptToEvaluateOnNewDocumentReturn,'Page.addScriptToEvaluateOnNewDocument',source=source, worldName=worldName)
+        return self.drv.call(Page.addScriptToEvaluateOnNewDocumentReturn,'Page.addScriptToEvaluateOnNewDocument',source=source, worldName=worldName, **kwargs)
 
 
     # func: bringToFront
-    def bringToFront(self):
+    def bringToFront(self,**kwargs):
         """
             Brings page to front (activates tab).
         """
-        return self.drv.call(None,'Page.bringToFront')
+        return self.drv.call(None,'Page.bringToFront',**kwargs)
 
 
     # return: captureScreenshotReturn
@@ -577,7 +577,7 @@ class Page(DomainT):
 
 
     # func: captureScreenshot
-    def captureScreenshot(self,format:str=None, quality:int=None, clip:Viewport=None, fromSurface:bool=None) -> captureScreenshotReturn:
+    def captureScreenshot(self,format:str=None, quality:int=None, clip:Viewport=None, fromSurface:bool=None, **kwargs) -> captureScreenshotReturn:
         """
             Capture page screenshot.
         Params:
@@ -592,7 +592,7 @@ class Page(DomainT):
                 Capture the screenshot from the surface, rather than the view. Defaults to true.
         Return: captureScreenshotReturn
         """
-        return self.drv.call(Page.captureScreenshotReturn,'Page.captureScreenshot',format=format, quality=quality, clip=clip, fromSurface=fromSurface)
+        return self.drv.call(Page.captureScreenshotReturn,'Page.captureScreenshot',format=format, quality=quality, clip=clip, fromSurface=fromSurface, **kwargs)
 
 
     # return: captureSnapshotReturn
@@ -603,7 +603,7 @@ class Page(DomainT):
 
 
     # func: captureSnapshot
-    def captureSnapshot(self,format:str=None) -> captureSnapshotReturn:
+    def captureSnapshot(self,format:str=None, **kwargs) -> captureSnapshotReturn:
         """
             Returns a snapshot of the page as a string. For MHTML format, the serialization includes
             iframes, shadow DOM, external resources, and element-inline styles.
@@ -613,31 +613,31 @@ class Page(DomainT):
                 Format (defaults to mhtml).
         Return: captureSnapshotReturn
         """
-        return self.drv.call(Page.captureSnapshotReturn,'Page.captureSnapshot',format=format)
+        return self.drv.call(Page.captureSnapshotReturn,'Page.captureSnapshot',format=format, **kwargs)
 
 
     # func: clearDeviceMetricsOverride
-    def clearDeviceMetricsOverride(self):
+    def clearDeviceMetricsOverride(self,**kwargs):
         """
             Clears the overriden device metrics.
         """
-        return self.drv.call(None,'Page.clearDeviceMetricsOverride')
+        return self.drv.call(None,'Page.clearDeviceMetricsOverride',**kwargs)
 
 
     # func: clearDeviceOrientationOverride
-    def clearDeviceOrientationOverride(self):
+    def clearDeviceOrientationOverride(self,**kwargs):
         """
             Clears the overridden Device Orientation.
         """
-        return self.drv.call(None,'Page.clearDeviceOrientationOverride')
+        return self.drv.call(None,'Page.clearDeviceOrientationOverride',**kwargs)
 
 
     # func: clearGeolocationOverride
-    def clearGeolocationOverride(self):
+    def clearGeolocationOverride(self,**kwargs):
         """
             Clears the overriden Geolocation Position and Error.
         """
-        return self.drv.call(None,'Page.clearGeolocationOverride')
+        return self.drv.call(None,'Page.clearGeolocationOverride',**kwargs)
 
 
     # return: createIsolatedWorldReturn
@@ -648,7 +648,7 @@ class Page(DomainT):
 
 
     # func: createIsolatedWorld
-    def createIsolatedWorld(self,frameId:FrameId, worldName:str=None, grantUniveralAccess:bool=None) -> createIsolatedWorldReturn:
+    def createIsolatedWorld(self,frameId:FrameId, worldName:str=None, grantUniveralAccess:bool=None, **kwargs) -> createIsolatedWorldReturn:
         """
             Creates an isolated world for the given frame.
         Params:
@@ -660,11 +660,11 @@ class Page(DomainT):
                 Whether or not universal access should be granted to the isolated world. This is a powerfuloption, use with caution.
         Return: createIsolatedWorldReturn
         """
-        return self.drv.call(Page.createIsolatedWorldReturn,'Page.createIsolatedWorld',frameId=frameId, worldName=worldName, grantUniveralAccess=grantUniveralAccess)
+        return self.drv.call(Page.createIsolatedWorldReturn,'Page.createIsolatedWorld',frameId=frameId, worldName=worldName, grantUniveralAccess=grantUniveralAccess, **kwargs)
 
 
     # func: deleteCookie
-    def deleteCookie(self,cookieName:str, url:str):
+    def deleteCookie(self,cookieName:str, url:str, **kwargs):
         """
             Deletes browser cookie with given name, domain and path.
         Params:
@@ -673,23 +673,23 @@ class Page(DomainT):
             2. url: str
                 URL to match cooke domain and path.
         """
-        return self.drv.call(None,'Page.deleteCookie',cookieName=cookieName, url=url)
+        return self.drv.call(None,'Page.deleteCookie',cookieName=cookieName, url=url, **kwargs)
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disables page domain notifications.
         """
-        return self.drv.call(None,'Page.disable')
+        return self.drv.call(None,'Page.disable',**kwargs)
 
 
     # func: enable
-    def enable(self):
+    def enable(self,**kwargs):
         """
             Enables page domain notifications.
         """
-        return self.drv.call(None,'Page.enable')
+        return self.drv.call(None,'Page.enable',**kwargs)
 
 
     # return: getAppManifestReturn
@@ -706,11 +706,11 @@ class Page(DomainT):
 
 
     # func: getAppManifest
-    def getAppManifest(self) -> getAppManifestReturn:
+    def getAppManifest(self,**kwargs) -> getAppManifestReturn:
         """
         Return: getAppManifestReturn
         """
-        return self.drv.call(Page.getAppManifestReturn,'Page.getAppManifest')
+        return self.drv.call(Page.getAppManifestReturn,'Page.getAppManifest',**kwargs)
 
 
     # return: getInstallabilityErrorsReturn
@@ -721,11 +721,11 @@ class Page(DomainT):
 
 
     # func: getInstallabilityErrors
-    def getInstallabilityErrors(self) -> getInstallabilityErrorsReturn:
+    def getInstallabilityErrors(self,**kwargs) -> getInstallabilityErrorsReturn:
         """
         Return: getInstallabilityErrorsReturn
         """
-        return self.drv.call(Page.getInstallabilityErrorsReturn,'Page.getInstallabilityErrors')
+        return self.drv.call(Page.getInstallabilityErrorsReturn,'Page.getInstallabilityErrors',**kwargs)
 
 
     # return: getManifestIconsReturn
@@ -736,11 +736,11 @@ class Page(DomainT):
 
 
     # func: getManifestIcons
-    def getManifestIcons(self) -> getManifestIconsReturn:
+    def getManifestIcons(self,**kwargs) -> getManifestIconsReturn:
         """
         Return: getManifestIconsReturn
         """
-        return self.drv.call(Page.getManifestIconsReturn,'Page.getManifestIcons')
+        return self.drv.call(Page.getManifestIconsReturn,'Page.getManifestIcons',**kwargs)
 
 
     # return: getCookiesReturn
@@ -751,13 +751,13 @@ class Page(DomainT):
 
 
     # func: getCookies
-    def getCookies(self) -> getCookiesReturn:
+    def getCookies(self,**kwargs) -> getCookiesReturn:
         """
             Returns all browser cookies. Depending on the backend support, will return detailed cookie
             information in the `cookies` field.
         Return: getCookiesReturn
         """
-        return self.drv.call(Page.getCookiesReturn,'Page.getCookies')
+        return self.drv.call(Page.getCookiesReturn,'Page.getCookies',**kwargs)
 
 
     # return: getFrameTreeReturn
@@ -768,12 +768,12 @@ class Page(DomainT):
 
 
     # func: getFrameTree
-    def getFrameTree(self) -> getFrameTreeReturn:
+    def getFrameTree(self,**kwargs) -> getFrameTreeReturn:
         """
             Returns present frame tree structure.
         Return: getFrameTreeReturn
         """
-        return self.drv.call(Page.getFrameTreeReturn,'Page.getFrameTree')
+        return self.drv.call(Page.getFrameTreeReturn,'Page.getFrameTree',**kwargs)
 
 
     # return: getLayoutMetricsReturn
@@ -788,12 +788,12 @@ class Page(DomainT):
 
 
     # func: getLayoutMetrics
-    def getLayoutMetrics(self) -> getLayoutMetricsReturn:
+    def getLayoutMetrics(self,**kwargs) -> getLayoutMetricsReturn:
         """
             Returns metrics relating to the layouting of the page, such as viewport bounds/scale.
         Return: getLayoutMetricsReturn
         """
-        return self.drv.call(Page.getLayoutMetricsReturn,'Page.getLayoutMetrics')
+        return self.drv.call(Page.getLayoutMetricsReturn,'Page.getLayoutMetrics',**kwargs)
 
 
     # return: getNavigationHistoryReturn
@@ -806,20 +806,20 @@ class Page(DomainT):
 
 
     # func: getNavigationHistory
-    def getNavigationHistory(self) -> getNavigationHistoryReturn:
+    def getNavigationHistory(self,**kwargs) -> getNavigationHistoryReturn:
         """
             Returns navigation history for the current page.
         Return: getNavigationHistoryReturn
         """
-        return self.drv.call(Page.getNavigationHistoryReturn,'Page.getNavigationHistory')
+        return self.drv.call(Page.getNavigationHistoryReturn,'Page.getNavigationHistory',**kwargs)
 
 
     # func: resetNavigationHistory
-    def resetNavigationHistory(self):
+    def resetNavigationHistory(self,**kwargs):
         """
             Resets navigation history for the current page.
         """
-        return self.drv.call(None,'Page.resetNavigationHistory')
+        return self.drv.call(None,'Page.resetNavigationHistory',**kwargs)
 
 
     # return: getResourceContentReturn
@@ -832,7 +832,7 @@ class Page(DomainT):
 
 
     # func: getResourceContent
-    def getResourceContent(self,frameId:FrameId, url:str) -> getResourceContentReturn:
+    def getResourceContent(self,frameId:FrameId, url:str, **kwargs) -> getResourceContentReturn:
         """
             Returns content of the given resource.
         Params:
@@ -842,7 +842,7 @@ class Page(DomainT):
                 URL of the resource to get content for.
         Return: getResourceContentReturn
         """
-        return self.drv.call(Page.getResourceContentReturn,'Page.getResourceContent',frameId=frameId, url=url)
+        return self.drv.call(Page.getResourceContentReturn,'Page.getResourceContent',frameId=frameId, url=url, **kwargs)
 
 
     # return: getResourceTreeReturn
@@ -853,16 +853,16 @@ class Page(DomainT):
 
 
     # func: getResourceTree
-    def getResourceTree(self) -> getResourceTreeReturn:
+    def getResourceTree(self,**kwargs) -> getResourceTreeReturn:
         """
             Returns present frame / resource tree structure.
         Return: getResourceTreeReturn
         """
-        return self.drv.call(Page.getResourceTreeReturn,'Page.getResourceTree')
+        return self.drv.call(Page.getResourceTreeReturn,'Page.getResourceTree',**kwargs)
 
 
     # func: handleJavaScriptDialog
-    def handleJavaScriptDialog(self,accept:bool, promptText:str=None):
+    def handleJavaScriptDialog(self,accept:bool, promptText:str=None, **kwargs):
         """
             Accepts or dismisses a JavaScript initiated dialog (alert, confirm, prompt, or onbeforeunload).
         Params:
@@ -871,7 +871,7 @@ class Page(DomainT):
             2. promptText: str (OPTIONAL)
                 The text to enter into the dialog prompt before accepting. Used only if this is a promptdialog.
         """
-        return self.drv.call(None,'Page.handleJavaScriptDialog',accept=accept, promptText=promptText)
+        return self.drv.call(None,'Page.handleJavaScriptDialog',accept=accept, promptText=promptText, **kwargs)
 
 
     # return: navigateReturn
@@ -886,7 +886,7 @@ class Page(DomainT):
 
 
     # func: navigate
-    def navigate(self,url:str, referrer:str=None, transitionType:TransitionType=None, frameId:FrameId=None, referrerPolicy:ReferrerPolicy=None) -> navigateReturn:
+    def navigate(self,url:str, referrer:str=None, transitionType:TransitionType=None, frameId:FrameId=None, referrerPolicy:ReferrerPolicy=None, **kwargs) -> navigateReturn:
         """
             Navigates current page to the given URL.
         Params:
@@ -902,18 +902,18 @@ class Page(DomainT):
                 Referrer-policy used for the navigation.
         Return: navigateReturn
         """
-        return self.drv.call(Page.navigateReturn,'Page.navigate',url=url, referrer=referrer, transitionType=transitionType, frameId=frameId, referrerPolicy=referrerPolicy)
+        return self.drv.call(Page.navigateReturn,'Page.navigate',url=url, referrer=referrer, transitionType=transitionType, frameId=frameId, referrerPolicy=referrerPolicy, **kwargs)
 
 
     # func: navigateToHistoryEntry
-    def navigateToHistoryEntry(self,entryId:int):
+    def navigateToHistoryEntry(self,entryId:int, **kwargs):
         """
             Navigates current page to the given history entry.
         Params:
             1. entryId: int
                 Unique id of the entry to navigate to.
         """
-        return self.drv.call(None,'Page.navigateToHistoryEntry',entryId=entryId)
+        return self.drv.call(None,'Page.navigateToHistoryEntry',entryId=entryId, **kwargs)
 
 
     # return: printToPDFReturn
@@ -926,7 +926,7 @@ class Page(DomainT):
 
 
     # func: printToPDF
-    def printToPDF(self,landscape:bool=None, displayHeaderFooter:bool=None, printBackground:bool=None, scale:int=None, paperWidth:int=None, paperHeight:int=None, marginTop:int=None, marginBottom:int=None, marginLeft:int=None, marginRight:int=None, pageRanges:str=None, ignoreInvalidPageRanges:bool=None, headerTemplate:str=None, footerTemplate:str=None, preferCSSPageSize:bool=None, transferMode:str=None) -> printToPDFReturn:
+    def printToPDF(self,landscape:bool=None, displayHeaderFooter:bool=None, printBackground:bool=None, scale:int=None, paperWidth:int=None, paperHeight:int=None, marginTop:int=None, marginBottom:int=None, marginLeft:int=None, marginRight:int=None, pageRanges:str=None, ignoreInvalidPageRanges:bool=None, headerTemplate:str=None, footerTemplate:str=None, preferCSSPageSize:bool=None, transferMode:str=None, **kwargs) -> printToPDFReturn:
         """
             Print page as PDF.
         Params:
@@ -965,11 +965,11 @@ class Page(DomainT):
                 return as stream
         Return: printToPDFReturn
         """
-        return self.drv.call(Page.printToPDFReturn,'Page.printToPDF',landscape=landscape, displayHeaderFooter=displayHeaderFooter, printBackground=printBackground, scale=scale, paperWidth=paperWidth, paperHeight=paperHeight, marginTop=marginTop, marginBottom=marginBottom, marginLeft=marginLeft, marginRight=marginRight, pageRanges=pageRanges, ignoreInvalidPageRanges=ignoreInvalidPageRanges, headerTemplate=headerTemplate, footerTemplate=footerTemplate, preferCSSPageSize=preferCSSPageSize, transferMode=transferMode)
+        return self.drv.call(Page.printToPDFReturn,'Page.printToPDF',landscape=landscape, displayHeaderFooter=displayHeaderFooter, printBackground=printBackground, scale=scale, paperWidth=paperWidth, paperHeight=paperHeight, marginTop=marginTop, marginBottom=marginBottom, marginLeft=marginLeft, marginRight=marginRight, pageRanges=pageRanges, ignoreInvalidPageRanges=ignoreInvalidPageRanges, headerTemplate=headerTemplate, footerTemplate=footerTemplate, preferCSSPageSize=preferCSSPageSize, transferMode=transferMode, **kwargs)
 
 
     # func: reload
-    def reload(self,ignoreCache:bool=None, scriptToEvaluateOnLoad:str=None):
+    def reload(self,ignoreCache:bool=None, scriptToEvaluateOnLoad:str=None, **kwargs):
         """
             Reloads given page optionally ignoring the cache.
         Params:
@@ -978,38 +978,38 @@ class Page(DomainT):
             2. scriptToEvaluateOnLoad: str (OPTIONAL)
                 If set, the script will be injected into all frames of the inspected page after reload.Argument will be ignored if reloading dataURL origin.
         """
-        return self.drv.call(None,'Page.reload',ignoreCache=ignoreCache, scriptToEvaluateOnLoad=scriptToEvaluateOnLoad)
+        return self.drv.call(None,'Page.reload',ignoreCache=ignoreCache, scriptToEvaluateOnLoad=scriptToEvaluateOnLoad, **kwargs)
 
 
     # func: removeScriptToEvaluateOnLoad
-    def removeScriptToEvaluateOnLoad(self,identifier:ScriptIdentifier):
+    def removeScriptToEvaluateOnLoad(self,identifier:ScriptIdentifier, **kwargs):
         """
             Deprecated, please use removeScriptToEvaluateOnNewDocument instead.
         Params:
             1. identifier: ScriptIdentifier
         """
-        return self.drv.call(None,'Page.removeScriptToEvaluateOnLoad',identifier=identifier)
+        return self.drv.call(None,'Page.removeScriptToEvaluateOnLoad',identifier=identifier, **kwargs)
 
 
     # func: removeScriptToEvaluateOnNewDocument
-    def removeScriptToEvaluateOnNewDocument(self,identifier:ScriptIdentifier):
+    def removeScriptToEvaluateOnNewDocument(self,identifier:ScriptIdentifier, **kwargs):
         """
             Removes given script from the list.
         Params:
             1. identifier: ScriptIdentifier
         """
-        return self.drv.call(None,'Page.removeScriptToEvaluateOnNewDocument',identifier=identifier)
+        return self.drv.call(None,'Page.removeScriptToEvaluateOnNewDocument',identifier=identifier, **kwargs)
 
 
     # func: screencastFrameAck
-    def screencastFrameAck(self,sessionId:int):
+    def screencastFrameAck(self,sessionId:int, **kwargs):
         """
             Acknowledges that a screencast frame has been received by the frontend.
         Params:
             1. sessionId: int
                 Frame number.
         """
-        return self.drv.call(None,'Page.screencastFrameAck',sessionId=sessionId)
+        return self.drv.call(None,'Page.screencastFrameAck',sessionId=sessionId, **kwargs)
 
 
     # return: searchInResourceReturn
@@ -1020,7 +1020,7 @@ class Page(DomainT):
 
 
     # func: searchInResource
-    def searchInResource(self,frameId:FrameId, url:str, query:str, caseSensitive:bool=None, isRegex:bool=None) -> searchInResourceReturn:
+    def searchInResource(self,frameId:FrameId, url:str, query:str, caseSensitive:bool=None, isRegex:bool=None, **kwargs) -> searchInResourceReturn:
         """
             Searches for given string in resource content.
         Params:
@@ -1036,33 +1036,33 @@ class Page(DomainT):
                 If true, treats string parameter as regex.
         Return: searchInResourceReturn
         """
-        return self.drv.call(Page.searchInResourceReturn,'Page.searchInResource',frameId=frameId, url=url, query=query, caseSensitive=caseSensitive, isRegex=isRegex)
+        return self.drv.call(Page.searchInResourceReturn,'Page.searchInResource',frameId=frameId, url=url, query=query, caseSensitive=caseSensitive, isRegex=isRegex, **kwargs)
 
 
     # func: setAdBlockingEnabled
-    def setAdBlockingEnabled(self,enabled:bool):
+    def setAdBlockingEnabled(self,enabled:bool, **kwargs):
         """
             Enable Chrome's experimental ad filter on all sites.
         Params:
             1. enabled: bool
                 Whether to block ads.
         """
-        return self.drv.call(None,'Page.setAdBlockingEnabled',enabled=enabled)
+        return self.drv.call(None,'Page.setAdBlockingEnabled',enabled=enabled, **kwargs)
 
 
     # func: setBypassCSP
-    def setBypassCSP(self,enabled:bool):
+    def setBypassCSP(self,enabled:bool, **kwargs):
         """
             Enable page Content Security Policy by-passing.
         Params:
             1. enabled: bool
                 Whether to bypass page CSP.
         """
-        return self.drv.call(None,'Page.setBypassCSP',enabled=enabled)
+        return self.drv.call(None,'Page.setBypassCSP',enabled=enabled, **kwargs)
 
 
     # func: setDeviceMetricsOverride
-    def setDeviceMetricsOverride(self,width:int, height:int, deviceScaleFactor:int, mobile:bool, scale:int=None, screenWidth:int=None, screenHeight:int=None, positionX:int=None, positionY:int=None, dontSetVisibleSize:bool=None, screenOrientation:Emulation.ScreenOrientation=None, viewport:Viewport=None):
+    def setDeviceMetricsOverride(self,width:int, height:int, deviceScaleFactor:int, mobile:bool, scale:int=None, screenWidth:int=None, screenHeight:int=None, positionX:int=None, positionY:int=None, dontSetVisibleSize:bool=None, screenOrientation:Emulation.ScreenOrientation=None, viewport:Viewport=None, **kwargs):
         """
             Overrides the values of device screen dimensions (window.screen.width, window.screen.height,
             window.innerWidth, window.innerHeight, and "device-width"/"device-height"-related CSS media
@@ -1093,11 +1093,11 @@ class Page(DomainT):
             12. viewport: Viewport (OPTIONAL)
                 The viewport dimensions and scale. If not set, the override is cleared.
         """
-        return self.drv.call(None,'Page.setDeviceMetricsOverride',width=width, height=height, deviceScaleFactor=deviceScaleFactor, mobile=mobile, scale=scale, screenWidth=screenWidth, screenHeight=screenHeight, positionX=positionX, positionY=positionY, dontSetVisibleSize=dontSetVisibleSize, screenOrientation=screenOrientation, viewport=viewport)
+        return self.drv.call(None,'Page.setDeviceMetricsOverride',width=width, height=height, deviceScaleFactor=deviceScaleFactor, mobile=mobile, scale=scale, screenWidth=screenWidth, screenHeight=screenHeight, positionX=positionX, positionY=positionY, dontSetVisibleSize=dontSetVisibleSize, screenOrientation=screenOrientation, viewport=viewport, **kwargs)
 
 
     # func: setDeviceOrientationOverride
-    def setDeviceOrientationOverride(self,alpha:int, beta:int, gamma:int):
+    def setDeviceOrientationOverride(self,alpha:int, beta:int, gamma:int, **kwargs):
         """
             Overrides the Device Orientation.
         Params:
@@ -1108,33 +1108,33 @@ class Page(DomainT):
             3. gamma: int
                 Mock gamma
         """
-        return self.drv.call(None,'Page.setDeviceOrientationOverride',alpha=alpha, beta=beta, gamma=gamma)
+        return self.drv.call(None,'Page.setDeviceOrientationOverride',alpha=alpha, beta=beta, gamma=gamma, **kwargs)
 
 
     # func: setFontFamilies
-    def setFontFamilies(self,fontFamilies:FontFamilies):
+    def setFontFamilies(self,fontFamilies:FontFamilies, **kwargs):
         """
             Set generic font families.
         Params:
             1. fontFamilies: FontFamilies
                 Specifies font families to set. If a font family is not specified, it won't be changed.
         """
-        return self.drv.call(None,'Page.setFontFamilies',fontFamilies=fontFamilies)
+        return self.drv.call(None,'Page.setFontFamilies',fontFamilies=fontFamilies, **kwargs)
 
 
     # func: setFontSizes
-    def setFontSizes(self,fontSizes:FontSizes):
+    def setFontSizes(self,fontSizes:FontSizes, **kwargs):
         """
             Set default font sizes.
         Params:
             1. fontSizes: FontSizes
                 Specifies font sizes to set. If a font size is not specified, it won't be changed.
         """
-        return self.drv.call(None,'Page.setFontSizes',fontSizes=fontSizes)
+        return self.drv.call(None,'Page.setFontSizes',fontSizes=fontSizes, **kwargs)
 
 
     # func: setDocumentContent
-    def setDocumentContent(self,frameId:FrameId, html:str):
+    def setDocumentContent(self,frameId:FrameId, html:str, **kwargs):
         """
             Sets given markup as the document's HTML.
         Params:
@@ -1143,11 +1143,11 @@ class Page(DomainT):
             2. html: str
                 HTML content to set.
         """
-        return self.drv.call(None,'Page.setDocumentContent',frameId=frameId, html=html)
+        return self.drv.call(None,'Page.setDocumentContent',frameId=frameId, html=html, **kwargs)
 
 
     # func: setDownloadBehavior
-    def setDownloadBehavior(self,behavior:str, downloadPath:str=None):
+    def setDownloadBehavior(self,behavior:str, downloadPath:str=None, **kwargs):
         """
             Set the behavior when downloading a file.
         Params:
@@ -1157,11 +1157,11 @@ class Page(DomainT):
             2. downloadPath: str (OPTIONAL)
                 The default path to save downloaded files to. This is requred if behavior is set to 'allow'
         """
-        return self.drv.call(None,'Page.setDownloadBehavior',behavior=behavior, downloadPath=downloadPath)
+        return self.drv.call(None,'Page.setDownloadBehavior',behavior=behavior, downloadPath=downloadPath, **kwargs)
 
 
     # func: setGeolocationOverride
-    def setGeolocationOverride(self,latitude:int=None, longitude:int=None, accuracy:int=None):
+    def setGeolocationOverride(self,latitude:int=None, longitude:int=None, accuracy:int=None, **kwargs):
         """
             Overrides the Geolocation Position or Error. Omitting any of the parameters emulates position
             unavailable.
@@ -1173,22 +1173,22 @@ class Page(DomainT):
             3. accuracy: int (OPTIONAL)
                 Mock accuracy
         """
-        return self.drv.call(None,'Page.setGeolocationOverride',latitude=latitude, longitude=longitude, accuracy=accuracy)
+        return self.drv.call(None,'Page.setGeolocationOverride',latitude=latitude, longitude=longitude, accuracy=accuracy, **kwargs)
 
 
     # func: setLifecycleEventsEnabled
-    def setLifecycleEventsEnabled(self,enabled:bool):
+    def setLifecycleEventsEnabled(self,enabled:bool, **kwargs):
         """
             Controls whether page will emit lifecycle events.
         Params:
             1. enabled: bool
                 If true, starts emitting lifecycle events.
         """
-        return self.drv.call(None,'Page.setLifecycleEventsEnabled',enabled=enabled)
+        return self.drv.call(None,'Page.setLifecycleEventsEnabled',enabled=enabled, **kwargs)
 
 
     # func: setTouchEmulationEnabled
-    def setTouchEmulationEnabled(self,enabled:bool, configuration:str=None):
+    def setTouchEmulationEnabled(self,enabled:bool, configuration:str=None, **kwargs):
         """
             Toggles mouse event-based touch event emulation.
         Params:
@@ -1198,11 +1198,11 @@ class Page(DomainT):
             2. configuration: str (OPTIONAL)
                 Touch/gesture events configuration. Default: current platform.
         """
-        return self.drv.call(None,'Page.setTouchEmulationEnabled',enabled=enabled, configuration=configuration)
+        return self.drv.call(None,'Page.setTouchEmulationEnabled',enabled=enabled, configuration=configuration, **kwargs)
 
 
     # func: startScreencast
-    def startScreencast(self,format:str=None, quality:int=None, maxWidth:int=None, maxHeight:int=None, everyNthFrame:int=None):
+    def startScreencast(self,format:str=None, quality:int=None, maxWidth:int=None, maxHeight:int=None, everyNthFrame:int=None, **kwargs):
         """
             Starts sending each frame using the `screencastFrame` event.
         Params:
@@ -1218,35 +1218,35 @@ class Page(DomainT):
             5. everyNthFrame: int (OPTIONAL)
                 Send every n-th frame.
         """
-        return self.drv.call(None,'Page.startScreencast',format=format, quality=quality, maxWidth=maxWidth, maxHeight=maxHeight, everyNthFrame=everyNthFrame)
+        return self.drv.call(None,'Page.startScreencast',format=format, quality=quality, maxWidth=maxWidth, maxHeight=maxHeight, everyNthFrame=everyNthFrame, **kwargs)
 
 
     # func: stopLoading
-    def stopLoading(self):
+    def stopLoading(self,**kwargs):
         """
             Force the page stop all navigations and pending resource fetches.
         """
-        return self.drv.call(None,'Page.stopLoading')
+        return self.drv.call(None,'Page.stopLoading',**kwargs)
 
 
     # func: crash
-    def crash(self):
+    def crash(self,**kwargs):
         """
             Crashes renderer on the IO thread, generates minidumps.
         """
-        return self.drv.call(None,'Page.crash')
+        return self.drv.call(None,'Page.crash',**kwargs)
 
 
     # func: close
-    def close(self):
+    def close(self,**kwargs):
         """
             Tries to close page, running its beforeunload hooks, if any.
         """
-        return self.drv.call(None,'Page.close')
+        return self.drv.call(None,'Page.close',**kwargs)
 
 
     # func: setWebLifecycleState
-    def setWebLifecycleState(self,state:str):
+    def setWebLifecycleState(self,state:str, **kwargs):
         """
             Tries to update the web lifecycle state of the page.
             It will transition the page to the given state according to:
@@ -1256,29 +1256,29 @@ class Page(DomainT):
             1. state: str
                 Target lifecycle state
         """
-        return self.drv.call(None,'Page.setWebLifecycleState',state=state)
+        return self.drv.call(None,'Page.setWebLifecycleState',state=state, **kwargs)
 
 
     # func: stopScreencast
-    def stopScreencast(self):
+    def stopScreencast(self,**kwargs):
         """
             Stops sending each frame in the `screencastFrame`.
         """
-        return self.drv.call(None,'Page.stopScreencast')
+        return self.drv.call(None,'Page.stopScreencast',**kwargs)
 
 
     # func: setProduceCompilationCache
-    def setProduceCompilationCache(self,enabled:bool):
+    def setProduceCompilationCache(self,enabled:bool, **kwargs):
         """
             Forces compilation cache to be generated for every subresource script.
         Params:
             1. enabled: bool
         """
-        return self.drv.call(None,'Page.setProduceCompilationCache',enabled=enabled)
+        return self.drv.call(None,'Page.setProduceCompilationCache',enabled=enabled, **kwargs)
 
 
     # func: addCompilationCache
-    def addCompilationCache(self,url:str, data:str):
+    def addCompilationCache(self,url:str, data:str, **kwargs):
         """
             Seeds compilation cache for given url. Compilation cache does not survive
             cross-process navigation.
@@ -1287,19 +1287,19 @@ class Page(DomainT):
             2. data: str
                 Base64-encoded data
         """
-        return self.drv.call(None,'Page.addCompilationCache',url=url, data=data)
+        return self.drv.call(None,'Page.addCompilationCache',url=url, data=data, **kwargs)
 
 
     # func: clearCompilationCache
-    def clearCompilationCache(self):
+    def clearCompilationCache(self,**kwargs):
         """
             Clears seeded compilation cache.
         """
-        return self.drv.call(None,'Page.clearCompilationCache')
+        return self.drv.call(None,'Page.clearCompilationCache',**kwargs)
 
 
     # func: generateTestReport
-    def generateTestReport(self,message:str, group:str=None):
+    def generateTestReport(self,message:str, group:str=None, **kwargs):
         """
             Generates a report for testing.
         Params:
@@ -1308,19 +1308,19 @@ class Page(DomainT):
             2. group: str (OPTIONAL)
                 Specifies the endpoint group to deliver the report to.
         """
-        return self.drv.call(None,'Page.generateTestReport',message=message, group=group)
+        return self.drv.call(None,'Page.generateTestReport',message=message, group=group, **kwargs)
 
 
     # func: waitForDebugger
-    def waitForDebugger(self):
+    def waitForDebugger(self,**kwargs):
         """
             Pauses page execution. Can be resumed using generic Runtime.runIfWaitingForDebugger.
         """
-        return self.drv.call(None,'Page.waitForDebugger')
+        return self.drv.call(None,'Page.waitForDebugger',**kwargs)
 
 
     # func: setInterceptFileChooserDialog
-    def setInterceptFileChooserDialog(self,enabled:bool):
+    def setInterceptFileChooserDialog(self,enabled:bool, **kwargs):
         """
             Intercept file chooser requests and transfer control to protocol clients.
             When file chooser interception is enabled, native file chooser dialog is not shown.
@@ -1328,7 +1328,7 @@ class Page(DomainT):
         Params:
             1. enabled: bool
         """
-        return self.drv.call(None,'Page.setInterceptFileChooserDialog',enabled=enabled)
+        return self.drv.call(None,'Page.setInterceptFileChooserDialog',enabled=enabled, **kwargs)
 
 
 

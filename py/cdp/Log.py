@@ -67,47 +67,47 @@ class Log(DomainT):
 
 
     # func: clear
-    def clear(self):
+    def clear(self,**kwargs):
         """
             Clears the log.
         """
-        return self.drv.call(None,'Log.clear')
+        return self.drv.call(None,'Log.clear',**kwargs)
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disables log domain, prevents further log entries from being reported to the client.
         """
-        return self.drv.call(None,'Log.disable')
+        return self.drv.call(None,'Log.disable',**kwargs)
 
 
     # func: enable
-    def enable(self):
+    def enable(self,**kwargs):
         """
             Enables log domain, sends the entries collected so far to the client by means of the
             `entryAdded` notification.
         """
-        return self.drv.call(None,'Log.enable')
+        return self.drv.call(None,'Log.enable',**kwargs)
 
 
     # func: startViolationsReport
-    def startViolationsReport(self,config:List[ViolationSetting]):
+    def startViolationsReport(self,config:List[ViolationSetting], **kwargs):
         """
             start violation reporting.
         Params:
             1. config: List[ViolationSetting]
                 Configuration for violations.
         """
-        return self.drv.call(None,'Log.startViolationsReport',config=config)
+        return self.drv.call(None,'Log.startViolationsReport',config=config, **kwargs)
 
 
     # func: stopViolationsReport
-    def stopViolationsReport(self):
+    def stopViolationsReport(self,**kwargs):
         """
             Stop violation reporting.
         """
-        return self.drv.call(None,'Log.stopViolationsReport')
+        return self.drv.call(None,'Log.stopViolationsReport',**kwargs)
 
 
 

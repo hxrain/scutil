@@ -150,9 +150,9 @@ class ShapeOutsideInfo(TypingT):
         # Shape bounds
         self.bounds: Quad = Quad
         # Shape coordinate details
-        self.shape: List[any] = [any]
+        self.shape: List[str] = [str]
         # Margin shape bounds
-        self.marginShape: List[any] = [any]
+        self.marginShape: List[str] = [str]
 
 
 # object: Rect
@@ -316,7 +316,7 @@ class DOM(DomainT):
 
 
     # func: collectClassNamesFromSubtree
-    def collectClassNamesFromSubtree(self,nodeId:NodeId) -> collectClassNamesFromSubtreeReturn:
+    def collectClassNamesFromSubtree(self,nodeId:NodeId, **kwargs) -> collectClassNamesFromSubtreeReturn:
         """
             Collects class names for the node with given id and all of it's child nodes.
         Params:
@@ -324,7 +324,7 @@ class DOM(DomainT):
                 Id of the node to collect class names.
         Return: collectClassNamesFromSubtreeReturn
         """
-        return self.drv.call(DOM.collectClassNamesFromSubtreeReturn,'DOM.collectClassNamesFromSubtree',nodeId=nodeId)
+        return self.drv.call(DOM.collectClassNamesFromSubtreeReturn,'DOM.collectClassNamesFromSubtree',nodeId=nodeId, **kwargs)
 
 
     # return: copyToReturn
@@ -335,7 +335,7 @@ class DOM(DomainT):
 
 
     # func: copyTo
-    def copyTo(self,nodeId:NodeId, targetNodeId:NodeId, insertBeforeNodeId:NodeId=None) -> copyToReturn:
+    def copyTo(self,nodeId:NodeId, targetNodeId:NodeId, insertBeforeNodeId:NodeId=None, **kwargs) -> copyToReturn:
         """
             Creates a deep copy of the specified node and places it into the target container before the
             given anchor.
@@ -348,7 +348,7 @@ class DOM(DomainT):
                 Drop the copy before this node (if absent, the copy becomes the last child of`targetNodeId`).
         Return: copyToReturn
         """
-        return self.drv.call(DOM.copyToReturn,'DOM.copyTo',nodeId=nodeId, targetNodeId=targetNodeId, insertBeforeNodeId=insertBeforeNodeId)
+        return self.drv.call(DOM.copyToReturn,'DOM.copyTo',nodeId=nodeId, targetNodeId=targetNodeId, insertBeforeNodeId=insertBeforeNodeId, **kwargs)
 
 
     # return: describeNodeReturn
@@ -359,7 +359,7 @@ class DOM(DomainT):
 
 
     # func: describeNode
-    def describeNode(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, depth:int=None, pierce:bool=None) -> describeNodeReturn:
+    def describeNode(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, depth:int=None, pierce:bool=None, **kwargs) -> describeNodeReturn:
         """
             Describes node given its id, does not require domain to be enabled. Does not start tracking any
             objects, can be used for automation.
@@ -376,11 +376,11 @@ class DOM(DomainT):
                 Whether or not iframes and shadow roots should be traversed when returning the subtree(default is false).
         Return: describeNodeReturn
         """
-        return self.drv.call(DOM.describeNodeReturn,'DOM.describeNode',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, depth=depth, pierce=pierce)
+        return self.drv.call(DOM.describeNodeReturn,'DOM.describeNode',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, depth=depth, pierce=pierce, **kwargs)
 
 
     # func: scrollIntoViewIfNeeded
-    def scrollIntoViewIfNeeded(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, rect:Rect=None):
+    def scrollIntoViewIfNeeded(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, rect:Rect=None, **kwargs):
         """
             Scrolls the specified rect of the given node into view if not already visible.
             Note: exactly one between nodeId, backendNodeId and objectId should be passed
@@ -395,19 +395,19 @@ class DOM(DomainT):
             4. rect: Rect (OPTIONAL)
                 The rect to be scrolled into view, relative to the node's border box, in CSS pixels.When omitted, center of the node will be used, similar to Element.scrollIntoView.
         """
-        return self.drv.call(None,'DOM.scrollIntoViewIfNeeded',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, rect=rect)
+        return self.drv.call(None,'DOM.scrollIntoViewIfNeeded',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, rect=rect, **kwargs)
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
             Disables DOM agent for the given page.
         """
-        return self.drv.call(None,'DOM.disable')
+        return self.drv.call(None,'DOM.disable',**kwargs)
 
 
     # func: discardSearchResults
-    def discardSearchResults(self,searchId:str):
+    def discardSearchResults(self,searchId:str, **kwargs):
         """
             Discards search results from the session with the given id. `getSearchResults` should no longer
             be called for that search.
@@ -415,19 +415,19 @@ class DOM(DomainT):
             1. searchId: str
                 Unique search session identifier.
         """
-        return self.drv.call(None,'DOM.discardSearchResults',searchId=searchId)
+        return self.drv.call(None,'DOM.discardSearchResults',searchId=searchId, **kwargs)
 
 
     # func: enable
-    def enable(self):
+    def enable(self,**kwargs):
         """
             Enables DOM agent for the given page.
         """
-        return self.drv.call(None,'DOM.enable')
+        return self.drv.call(None,'DOM.enable',**kwargs)
 
 
     # func: focus
-    def focus(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None):
+    def focus(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, **kwargs):
         """
             Focuses the given element.
         Params:
@@ -438,7 +438,7 @@ class DOM(DomainT):
             3. objectId: Runtime.RemoteObjectId (OPTIONAL)
                 JavaScript object id of the node wrapper.
         """
-        return self.drv.call(None,'DOM.focus',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId)
+        return self.drv.call(None,'DOM.focus',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, **kwargs)
 
 
     # return: getAttributesReturn
@@ -449,7 +449,7 @@ class DOM(DomainT):
 
 
     # func: getAttributes
-    def getAttributes(self,nodeId:NodeId) -> getAttributesReturn:
+    def getAttributes(self,nodeId:NodeId, **kwargs) -> getAttributesReturn:
         """
             Returns attributes for the specified node.
         Params:
@@ -457,7 +457,7 @@ class DOM(DomainT):
                 Id of the node to retrieve attibutes for.
         Return: getAttributesReturn
         """
-        return self.drv.call(DOM.getAttributesReturn,'DOM.getAttributes',nodeId=nodeId)
+        return self.drv.call(DOM.getAttributesReturn,'DOM.getAttributes',nodeId=nodeId, **kwargs)
 
 
     # return: getBoxModelReturn
@@ -468,7 +468,7 @@ class DOM(DomainT):
 
 
     # func: getBoxModel
-    def getBoxModel(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None) -> getBoxModelReturn:
+    def getBoxModel(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, **kwargs) -> getBoxModelReturn:
         """
             Returns boxes for the given node.
         Params:
@@ -480,7 +480,7 @@ class DOM(DomainT):
                 JavaScript object id of the node wrapper.
         Return: getBoxModelReturn
         """
-        return self.drv.call(DOM.getBoxModelReturn,'DOM.getBoxModel',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId)
+        return self.drv.call(DOM.getBoxModelReturn,'DOM.getBoxModel',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, **kwargs)
 
 
     # return: getContentQuadsReturn
@@ -491,7 +491,7 @@ class DOM(DomainT):
 
 
     # func: getContentQuads
-    def getContentQuads(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None) -> getContentQuadsReturn:
+    def getContentQuads(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, **kwargs) -> getContentQuadsReturn:
         """
             Returns quads that describe node position on the page. This method
             might return multiple quads for inline nodes.
@@ -504,7 +504,7 @@ class DOM(DomainT):
                 JavaScript object id of the node wrapper.
         Return: getContentQuadsReturn
         """
-        return self.drv.call(DOM.getContentQuadsReturn,'DOM.getContentQuads',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId)
+        return self.drv.call(DOM.getContentQuadsReturn,'DOM.getContentQuads',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, **kwargs)
 
 
     # return: getDocumentReturn
@@ -515,7 +515,7 @@ class DOM(DomainT):
 
 
     # func: getDocument
-    def getDocument(self,depth:int=None, pierce:bool=None) -> getDocumentReturn:
+    def getDocument(self,depth:int=None, pierce:bool=None, **kwargs) -> getDocumentReturn:
         """
             Returns the root DOM node (and optionally the subtree) to the caller.
         Params:
@@ -525,7 +525,7 @@ class DOM(DomainT):
                 Whether or not iframes and shadow roots should be traversed when returning the subtree(default is false).
         Return: getDocumentReturn
         """
-        return self.drv.call(DOM.getDocumentReturn,'DOM.getDocument',depth=depth, pierce=pierce)
+        return self.drv.call(DOM.getDocumentReturn,'DOM.getDocument',depth=depth, pierce=pierce, **kwargs)
 
 
     # return: getFlattenedDocumentReturn
@@ -536,7 +536,7 @@ class DOM(DomainT):
 
 
     # func: getFlattenedDocument
-    def getFlattenedDocument(self,depth:int=None, pierce:bool=None) -> getFlattenedDocumentReturn:
+    def getFlattenedDocument(self,depth:int=None, pierce:bool=None, **kwargs) -> getFlattenedDocumentReturn:
         """
             Returns the root DOM node (and optionally the subtree) to the caller.
             Deprecated, as it is not designed to work well with the rest of the DOM agent.
@@ -548,7 +548,7 @@ class DOM(DomainT):
                 Whether or not iframes and shadow roots should be traversed when returning the subtree(default is false).
         Return: getFlattenedDocumentReturn
         """
-        return self.drv.call(DOM.getFlattenedDocumentReturn,'DOM.getFlattenedDocument',depth=depth, pierce=pierce)
+        return self.drv.call(DOM.getFlattenedDocumentReturn,'DOM.getFlattenedDocument',depth=depth, pierce=pierce, **kwargs)
 
 
     # return: getNodesForSubtreeByStyleReturn
@@ -559,7 +559,7 @@ class DOM(DomainT):
 
 
     # func: getNodesForSubtreeByStyle
-    def getNodesForSubtreeByStyle(self,nodeId:NodeId, computedStyles:List[CSSComputedStyleProperty], pierce:bool=None) -> getNodesForSubtreeByStyleReturn:
+    def getNodesForSubtreeByStyle(self,nodeId:NodeId, computedStyles:List[CSSComputedStyleProperty], pierce:bool=None, **kwargs) -> getNodesForSubtreeByStyleReturn:
         """
             Finds nodes with a given computed style in a subtree.
         Params:
@@ -571,7 +571,7 @@ class DOM(DomainT):
                 Whether or not iframes and shadow roots in the same target should be traversed when returning theresults (default is false).
         Return: getNodesForSubtreeByStyleReturn
         """
-        return self.drv.call(DOM.getNodesForSubtreeByStyleReturn,'DOM.getNodesForSubtreeByStyle',nodeId=nodeId, computedStyles=computedStyles, pierce=pierce)
+        return self.drv.call(DOM.getNodesForSubtreeByStyleReturn,'DOM.getNodesForSubtreeByStyle',nodeId=nodeId, computedStyles=computedStyles, pierce=pierce, **kwargs)
 
 
     # return: getNodeForLocationReturn
@@ -586,7 +586,7 @@ class DOM(DomainT):
 
 
     # func: getNodeForLocation
-    def getNodeForLocation(self,x:int, y:int, includeUserAgentShadowDOM:bool=None, ignorePointerEventsNone:bool=None) -> getNodeForLocationReturn:
+    def getNodeForLocation(self,x:int, y:int, includeUserAgentShadowDOM:bool=None, ignorePointerEventsNone:bool=None, **kwargs) -> getNodeForLocationReturn:
         """
             Returns node id at given location. Depending on whether DOM domain is enabled, nodeId is
             either returned or not.
@@ -601,7 +601,7 @@ class DOM(DomainT):
                 Whether to ignore pointer-events: none on elements and hit test them.
         Return: getNodeForLocationReturn
         """
-        return self.drv.call(DOM.getNodeForLocationReturn,'DOM.getNodeForLocation',x=x, y=y, includeUserAgentShadowDOM=includeUserAgentShadowDOM, ignorePointerEventsNone=ignorePointerEventsNone)
+        return self.drv.call(DOM.getNodeForLocationReturn,'DOM.getNodeForLocation',x=x, y=y, includeUserAgentShadowDOM=includeUserAgentShadowDOM, ignorePointerEventsNone=ignorePointerEventsNone, **kwargs)
 
 
     # return: getOuterHTMLReturn
@@ -612,7 +612,7 @@ class DOM(DomainT):
 
 
     # func: getOuterHTML
-    def getOuterHTML(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None) -> getOuterHTMLReturn:
+    def getOuterHTML(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, **kwargs) -> getOuterHTMLReturn:
         """
             Returns node's HTML markup.
         Params:
@@ -624,7 +624,7 @@ class DOM(DomainT):
                 JavaScript object id of the node wrapper.
         Return: getOuterHTMLReturn
         """
-        return self.drv.call(DOM.getOuterHTMLReturn,'DOM.getOuterHTML',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId)
+        return self.drv.call(DOM.getOuterHTMLReturn,'DOM.getOuterHTML',nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, **kwargs)
 
 
     # return: getRelayoutBoundaryReturn
@@ -635,7 +635,7 @@ class DOM(DomainT):
 
 
     # func: getRelayoutBoundary
-    def getRelayoutBoundary(self,nodeId:NodeId) -> getRelayoutBoundaryReturn:
+    def getRelayoutBoundary(self,nodeId:NodeId, **kwargs) -> getRelayoutBoundaryReturn:
         """
             Returns the id of the nearest ancestor that is a relayout boundary.
         Params:
@@ -643,7 +643,7 @@ class DOM(DomainT):
                 Id of the node.
         Return: getRelayoutBoundaryReturn
         """
-        return self.drv.call(DOM.getRelayoutBoundaryReturn,'DOM.getRelayoutBoundary',nodeId=nodeId)
+        return self.drv.call(DOM.getRelayoutBoundaryReturn,'DOM.getRelayoutBoundary',nodeId=nodeId, **kwargs)
 
 
     # return: getSearchResultsReturn
@@ -654,7 +654,7 @@ class DOM(DomainT):
 
 
     # func: getSearchResults
-    def getSearchResults(self,searchId:str, fromIndex:int, toIndex:int) -> getSearchResultsReturn:
+    def getSearchResults(self,searchId:str, fromIndex:int, toIndex:int, **kwargs) -> getSearchResultsReturn:
         """
             Returns search results from given `fromIndex` to given `toIndex` from the search with the given
             identifier.
@@ -667,39 +667,39 @@ class DOM(DomainT):
                 End index of the search result to be returned.
         Return: getSearchResultsReturn
         """
-        return self.drv.call(DOM.getSearchResultsReturn,'DOM.getSearchResults',searchId=searchId, fromIndex=fromIndex, toIndex=toIndex)
+        return self.drv.call(DOM.getSearchResultsReturn,'DOM.getSearchResults',searchId=searchId, fromIndex=fromIndex, toIndex=toIndex, **kwargs)
 
 
     # func: hideHighlight
-    def hideHighlight(self):
+    def hideHighlight(self,**kwargs):
         """
             Hides any highlight.
         """
-        return self.drv.call(None,'DOM.hideHighlight')
+        return self.drv.call(None,'DOM.hideHighlight',**kwargs)
 
 
     # func: highlightNode
-    def highlightNode(self):
+    def highlightNode(self,**kwargs):
         """
             Highlights DOM node.
         """
-        return self.drv.call(None,'DOM.highlightNode')
+        return self.drv.call(None,'DOM.highlightNode',**kwargs)
 
 
     # func: highlightRect
-    def highlightRect(self):
+    def highlightRect(self,**kwargs):
         """
             Highlights given rectangle.
         """
-        return self.drv.call(None,'DOM.highlightRect')
+        return self.drv.call(None,'DOM.highlightRect',**kwargs)
 
 
     # func: markUndoableState
-    def markUndoableState(self):
+    def markUndoableState(self,**kwargs):
         """
             Marks last undoable state.
         """
-        return self.drv.call(None,'DOM.markUndoableState')
+        return self.drv.call(None,'DOM.markUndoableState',**kwargs)
 
 
     # return: moveToReturn
@@ -710,7 +710,7 @@ class DOM(DomainT):
 
 
     # func: moveTo
-    def moveTo(self,nodeId:NodeId, targetNodeId:NodeId, insertBeforeNodeId:NodeId=None) -> moveToReturn:
+    def moveTo(self,nodeId:NodeId, targetNodeId:NodeId, insertBeforeNodeId:NodeId=None, **kwargs) -> moveToReturn:
         """
             Moves node into the new container, places it before the given anchor.
         Params:
@@ -722,7 +722,7 @@ class DOM(DomainT):
                 Drop node before this one (if absent, the moved node becomes the last child of`targetNodeId`).
         Return: moveToReturn
         """
-        return self.drv.call(DOM.moveToReturn,'DOM.moveTo',nodeId=nodeId, targetNodeId=targetNodeId, insertBeforeNodeId=insertBeforeNodeId)
+        return self.drv.call(DOM.moveToReturn,'DOM.moveTo',nodeId=nodeId, targetNodeId=targetNodeId, insertBeforeNodeId=insertBeforeNodeId, **kwargs)
 
 
     # return: performSearchReturn
@@ -735,7 +735,7 @@ class DOM(DomainT):
 
 
     # func: performSearch
-    def performSearch(self,query:str, includeUserAgentShadowDOM:bool=None) -> performSearchReturn:
+    def performSearch(self,query:str, includeUserAgentShadowDOM:bool=None, **kwargs) -> performSearchReturn:
         """
             Searches for a given string in the DOM tree. Use `getSearchResults` to access search results or
             `cancelSearch` to end this search session.
@@ -746,7 +746,7 @@ class DOM(DomainT):
                 True to search in user agent shadow DOM.
         Return: performSearchReturn
         """
-        return self.drv.call(DOM.performSearchReturn,'DOM.performSearch',query=query, includeUserAgentShadowDOM=includeUserAgentShadowDOM)
+        return self.drv.call(DOM.performSearchReturn,'DOM.performSearch',query=query, includeUserAgentShadowDOM=includeUserAgentShadowDOM, **kwargs)
 
 
     # return: pushNodeByPathToFrontendReturn
@@ -757,7 +757,7 @@ class DOM(DomainT):
 
 
     # func: pushNodeByPathToFrontend
-    def pushNodeByPathToFrontend(self,path:str) -> pushNodeByPathToFrontendReturn:
+    def pushNodeByPathToFrontend(self,path:str, **kwargs) -> pushNodeByPathToFrontendReturn:
         """
             Requests that the node is sent to the caller given its path. // FIXME, use XPath
         Params:
@@ -765,7 +765,7 @@ class DOM(DomainT):
                 Path to node in the proprietary format.
         Return: pushNodeByPathToFrontendReturn
         """
-        return self.drv.call(DOM.pushNodeByPathToFrontendReturn,'DOM.pushNodeByPathToFrontend',path=path)
+        return self.drv.call(DOM.pushNodeByPathToFrontendReturn,'DOM.pushNodeByPathToFrontend',path=path, **kwargs)
 
 
     # return: pushNodesByBackendIdsToFrontendReturn
@@ -776,7 +776,7 @@ class DOM(DomainT):
 
 
     # func: pushNodesByBackendIdsToFrontend
-    def pushNodesByBackendIdsToFrontend(self,backendNodeIds:List[BackendNodeId]) -> pushNodesByBackendIdsToFrontendReturn:
+    def pushNodesByBackendIdsToFrontend(self,backendNodeIds:List[BackendNodeId], **kwargs) -> pushNodesByBackendIdsToFrontendReturn:
         """
             Requests that a batch of nodes is sent to the caller given their backend node ids.
         Params:
@@ -784,7 +784,7 @@ class DOM(DomainT):
                 The array of backend node ids.
         Return: pushNodesByBackendIdsToFrontendReturn
         """
-        return self.drv.call(DOM.pushNodesByBackendIdsToFrontendReturn,'DOM.pushNodesByBackendIdsToFrontend',backendNodeIds=backendNodeIds)
+        return self.drv.call(DOM.pushNodesByBackendIdsToFrontendReturn,'DOM.pushNodesByBackendIdsToFrontend',backendNodeIds=backendNodeIds, **kwargs)
 
 
     # return: querySelectorReturn
@@ -795,7 +795,7 @@ class DOM(DomainT):
 
 
     # func: querySelector
-    def querySelector(self,nodeId:NodeId, selector:str) -> querySelectorReturn:
+    def querySelector(self,nodeId:NodeId, selector:str, **kwargs) -> querySelectorReturn:
         """
             Executes `querySelector` on a given node.
         Params:
@@ -805,7 +805,7 @@ class DOM(DomainT):
                 Selector string.
         Return: querySelectorReturn
         """
-        return self.drv.call(DOM.querySelectorReturn,'DOM.querySelector',nodeId=nodeId, selector=selector)
+        return self.drv.call(DOM.querySelectorReturn,'DOM.querySelector',nodeId=nodeId, selector=selector, **kwargs)
 
 
     # return: querySelectorAllReturn
@@ -816,7 +816,7 @@ class DOM(DomainT):
 
 
     # func: querySelectorAll
-    def querySelectorAll(self,nodeId:NodeId, selector:str) -> querySelectorAllReturn:
+    def querySelectorAll(self,nodeId:NodeId, selector:str, **kwargs) -> querySelectorAllReturn:
         """
             Executes `querySelectorAll` on a given node.
         Params:
@@ -826,19 +826,19 @@ class DOM(DomainT):
                 Selector string.
         Return: querySelectorAllReturn
         """
-        return self.drv.call(DOM.querySelectorAllReturn,'DOM.querySelectorAll',nodeId=nodeId, selector=selector)
+        return self.drv.call(DOM.querySelectorAllReturn,'DOM.querySelectorAll',nodeId=nodeId, selector=selector, **kwargs)
 
 
     # func: redo
-    def redo(self):
+    def redo(self,**kwargs):
         """
             Re-does the last undone action.
         """
-        return self.drv.call(None,'DOM.redo')
+        return self.drv.call(None,'DOM.redo',**kwargs)
 
 
     # func: removeAttribute
-    def removeAttribute(self,nodeId:NodeId, name:str):
+    def removeAttribute(self,nodeId:NodeId, name:str, **kwargs):
         """
             Removes attribute with given name from an element with given id.
         Params:
@@ -847,22 +847,22 @@ class DOM(DomainT):
             2. name: str
                 Name of the attribute to remove.
         """
-        return self.drv.call(None,'DOM.removeAttribute',nodeId=nodeId, name=name)
+        return self.drv.call(None,'DOM.removeAttribute',nodeId=nodeId, name=name, **kwargs)
 
 
     # func: removeNode
-    def removeNode(self,nodeId:NodeId):
+    def removeNode(self,nodeId:NodeId, **kwargs):
         """
             Removes node with given id.
         Params:
             1. nodeId: NodeId
                 Id of the node to remove.
         """
-        return self.drv.call(None,'DOM.removeNode',nodeId=nodeId)
+        return self.drv.call(None,'DOM.removeNode',nodeId=nodeId, **kwargs)
 
 
     # func: requestChildNodes
-    def requestChildNodes(self,nodeId:NodeId, depth:int=None, pierce:bool=None):
+    def requestChildNodes(self,nodeId:NodeId, depth:int=None, pierce:bool=None, **kwargs):
         """
             Requests that children of the node with given id are returned to the caller in form of
             `setChildNodes` events where not only immediate children are retrieved, but all children down to
@@ -875,7 +875,7 @@ class DOM(DomainT):
             3. pierce: bool (OPTIONAL)
                 Whether or not iframes and shadow roots should be traversed when returning the sub-tree(default is false).
         """
-        return self.drv.call(None,'DOM.requestChildNodes',nodeId=nodeId, depth=depth, pierce=pierce)
+        return self.drv.call(None,'DOM.requestChildNodes',nodeId=nodeId, depth=depth, pierce=pierce, **kwargs)
 
 
     # return: requestNodeReturn
@@ -886,7 +886,7 @@ class DOM(DomainT):
 
 
     # func: requestNode
-    def requestNode(self,objectId:Runtime.RemoteObjectId) -> requestNodeReturn:
+    def requestNode(self,objectId:Runtime.RemoteObjectId, **kwargs) -> requestNodeReturn:
         """
             Requests that the node is sent to the caller given the JavaScript node object reference. All
             nodes that form the path from the node to the root are also sent to the client as a series of
@@ -896,7 +896,7 @@ class DOM(DomainT):
                 JavaScript object id to convert into node.
         Return: requestNodeReturn
         """
-        return self.drv.call(DOM.requestNodeReturn,'DOM.requestNode',objectId=objectId)
+        return self.drv.call(DOM.requestNodeReturn,'DOM.requestNode',objectId=objectId, **kwargs)
 
 
     # return: resolveNodeReturn
@@ -907,7 +907,7 @@ class DOM(DomainT):
 
 
     # func: resolveNode
-    def resolveNode(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectGroup:str=None, executionContextId:Runtime.ExecutionContextId=None) -> resolveNodeReturn:
+    def resolveNode(self,nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectGroup:str=None, executionContextId:Runtime.ExecutionContextId=None, **kwargs) -> resolveNodeReturn:
         """
             Resolves the JavaScript node object for a given NodeId or BackendNodeId.
         Params:
@@ -921,11 +921,11 @@ class DOM(DomainT):
                 Execution context in which to resolve the node.
         Return: resolveNodeReturn
         """
-        return self.drv.call(DOM.resolveNodeReturn,'DOM.resolveNode',nodeId=nodeId, backendNodeId=backendNodeId, objectGroup=objectGroup, executionContextId=executionContextId)
+        return self.drv.call(DOM.resolveNodeReturn,'DOM.resolveNode',nodeId=nodeId, backendNodeId=backendNodeId, objectGroup=objectGroup, executionContextId=executionContextId, **kwargs)
 
 
     # func: setAttributeValue
-    def setAttributeValue(self,nodeId:NodeId, name:str, value:str):
+    def setAttributeValue(self,nodeId:NodeId, name:str, value:str, **kwargs):
         """
             Sets attribute for an element with given id.
         Params:
@@ -936,11 +936,11 @@ class DOM(DomainT):
             3. value: str
                 Attribute value.
         """
-        return self.drv.call(None,'DOM.setAttributeValue',nodeId=nodeId, name=name, value=value)
+        return self.drv.call(None,'DOM.setAttributeValue',nodeId=nodeId, name=name, value=value, **kwargs)
 
 
     # func: setAttributesAsText
-    def setAttributesAsText(self,nodeId:NodeId, text:str, name:str=None):
+    def setAttributesAsText(self,nodeId:NodeId, text:str, name:str=None, **kwargs):
         """
             Sets attributes on element with given id. This method is useful when user edits some existing
             attribute value and types in several attribute name/value pairs.
@@ -952,11 +952,11 @@ class DOM(DomainT):
             3. name: str (OPTIONAL)
                 Attribute name to replace with new attributes derived from text in case text parsedsuccessfully.
         """
-        return self.drv.call(None,'DOM.setAttributesAsText',nodeId=nodeId, text=text, name=name)
+        return self.drv.call(None,'DOM.setAttributesAsText',nodeId=nodeId, text=text, name=name, **kwargs)
 
 
     # func: setFileInputFiles
-    def setFileInputFiles(self,files:List[str], nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None):
+    def setFileInputFiles(self,files:List[str], nodeId:NodeId=None, backendNodeId:BackendNodeId=None, objectId:Runtime.RemoteObjectId=None, **kwargs):
         """
             Sets files for the given file input element.
         Params:
@@ -969,18 +969,18 @@ class DOM(DomainT):
             4. objectId: Runtime.RemoteObjectId (OPTIONAL)
                 JavaScript object id of the node wrapper.
         """
-        return self.drv.call(None,'DOM.setFileInputFiles',files=files, nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId)
+        return self.drv.call(None,'DOM.setFileInputFiles',files=files, nodeId=nodeId, backendNodeId=backendNodeId, objectId=objectId, **kwargs)
 
 
     # func: setNodeStackTracesEnabled
-    def setNodeStackTracesEnabled(self,enable:bool):
+    def setNodeStackTracesEnabled(self,enable:bool, **kwargs):
         """
             Sets if stack traces should be captured for Nodes. See `Node.getNodeStackTraces`. Default is disabled.
         Params:
             1. enable: bool
                 Enable or disable.
         """
-        return self.drv.call(None,'DOM.setNodeStackTracesEnabled',enable=enable)
+        return self.drv.call(None,'DOM.setNodeStackTracesEnabled',enable=enable, **kwargs)
 
 
     # return: getNodeStackTracesReturn
@@ -991,7 +991,7 @@ class DOM(DomainT):
 
 
     # func: getNodeStackTraces
-    def getNodeStackTraces(self,nodeId:NodeId) -> getNodeStackTracesReturn:
+    def getNodeStackTraces(self,nodeId:NodeId, **kwargs) -> getNodeStackTracesReturn:
         """
             Gets stack traces associated with a Node. As of now, only provides stack trace for Node creation.
         Params:
@@ -999,7 +999,7 @@ class DOM(DomainT):
                 Id of the node to get stack traces for.
         Return: getNodeStackTracesReturn
         """
-        return self.drv.call(DOM.getNodeStackTracesReturn,'DOM.getNodeStackTraces',nodeId=nodeId)
+        return self.drv.call(DOM.getNodeStackTracesReturn,'DOM.getNodeStackTraces',nodeId=nodeId, **kwargs)
 
 
     # return: getFileInfoReturn
@@ -1010,7 +1010,7 @@ class DOM(DomainT):
 
 
     # func: getFileInfo
-    def getFileInfo(self,objectId:Runtime.RemoteObjectId) -> getFileInfoReturn:
+    def getFileInfo(self,objectId:Runtime.RemoteObjectId, **kwargs) -> getFileInfoReturn:
         """
             Returns file information for the given
             File wrapper.
@@ -1019,11 +1019,11 @@ class DOM(DomainT):
                 JavaScript object id of the node wrapper.
         Return: getFileInfoReturn
         """
-        return self.drv.call(DOM.getFileInfoReturn,'DOM.getFileInfo',objectId=objectId)
+        return self.drv.call(DOM.getFileInfoReturn,'DOM.getFileInfo',objectId=objectId, **kwargs)
 
 
     # func: setInspectedNode
-    def setInspectedNode(self,nodeId:NodeId):
+    def setInspectedNode(self,nodeId:NodeId, **kwargs):
         """
             Enables console to refer to the node with given id via $x (see Command Line API for more details
             $x functions).
@@ -1031,7 +1031,7 @@ class DOM(DomainT):
             1. nodeId: NodeId
                 DOM node id to be accessible by means of $x command line API.
         """
-        return self.drv.call(None,'DOM.setInspectedNode',nodeId=nodeId)
+        return self.drv.call(None,'DOM.setInspectedNode',nodeId=nodeId, **kwargs)
 
 
     # return: setNodeNameReturn
@@ -1042,7 +1042,7 @@ class DOM(DomainT):
 
 
     # func: setNodeName
-    def setNodeName(self,nodeId:NodeId, name:str) -> setNodeNameReturn:
+    def setNodeName(self,nodeId:NodeId, name:str, **kwargs) -> setNodeNameReturn:
         """
             Sets node name for a node with given id.
         Params:
@@ -1052,11 +1052,11 @@ class DOM(DomainT):
                 New node's name.
         Return: setNodeNameReturn
         """
-        return self.drv.call(DOM.setNodeNameReturn,'DOM.setNodeName',nodeId=nodeId, name=name)
+        return self.drv.call(DOM.setNodeNameReturn,'DOM.setNodeName',nodeId=nodeId, name=name, **kwargs)
 
 
     # func: setNodeValue
-    def setNodeValue(self,nodeId:NodeId, value:str):
+    def setNodeValue(self,nodeId:NodeId, value:str, **kwargs):
         """
             Sets node value for a node with given id.
         Params:
@@ -1065,11 +1065,11 @@ class DOM(DomainT):
             2. value: str
                 New node's value.
         """
-        return self.drv.call(None,'DOM.setNodeValue',nodeId=nodeId, value=value)
+        return self.drv.call(None,'DOM.setNodeValue',nodeId=nodeId, value=value, **kwargs)
 
 
     # func: setOuterHTML
-    def setOuterHTML(self,nodeId:NodeId, outerHTML:str):
+    def setOuterHTML(self,nodeId:NodeId, outerHTML:str, **kwargs):
         """
             Sets node HTML markup, returns new node id.
         Params:
@@ -1078,15 +1078,15 @@ class DOM(DomainT):
             2. outerHTML: str
                 Outer HTML markup to set.
         """
-        return self.drv.call(None,'DOM.setOuterHTML',nodeId=nodeId, outerHTML=outerHTML)
+        return self.drv.call(None,'DOM.setOuterHTML',nodeId=nodeId, outerHTML=outerHTML, **kwargs)
 
 
     # func: undo
-    def undo(self):
+    def undo(self,**kwargs):
         """
             Undoes the last performed action.
         """
-        return self.drv.call(None,'DOM.undo')
+        return self.drv.call(None,'DOM.undo',**kwargs)
 
 
     # return: getFrameOwnerReturn
@@ -1099,14 +1099,14 @@ class DOM(DomainT):
 
 
     # func: getFrameOwner
-    def getFrameOwner(self,frameId:Page.FrameId) -> getFrameOwnerReturn:
+    def getFrameOwner(self,frameId:Page.FrameId, **kwargs) -> getFrameOwnerReturn:
         """
             Returns iframe node that owns iframe with the given domain.
         Params:
             1. frameId: Page.FrameId
         Return: getFrameOwnerReturn
         """
-        return self.drv.call(DOM.getFrameOwnerReturn,'DOM.getFrameOwner',frameId=frameId)
+        return self.drv.call(DOM.getFrameOwnerReturn,'DOM.getFrameOwner',frameId=frameId, **kwargs)
 
 
 

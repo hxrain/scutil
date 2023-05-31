@@ -7,6 +7,7 @@ import json
 
 class jsonable:
     """自描述对象的序列化与反序列化功能"""
+    custom_procs = {}  # 自定义编解码器处理函数映射表 {'class':(func_en,func_de)}
 
     @staticmethod
     def _is_basic(value):
@@ -28,47 +29,79 @@ class jsonable:
     def encode(obj):
         """将obj序列化为json串"""
 
+        def _dat_key(key):
+            ul = getattr(obj, 'underline', None)
+            if ul is None:
+                return key
+            return key.replace('_', ul)
+
         def _as_dict(obj, datas):
             """将obj对象完整递归转换为datas字典数据"""
             for key in obj.__dict__:
                 value = getattr(obj, key)
+                datkey = _dat_key(key)
                 if jsonable._is_basic(value):
-                    datas[key] = value  # 基础类型,直接记录
+                    datas[datkey] = value  # 基础类型,直接记录
                 else:
                     sval = jsonable._is_list(value)
                     if not sval:
-                        datas[key] = {}  # 无需迭代,单对象
-                        _as_dict(value, datas[key])
+                        datas[datkey] = {}  # 无需迭代,单对象
+                        _as_dict(value, datas[datkey])
                     elif jsonable._is_basic(sval):
-                        datas[key] = [v for v in value]  # 可迭代的基础类型
+                        datas[datkey] = [v for v in value]  # 可迭代的基础类型
                     else:
-                        datas[key] = [_as_dict(v, {}) for v in value]  # 可迭代的对象类型
+                        datas[datkey] = [_as_dict(v, {}) for v in value]  # 可迭代的对象类型
 
             return datas
 
-        return json.dumps(_as_dict(obj, {}), ensure_ascii=False)
+        out = None
+        # 尝试使用自定义编码函数进行特殊编码处理
+        clsname = obj.__class__.__name__
+        if clsname in jsonable.custom_procs:
+            func = jsonable.custom_procs[clsname][0]
+            if func:
+                out = func(obj)
+        if out is None:
+            out = _as_dict(obj, {})
+        return json.dumps(out, ensure_ascii=False)
 
     @staticmethod
     def decode(cls, jdat, *args, **argv):
         """装载json串或数据字典jdat到cls类别实例对象中并返回."""
         obj = cls(*args, **argv)  # 默认构造目标结果对象,要求其默认成员为类型描述
 
+        def _dat_key(key):
+            ul = getattr(cls, 'underline', None)
+            if ul is None:
+                return key
+            return key.replace('_', ul)
+
         def _as_value(obj, dat):
             for key in obj.__dict__:
-                if key not in dat:
+                datkey = _dat_key(key)
+                if datkey not in dat:
                     setattr(obj, key, None)
                     continue
                 value = getattr(obj, key)
                 if jsonable._is_basic(value):
-                    setattr(obj, key, dat[key])  # 基础类型,直接赋值
+                    setattr(obj, key, dat[datkey])  # 基础类型,直接赋值
                 else:
                     stype = jsonable._is_list(value)
                     if not stype:
-                        _as_value(value, dat[key])  # 无需迭代,单对象
+                        setattr(obj, key, _as_value(value(), dat[datkey]))  # 无需迭代,单对象
                     elif jsonable._is_basic(stype):
-                        setattr(obj, key, [v for v in dat[key]])  # 可迭代的基础类型
+                        setattr(obj, key, [v for v in dat[datkey]])  # 可迭代的基础类型
                     else:
-                        setattr(obj, key, [_as_value(stype(), v) for v in dat[key]])  # 可迭代的对象类型
+                        setattr(obj, key, [_as_value(stype(), v) for v in dat[datkey]])  # 可迭代的对象类型
             return obj
 
-        return _as_value(obj, json.loads(jdat, encoding='utf8') if isinstance(jdat, str) else jdat)
+        dat = json.loads(jdat, encoding='utf8') if isinstance(jdat, str) else jdat
+
+        # 尝试使用自定义解码函数进行特殊解码处理
+        clsname = obj.__class__.__name__
+        if clsname in jsonable.custom_procs:
+            func = jsonable.custom_procs[clsname][1]
+            if func:
+                return func(obj, dat)
+
+        return _as_value(obj, dat)

@@ -188,17 +188,17 @@ class Profiler(DomainT):
 
 
     # func: disable
-    def disable(self):
+    def disable(self,**kwargs):
         """
         """
-        return self.drv.call(None,'Profiler.disable')
+        return self.drv.call(None,'Profiler.disable',**kwargs)
 
 
     # func: enable
-    def enable(self):
+    def enable(self,**kwargs):
         """
         """
-        return self.drv.call(None,'Profiler.enable')
+        return self.drv.call(None,'Profiler.enable',**kwargs)
 
 
     # return: getBestEffortCoverageReturn
@@ -209,31 +209,31 @@ class Profiler(DomainT):
 
 
     # func: getBestEffortCoverage
-    def getBestEffortCoverage(self) -> getBestEffortCoverageReturn:
+    def getBestEffortCoverage(self,**kwargs) -> getBestEffortCoverageReturn:
         """
             Collect coverage data for the current isolate. The coverage data may be incomplete due to
             garbage collection.
         Return: getBestEffortCoverageReturn
         """
-        return self.drv.call(Profiler.getBestEffortCoverageReturn,'Profiler.getBestEffortCoverage')
+        return self.drv.call(Profiler.getBestEffortCoverageReturn,'Profiler.getBestEffortCoverage',**kwargs)
 
 
     # func: setSamplingInterval
-    def setSamplingInterval(self,interval:int):
+    def setSamplingInterval(self,interval:int, **kwargs):
         """
             Changes CPU profiler sampling interval. Must be called before CPU profiles recording started.
         Params:
             1. interval: int
                 New sampling interval in microseconds.
         """
-        return self.drv.call(None,'Profiler.setSamplingInterval',interval=interval)
+        return self.drv.call(None,'Profiler.setSamplingInterval',interval=interval, **kwargs)
 
 
     # func: start
-    def start(self):
+    def start(self,**kwargs):
         """
         """
-        return self.drv.call(None,'Profiler.start')
+        return self.drv.call(None,'Profiler.start',**kwargs)
 
 
     # return: startPreciseCoverageReturn
@@ -244,7 +244,7 @@ class Profiler(DomainT):
 
 
     # func: startPreciseCoverage
-    def startPreciseCoverage(self,callCount:bool=None, detailed:bool=None, allowTriggeredUpdates:bool=None) -> startPreciseCoverageReturn:
+    def startPreciseCoverage(self,callCount:bool=None, detailed:bool=None, allowTriggeredUpdates:bool=None, **kwargs) -> startPreciseCoverageReturn:
         """
             Enable precise code coverage. Coverage data for JavaScript executed before enabling precise code
             coverage may be incomplete. Enabling prevents running optimized code and resets execution
@@ -258,15 +258,15 @@ class Profiler(DomainT):
                 Allow the backend to send updates on its own initiative
         Return: startPreciseCoverageReturn
         """
-        return self.drv.call(Profiler.startPreciseCoverageReturn,'Profiler.startPreciseCoverage',callCount=callCount, detailed=detailed, allowTriggeredUpdates=allowTriggeredUpdates)
+        return self.drv.call(Profiler.startPreciseCoverageReturn,'Profiler.startPreciseCoverage',callCount=callCount, detailed=detailed, allowTriggeredUpdates=allowTriggeredUpdates, **kwargs)
 
 
     # func: startTypeProfile
-    def startTypeProfile(self):
+    def startTypeProfile(self,**kwargs):
         """
             Enable type profile.
         """
-        return self.drv.call(None,'Profiler.startTypeProfile')
+        return self.drv.call(None,'Profiler.startTypeProfile',**kwargs)
 
 
     # return: stopReturn
@@ -277,28 +277,28 @@ class Profiler(DomainT):
 
 
     # func: stop
-    def stop(self) -> stopReturn:
+    def stop(self,**kwargs) -> stopReturn:
         """
         Return: stopReturn
         """
-        return self.drv.call(Profiler.stopReturn,'Profiler.stop')
+        return self.drv.call(Profiler.stopReturn,'Profiler.stop',**kwargs)
 
 
     # func: stopPreciseCoverage
-    def stopPreciseCoverage(self):
+    def stopPreciseCoverage(self,**kwargs):
         """
             Disable precise code coverage. Disabling releases unnecessary execution count records and allows
             executing optimized code.
         """
-        return self.drv.call(None,'Profiler.stopPreciseCoverage')
+        return self.drv.call(None,'Profiler.stopPreciseCoverage',**kwargs)
 
 
     # func: stopTypeProfile
-    def stopTypeProfile(self):
+    def stopTypeProfile(self,**kwargs):
         """
             Disable type profile. Disabling releases type profile data collected so far.
         """
-        return self.drv.call(None,'Profiler.stopTypeProfile')
+        return self.drv.call(None,'Profiler.stopTypeProfile',**kwargs)
 
 
     # return: takePreciseCoverageReturn
@@ -311,13 +311,13 @@ class Profiler(DomainT):
 
 
     # func: takePreciseCoverage
-    def takePreciseCoverage(self) -> takePreciseCoverageReturn:
+    def takePreciseCoverage(self,**kwargs) -> takePreciseCoverageReturn:
         """
             Collect coverage data for the current isolate, and resets execution counters. Precise code
             coverage needs to have started.
         Return: takePreciseCoverageReturn
         """
-        return self.drv.call(Profiler.takePreciseCoverageReturn,'Profiler.takePreciseCoverage')
+        return self.drv.call(Profiler.takePreciseCoverageReturn,'Profiler.takePreciseCoverage',**kwargs)
 
 
     # return: takeTypeProfileReturn
@@ -328,28 +328,28 @@ class Profiler(DomainT):
 
 
     # func: takeTypeProfile
-    def takeTypeProfile(self) -> takeTypeProfileReturn:
+    def takeTypeProfile(self,**kwargs) -> takeTypeProfileReturn:
         """
             Collect type profile.
         Return: takeTypeProfileReturn
         """
-        return self.drv.call(Profiler.takeTypeProfileReturn,'Profiler.takeTypeProfile')
+        return self.drv.call(Profiler.takeTypeProfileReturn,'Profiler.takeTypeProfile',**kwargs)
 
 
     # func: enableRuntimeCallStats
-    def enableRuntimeCallStats(self):
+    def enableRuntimeCallStats(self,**kwargs):
         """
             Enable run time call stats collection.
         """
-        return self.drv.call(None,'Profiler.enableRuntimeCallStats')
+        return self.drv.call(None,'Profiler.enableRuntimeCallStats',**kwargs)
 
 
     # func: disableRuntimeCallStats
-    def disableRuntimeCallStats(self):
+    def disableRuntimeCallStats(self,**kwargs):
         """
             Disable run time call stats collection.
         """
-        return self.drv.call(None,'Profiler.disableRuntimeCallStats')
+        return self.drv.call(None,'Profiler.disableRuntimeCallStats',**kwargs)
 
 
     # return: getRuntimeCallStatsReturn
@@ -360,12 +360,12 @@ class Profiler(DomainT):
 
 
     # func: getRuntimeCallStats
-    def getRuntimeCallStats(self) -> getRuntimeCallStatsReturn:
+    def getRuntimeCallStats(self,**kwargs) -> getRuntimeCallStatsReturn:
         """
             Retrieve run time call stats.
         Return: getRuntimeCallStatsReturn
         """
-        return self.drv.call(Profiler.getRuntimeCallStatsReturn,'Profiler.getRuntimeCallStats')
+        return self.drv.call(Profiler.getRuntimeCallStatsReturn,'Profiler.getRuntimeCallStats',**kwargs)
 
 
 
