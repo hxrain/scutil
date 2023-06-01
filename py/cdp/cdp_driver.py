@@ -81,7 +81,7 @@ class error_t(Exception):
         self.stack = stack  # 发生错误的完整调用栈
 
     def __str__(self):
-        return self.message
+        return self.message if self.tag is None else f'{self.tag}/{self.message}'
 
     def info(self, msg=None):
         if msg:
@@ -99,12 +99,7 @@ class error_t(Exception):
         return '\n'.join(rst)
 
 
-def iserror(obj):
-    """判断给定的对象是否为错误"""
-    return isinstance(obj, (error_t, ErrorT))
-
-
-def make_error(e: Exception, tag=None, source=None, pop_tb0=False):
+def error_e(e: Exception, tag, source=None, pop_tb0=False):
     """使用给定的异常对象e,构造对应的错误对象.返回值:error_t对象"""
     # 发生错误时的上层调用来源
     stacks = traceback.extract_stack(e.__traceback__.tb_frame)
@@ -121,6 +116,11 @@ def make_error(e: Exception, tag=None, source=None, pop_tb0=False):
     return error_t(str(e), tag, source, backs)
 
 
+def is_error(obj):
+    """判断给定的对象是否为错误"""
+    return isinstance(obj, (error_t, ErrorT))
+
+
 def trying(func):
     """统一的异常捕捉装饰器"""
 
@@ -129,7 +129,7 @@ def trying(func):
             # 正常情况返回原始函数结果
             return func(*args, **kwargs)
         except Exception as e:
-            return make_error(e, getattr(e, 'tag', None), getattr(e, 'source', None), True)
+            return error_e(e, getattr(e, 'tag', None), getattr(e, 'source', None), True)
 
     return inner
 
@@ -204,7 +204,7 @@ class driver_t:
         hostport = up.urlparse(url)[1]
         url = f'http://{hostport}/json/version'
         rsp = self.__http_take(url)
-        if iserror(rsp):
+        if is_error(rsp):
             return rsp
         return jsonable.decode(VersionT, rsp.content.decode('utf-8'))
 
@@ -240,7 +240,7 @@ class driver_t:
         if toBrwser:
             # 强制连接Browser端点,则获取端点地址
             v = self.ver(ws_url)
-            if iserror(v):
+            if is_error(v):
                 return v
             ws_url = v.webSocketDebuggerUrl
 
@@ -287,7 +287,7 @@ class driver_t:
         else:
             sr = self.Target.attachToBrowserTarget()
 
-        if iserror(sr):
+        if is_error(sr):
             return sr
 
         self.__session_sid = sr.sessionId
@@ -369,33 +369,31 @@ class driver_t:
 
         # 构造请求报文
         req = {"id": self.__session_seq, "method": Command, "params": args}
-        if 0 in self.__session_ids:
-            req['sessionId'] = self.__session_ids[0]  # 如果绑定了tab会话id,则需要在请求报文中附带
+        if self.__session_sid:
+            req['sessionId'] = self.__session_sid  # 如果绑定了tab会话id,则需要在请求报文中附带
         req_json = json.dumps(req)
         # 发送请求
         snd = self.__ws_send(req_json)
-        if iserror(snd):
+        if is_error(snd):
             return snd
 
         # 等待明确指定的回应
-        rsp = self.loop(timeout, self.__session_seq, idle_cb)
+        rsp = self.wait(timeout, self.__session_seq, idle_cb)
         if rsp is None:
             return error_t(f'call({Command}) is timeout.', 0)
-        elif iserror(rsp):
+        elif is_error(rsp):
             return rsp  # 客户端错误
 
         # 解析回应结果
         if 'error' in rsp:
-            err = jsonable.decode(ErrorT, rsp['error'])
+            return jsonable.decode(ErrorT, rsp['error'])  # Chrome内部错误
 
-            return err  # Chrome内部错误
-        else:
-            if ReturnType is None:
-                return None
-            return jsonable.decode(ReturnType, rsp['result'])  # 正常交互结果
+        if ReturnType is None:
+            return None
+        return jsonable.decode(ReturnType, rsp['result'])  # 正常交互结果
 
     @trying
-    def loop(self, timeout=None, seq=None, idle_cb=None):
+    def wait(self, timeout=None, seq=None, idle_cb=None):
         """在当前的ws连接上,等待CDP事件或之前交互序列seq对应的结果.
             timeout - 时间等待上限
             seq - 等待的交互序列号,None不进行强制等待.
@@ -413,7 +411,7 @@ class driver_t:
         ret = None
         while not waited.timeouted():  # 小步快跑,尝试进行多次短时接收等待,给出处理空闲回调的机会.
             rcv = self.__ws_recv(0.01)  # 进行很短时间的接收等待,避免阻塞在接收动作上,且释放cpu.
-            if iserror(rcv):
+            if is_error(rcv):
                 return rcv  # 接收错误,直接返回
             elif rcv is None:
                 if not seq:
@@ -428,7 +426,7 @@ class driver_t:
                 try:
                     self.__evt_proc(rcv['method'], rcv.get('params', []), rcv.get('sessionId'))
                 except Exception as e:
-                    return make_error(e, -5)
+                    return error_e(e, -5)
             elif "id" in rcv:
                 # 接收到结果报文
                 if rcv.get('id') == seq:
@@ -445,7 +443,7 @@ class driver_t:
                 self.__session_http = requests.Session()
             return self.__session_http.get(url)
         except Exception as e:
-            return make_error(e, -10)
+            return error_e(e, -10)
 
     def __evt_proc(self, event, message_json, sid):
         """内部使用,处理接收到的事件.返回值:None非绑定关注的事件;EventT对象为关注的事件"""
@@ -474,7 +472,7 @@ class driver_t:
                 log("SEND > %s" % message_json)
                 return None  # 成功返回
             except Exception as e:
-                err = make_error(e, -7)  # 记录最后出现的错误
+                err = error_e(e, -7)  # 记录最后出现的错误
                 self.open()
         return err  # 返回最后的错误
 
@@ -488,6 +486,6 @@ class driver_t:
         except websocket.WebSocketTimeoutException:
             return None  # 超时
         except websocket.WebSocketException as e:
-            return make_error(e, -8)  # websocket错误
+            return error_e(e, -8)  # websocket错误
         except Exception as e:
-            return make_error(e, -9)  # 其他错误
+            return error_e(e, -9)  # 其他错误

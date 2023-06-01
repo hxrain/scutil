@@ -26,6 +26,11 @@ class jsonable:
         return None
 
     @staticmethod
+    def bind(cls, func_de, func_en=None):
+        """绑定指定类型cls的自定义反序列化func_de函数与序列化函数func_en"""
+        jsonable.custom_procs[cls.__name__] = (func_en, func_de)
+
+    @staticmethod
     def encode(obj):
         """将obj序列化为json串"""
 
