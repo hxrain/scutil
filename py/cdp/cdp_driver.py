@@ -262,10 +262,13 @@ class driver_t:
             self.__websocket.close()
             self.__websocket = None
 
-        self.__session_seq = 0  # 会话交互的递增序号
-        self.__session_http = None  # 访问http的客户端会话对象
-        self.__session_ids = {}  # 'flat'模式使用的sessionId标识与targetId对照表
-        self.__session_sid = None  # 'flat'模式使用的当前会话sessionId
+        if self.__session_http:
+            self.__session_http.close()
+            self.__session_http = None
+
+        self.__session_seq = 0
+        self.__session_ids = {}
+        self.__session_sid = None
 
     @trying
     def attach(self, targetId=None) -> Target.SessionID:
