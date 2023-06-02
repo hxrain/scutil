@@ -160,6 +160,17 @@ class certificateError(EventT):
         self.requestURL: str = str
 
 
+# event: visibleSecurityStateChanged
+class visibleSecurityStateChanged(EventT):
+    """
+        The security state of the page changed.
+    """
+    event="Security.visibleSecurityStateChanged"
+    def __init__(self):
+        # Security state information about the page.
+        self.visibleSecurityState: VisibleSecurityState = VisibleSecurityState
+
+
 # event: securityStateChanged
 class securityStateChanged(EventT):
     """

@@ -46,6 +46,35 @@ class RemoteLocation(TypingT):
         self.port: int = int
 
 
+# event: attachedToTarget
+class attachedToTarget(EventT):
+    """
+        Issued when attached to target because of auto-attach or `attachToTarget` command.
+    """
+    event="Target.attachedToTarget"
+    def __init__(self):
+        # Identifier assigned to the session used to send/receive messages.
+        self.sessionId: SessionID = SessionID
+        # targetInfo
+        self.targetInfo: TargetInfo = TargetInfo
+        # waitingForDebugger
+        self.waitingForDebugger: bool = bool
+
+
+# event: detachedFromTarget
+class detachedFromTarget(EventT):
+    """
+        Issued when detached from target for any reason (including `detachFromTarget` command). Can be
+        issued multiple times per target if multiple sessions have been attached to it.
+    """
+    event="Target.detachedFromTarget"
+    def __init__(self):
+        # Detached session identifier.
+        self.sessionId: SessionID = SessionID
+        # OPTIONAL, Deprecated.
+        self.targetId: TargetID = TargetID
+
+
 # event: receivedMessageFromTarget
 class receivedMessageFromTarget(EventT):
     """

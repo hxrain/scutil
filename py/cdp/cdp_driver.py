@@ -54,8 +54,11 @@ from cdp import Profiler
 from cdp import Runtime
 
 # 是否开启调试日志输出,显示收发内容
-debug_out = os.getenv("SPD_CHROME_DEBUG", False)
+debug_out = os.getenv("CDP_DEBUG_LOGGING", False)
 if debug_out:
+    import logging
+    import logging.handlers
+
     logger = logging.getLogger(__name__)
     _filehandler = logging.handlers.RotatingFileHandler('./cdp_dbg_log.txt', encoding='utf-8', maxBytes=1024 * 1024 * 32, backupCount=8)
     _filehandler.setLevel(logging.DEBUG)
@@ -185,7 +188,7 @@ class driver_t:
 
         # 内部通信使用的上下文
         self.__event_handlers = {}
-        self.__websocket = None
+        self.__websocket: websocket.WebSocket = None
         self.__ws_url = None
         self.__session_seq = 0  # 会话交互的递增序号
         self.__session_http = None  # 访问http的客户端会话对象
@@ -248,9 +251,9 @@ class driver_t:
         self.__ws_url = ws_url
 
         timeout = timeout or self.timeout
-        opt = [(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 64)]
+        opt = [(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 256)]
         try:
-            self.__websocket = websocket.create_connection(ws_url, timeout, enable_multithread=False, sockopt=opt, skip_utf8_validation=True)
+            self.__websocket: websocket.WebSocket = websocket.create_connection(ws_url, timeout, enable_multithread=False, sockopt=opt, skip_utf8_validation=True)
         except websocket.WebSocketBadStatusException as e:
             return error_t(f'tab ws open fail: {ws_url} {str(e)}', -2)  # 连接失败
         except Exception as e:
@@ -311,39 +314,41 @@ class driver_t:
 
         return self.Target.detachFromTarget(sessionId)  # 进行真正的交互动作,解除会话id对应的tab附着关系.
 
-    def listen(self, Event: EventT, callback, add=True):
-        """绑定/解除指定的Event事件类监听器callback.
-            Event - 事件类class
+    def listen(self, evtcls: EventT, callback, add=True):
+        """绑定/解除指定的evtcls事件类监听器callback.
+            evtcls - 事件类class
             callback - 事件触发的回调函数,原型为
                 def cb_event(drv:driver_t, evt:EventT, sid,tid):
+                    '''事件回调函数返回True,则结束当前轮wait函数的持续等待.'''
                     pass
             add - 告知是删除还是增加
             返回值:error_t错误,其他为回调索引号
         """
-        if not issubclass(Event, EventT):
+        if not issubclass(evtcls, EventT):
             return error_t("event class should extend by EventT.", -13)
 
         if not callable(callback):
             return error_t("event callback should be callable", -14)
 
-        key = Event.event
+        key = evtcls.event
         if not add:  # 移除事件回调
             if key not in self.__event_handlers:
                 return error_t(f'Event <{key}> not exists.', -11)
             handlers = self.__event_handlers[key][1]
-            idx = handlers.find(callback)
-            if idx == -1:
+            if callback not in handlers:
                 return error_t(f'Event <{key}> Callback not exists.', -12)
+            idx = handlers.index(callback)
             handlers.pop(idx)
             return idx
         else:  # 绑定事件回调
             if key not in self.__event_handlers:
-                self.__event_handlers[key] = (EventT, [])  # {'功能域.事件名称':(事件class类型,[回调函数列表])}
+                self.__event_handlers[key] = (evtcls, [])  # {'功能域.事件名称':(事件class类型,[回调函数列表])}
             handlers = self.__event_handlers[key][1]
-            idx = handlers.find(callback)
-            if idx == -1:
+            if callback not in handlers:
                 idx = len(handlers)
                 handlers.append(callback)
+            else:
+                idx = handlers.index(callback)
             return idx
 
     @trying
@@ -384,6 +389,8 @@ class driver_t:
         elif is_error(rsp):
             return rsp  # 客户端错误
 
+        assert not isinstance(rsp, EventT)  # call调用的时候,wait不应该返回事件对象
+
         # 解析回应结果
         if 'error' in rsp:
             return jsonable.decode(ErrorT, rsp['error'])  # Chrome内部错误
@@ -396,8 +403,9 @@ class driver_t:
     def wait(self, timeout=None, seq=None, idle_cb=None):
         """在当前的ws连接上,等待CDP事件或之前交互序列seq对应的结果.
             timeout - 时间等待上限
-            seq - 等待的交互序列号,None不进行强制等待.
-            返回值:None超时未等到seq结果; error_t错误; 其他为seq回应报文dict
+            seq - 等待指定交互序列号的回应,None不进行强制等待.
+                  <=0,则代表在等待特定的EventT(对应的事件回调函数返回True)
+            返回值:None超时未等到seq结果; error_t错误; 其他为seq回应报文dict,或指定等待的事件EventT对象实例
         """
         if not self.__websocket:
             return error_t('not websocket connection.', -4)
@@ -424,7 +432,9 @@ class driver_t:
             if "method" in rcv:
                 # 接收到事件报文
                 try:
-                    self.__evt_proc(rcv['method'], rcv.get('params', []), rcv.get('sessionId'))
+                    evt = self.__evt_proc(rcv['method'], rcv.get('params', []), rcv.get('sessionId'))
+                    if evt is not None and (isinstance(seq, int) and seq <= 0):
+                        return evt  # 定向等待的事件发生了,立即返回
                 except Exception as e:
                     return error_e(e, -5)
             elif "id" in rcv:
@@ -445,22 +455,23 @@ class driver_t:
         except Exception as e:
             return error_e(e, -10)
 
-    def __evt_proc(self, event, message_json, sid):
-        """内部使用,处理接收到的事件.返回值:None非绑定关注的事件;EventT对象为关注的事件"""
-        if event not in self.__event_handlers:
+    def __evt_proc(self, evtname, dat, sid):
+        """内部使用,处理接收到的事件.返回值:非None为事件对象,结束当前轮wait的循环等待"""
+        if evtname not in self.__event_handlers:
             return None  # 未绑定的事件不处理
 
-        cls, handlers = self.__event_handlers[event]  # 得到绑定的事件处理器
-        obj = jsonable.decode(cls, message_json)  # 反序列化事件类别对象
+        cls, handlers = self.__event_handlers[evtname]  # 得到绑定的事件处理器
+        obj = jsonable.decode(cls, dat)  # 反序列化事件类别对象
         if sid in self.__session_ids:
             tid = self.__session_ids[sid]
         else:
             sid = None
             tid = None
 
+        ret = None
         for handle in handlers:
-            handle(self, obj, sid, tid)  # 循环调用事件处理器
-        return obj
+            ret = ret or handle(self, obj, sid, tid)  # 循环调用事件处理回调函数
+        return obj if ret else None
 
     def __ws_send(self, message_json, retry=2):
         """在当前的websocket上发送CDP报文.返回值:None成功;error_t错误."""
@@ -469,7 +480,7 @@ class driver_t:
             try:
                 self.__websocket.settimeout(self.timeout)
                 self.__websocket.send(message_json)  # 发送请求
-                log("SEND > %s" % message_json)
+                log("WS_SEND > %s" % message_json)
                 return None  # 成功返回
             except Exception as e:
                 err = error_e(e, -7)  # 记录最后出现的错误
@@ -481,7 +492,7 @@ class driver_t:
         try:
             self.__websocket.settimeout(timeout)
             message_json = self.__websocket.recv()
-            log(f"RECV < {message_json}")
+            log(f"WS_RECV < {message_json}")
             return json.loads(message_json)
         except websocket.WebSocketTimeoutException:
             return None  # 超时

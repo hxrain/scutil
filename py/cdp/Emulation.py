@@ -79,6 +79,16 @@ class UserAgentMetadata(TypingT):
         self.mobile: bool = bool
 
 
+# event: virtualTimeBudgetExpired
+class virtualTimeBudgetExpired(EventT):
+    """
+        Notification sent after the virtual time budget for the current VirtualTimePolicy has run out.
+    """
+    event="Emulation.virtualTimeBudgetExpired"
+    def __init__(self):
+        pass
+
+
 import cdp.DOM as DOM
 import cdp.Page as Page
 import cdp.Runtime as Runtime

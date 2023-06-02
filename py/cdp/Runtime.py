@@ -279,6 +279,21 @@ class StackTraceId(TypingT):
         self.debuggerId: UniqueDebuggerId = UniqueDebuggerId
 
 
+# event: bindingCalled
+class bindingCalled(EventT):
+    """
+        Notification is issued every time when binding is called.
+    """
+    event="Runtime.bindingCalled"
+    def __init__(self):
+        # name
+        self.name: str = str
+        # payload
+        self.payload: str = str
+        # Identifier of the context where the call was made.
+        self.executionContextId: ExecutionContextId = ExecutionContextId
+
+
 # event: consoleAPICalled
 class consoleAPICalled(EventT):
     """

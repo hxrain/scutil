@@ -389,6 +389,34 @@ class frameNavigated(EventT):
         self.frame: Frame = Frame
 
 
+# event: frameResized
+class frameResized(EventT):
+    """
+        frameResized
+    """
+    event="Page.frameResized"
+    def __init__(self):
+        pass
+
+
+# event: frameRequestedNavigation
+class frameRequestedNavigation(EventT):
+    """
+        Fired when a renderer-initiated navigation is requested.
+        Navigation may still be cancelled after the event is issued.
+    """
+    event="Page.frameRequestedNavigation"
+    def __init__(self):
+        # Id of the frame that is being navigated.
+        self.frameId: FrameId = FrameId
+        # The reason for the navigation.
+        self.reason: ClientNavigationReason = ClientNavigationReason
+        # The destination URL for the requested navigation.
+        self.url: str = str
+        # The disposition for the navigation.
+        self.disposition: ClientNavigationDisposition = ClientNavigationDisposition
+
+
 # event: frameScheduledNavigation
 class frameScheduledNavigation(EventT):
     """
@@ -404,6 +432,63 @@ class frameScheduledNavigation(EventT):
         self.reason: ClientNavigationReason = ClientNavigationReason
         # The destination URL for the scheduled navigation.
         self.url: str = str
+
+
+# event: frameStartedLoading
+class frameStartedLoading(EventT):
+    """
+        Fired when frame has started loading.
+    """
+    event="Page.frameStartedLoading"
+    def __init__(self):
+        # Id of the frame that has started loading.
+        self.frameId: FrameId = FrameId
+
+
+# event: frameStoppedLoading
+class frameStoppedLoading(EventT):
+    """
+        Fired when frame has stopped loading.
+    """
+    event="Page.frameStoppedLoading"
+    def __init__(self):
+        # Id of the frame that has stopped loading.
+        self.frameId: FrameId = FrameId
+
+
+# event: downloadWillBegin
+class downloadWillBegin(EventT):
+    """
+        Fired when page is about to start a download.
+    """
+    event="Page.downloadWillBegin"
+    def __init__(self):
+        # Id of the frame that caused download to begin.
+        self.frameId: FrameId = FrameId
+        # Global unique identifier of the download.
+        self.guid: str = str
+        # URL of the resource being downloaded.
+        self.url: str = str
+        # Suggested file name of the resource (the actual name of the file saved on disk may differ).
+        self.suggestedFilename: str = str
+
+
+# event: downloadProgress
+class downloadProgress(EventT):
+    """
+        Fired when download makes progress. Last call has |done| == true.
+    """
+    event="Page.downloadProgress"
+    def __init__(self):
+        # Global unique identifier of the download.
+        self.guid: str = str
+        # Total expected bytes to download.
+        self.totalBytes: int = int
+        # Total bytes received.
+        self.receivedBytes: int = int
+        stateEnums = ['inProgress', 'completed', 'canceled']
+        # Download status.
+        self.state: str = str
 
 
 # event: interstitialHidden
@@ -488,6 +573,45 @@ class loadEventFired(EventT):
         self.timestamp: Network.MonotonicTime = Network.MonotonicTime
 
 
+# event: navigatedWithinDocument
+class navigatedWithinDocument(EventT):
+    """
+        Fired when same-document navigation happens, e.g. due to history API usage or anchor navigation.
+    """
+    event="Page.navigatedWithinDocument"
+    def __init__(self):
+        # Id of the frame.
+        self.frameId: FrameId = FrameId
+        # Frame's new url.
+        self.url: str = str
+
+
+# event: screencastFrame
+class screencastFrame(EventT):
+    """
+        Compressed image data requested by the `startScreencast`.
+    """
+    event="Page.screencastFrame"
+    def __init__(self):
+        # Base64-encoded compressed image.
+        self.data: str = str
+        # Screencast frame metadata.
+        self.metadata: ScreencastFrameMetadata = ScreencastFrameMetadata
+        # Frame number.
+        self.sessionId: int = int
+
+
+# event: screencastVisibilityChanged
+class screencastVisibilityChanged(EventT):
+    """
+        Fired when the page with currently enabled screencast was shown or hidden `.
+    """
+    event="Page.screencastVisibilityChanged"
+    def __init__(self):
+        # True if the page is visible.
+        self.visible: bool = bool
+
+
 # event: windowOpen
 class windowOpen(EventT):
     """
@@ -504,6 +628,20 @@ class windowOpen(EventT):
         self.windowFeatures: List[str] = [str]
         # Whether or not it was triggered by user gesture.
         self.userGesture: bool = bool
+
+
+# event: compilationCacheProduced
+class compilationCacheProduced(EventT):
+    """
+        Issued for every compilation cache generated. Is only available
+        if Page.setGenerateCompilationCache is enabled.
+    """
+    event="Page.compilationCacheProduced"
+    def __init__(self):
+        # url
+        self.url: str = str
+        # Base64-encoded data
+        self.data: str = str
 
 
 import cdp.Debugger as Debugger

@@ -174,6 +174,24 @@ class consoleProfileStarted(EventT):
         self.title: str = str
 
 
+# event: preciseCoverageDeltaUpdate
+class preciseCoverageDeltaUpdate(EventT):
+    """
+        Reports coverage delta since the last poll (either from an event like this, or from
+        `takePreciseCoverage` for the current isolate. May only be sent if precise code
+        coverage has been started. This event can be trigged by the embedder to, for example,
+        trigger collection of coverage data immediatelly at a certain point in time.
+    """
+    event="Profiler.preciseCoverageDeltaUpdate"
+    def __init__(self):
+        # Monotonically increasing time (in seconds) when the coverage update was taken in the backend.
+        self.timestamp: int = int
+        # Identifier for distinguishing coverage events.
+        self.occassion: str = str
+        # Coverage data for the current isolate.
+        self.result: List[ScriptCoverage] = [ScriptCoverage]
+
+
 import cdp.Runtime as Runtime
 import cdp.Debugger as Debugger
 # ================================================================================

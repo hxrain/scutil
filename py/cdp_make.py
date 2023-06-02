@@ -110,9 +110,9 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
             assert False, 'UNKNOWN!'
         rec()
 
-    def make_event(data, domainName):
+    def make_event(data, domainName, experimental=True):
         """生成当前功能域下的事件通知对象"""
-        if data.get('experimental', False):
+        if not experimental and data.get('experimental', False):
             return
         name = data['name']
         desc = data.get('description', name).strip()

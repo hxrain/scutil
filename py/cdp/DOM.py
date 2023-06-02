@@ -265,6 +265,19 @@ class childNodeRemoved(EventT):
         self.nodeId: NodeId = NodeId
 
 
+# event: distributedNodesUpdated
+class distributedNodesUpdated(EventT):
+    """
+        Called when distrubution is changed.
+    """
+    event="DOM.distributedNodesUpdated"
+    def __init__(self):
+        # Insertion point where distrubuted nodes were updated.
+        self.insertionPointId: NodeId = NodeId
+        # Distributed nodes for given insertion point.
+        self.distributedNodes: List[BackendNode] = [BackendNode]
+
+
 # event: documentUpdated
 class documentUpdated(EventT):
     """
@@ -273,6 +286,43 @@ class documentUpdated(EventT):
     event="DOM.documentUpdated"
     def __init__(self):
         pass
+
+
+# event: inlineStyleInvalidated
+class inlineStyleInvalidated(EventT):
+    """
+        Fired when `Element`'s inline style is modified via a CSS property modification.
+    """
+    event="DOM.inlineStyleInvalidated"
+    def __init__(self):
+        # Ids of the nodes for which the inline styles have been invalidated.
+        self.nodeIds: List[NodeId] = [NodeId]
+
+
+# event: pseudoElementAdded
+class pseudoElementAdded(EventT):
+    """
+        Called when a pseudo element is added to an element.
+    """
+    event="DOM.pseudoElementAdded"
+    def __init__(self):
+        # Pseudo element's parent element id.
+        self.parentId: NodeId = NodeId
+        # The added pseudo element.
+        self.pseudoElement: Node = Node
+
+
+# event: pseudoElementRemoved
+class pseudoElementRemoved(EventT):
+    """
+        Called when a pseudo element is removed from an element.
+    """
+    event="DOM.pseudoElementRemoved"
+    def __init__(self):
+        # Pseudo element's parent element id.
+        self.parentId: NodeId = NodeId
+        # The removed pseudo element id.
+        self.pseudoElementId: NodeId = NodeId
 
 
 # event: setChildNodes
@@ -287,6 +337,32 @@ class setChildNodes(EventT):
         self.parentId: NodeId = NodeId
         # Child nodes array.
         self.nodes: List[Node] = [Node]
+
+
+# event: shadowRootPopped
+class shadowRootPopped(EventT):
+    """
+        Called when shadow root is popped from the element.
+    """
+    event="DOM.shadowRootPopped"
+    def __init__(self):
+        # Host element id.
+        self.hostId: NodeId = NodeId
+        # Shadow root id.
+        self.rootId: NodeId = NodeId
+
+
+# event: shadowRootPushed
+class shadowRootPushed(EventT):
+    """
+        Called when shadow root is pushed into the element.
+    """
+    event="DOM.shadowRootPushed"
+    def __init__(self):
+        # Host element id.
+        self.hostId: NodeId = NodeId
+        # Shadow root.
+        self.root: Node = Node
 
 
 import cdp.Runtime as Runtime

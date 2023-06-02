@@ -688,6 +688,41 @@ class loadingFinished(EventT):
         self.shouldReportCorbBlocking: bool = bool
 
 
+# event: requestIntercepted
+class requestIntercepted(EventT):
+    """
+        Details of an intercepted HTTP request, which must be either allowed, blocked, modified or
+        mocked.
+        Deprecated, use Fetch.requestPaused instead.
+    """
+    event="Network.requestIntercepted"
+    def __init__(self):
+        # Each request the page makes will have a unique id, however if any redirects are encounteredwhile processing that fetch, they will be reported with the same id as the original fetch.Likewise if HTTP authentication is needed then the same fetch id will be used.
+        self.interceptionId: InterceptionId = InterceptionId
+        # request
+        self.request: Request = Request
+        # The id of the frame that initiated the request.
+        self.frameId: Page.FrameId = Page.FrameId
+        # How the requested resource will be used.
+        self.resourceType: ResourceType = ResourceType
+        # Whether this is a navigation request, which can abort the navigation completely.
+        self.isNavigationRequest: bool = bool
+        # OPTIONAL, Set if the request is a navigation that will result in a download.Only present after response is received from the server (i.e. HeadersReceived stage).
+        self.isDownload: bool = bool
+        # OPTIONAL, Redirect location, only sent if a redirect was intercepted.
+        self.redirectUrl: str = str
+        # OPTIONAL, Details of the Authorization Challenge encountered. If this is set thencontinueInterceptedRequest must contain an authChallengeResponse.
+        self.authChallenge: AuthChallenge = AuthChallenge
+        # OPTIONAL, Response error if intercepted at response stage or if redirect occurred while interceptingrequest.
+        self.responseErrorReason: ErrorReason = ErrorReason
+        # OPTIONAL, Response code if intercepted at response stage or if redirect occurred while interceptingrequest or auth retry occurred.
+        self.responseStatusCode: int = int
+        # OPTIONAL, Response headers if intercepted at the response stage or if redirect occurred whileintercepting request or auth retry occurred.
+        self.responseHeaders: Headers = Headers
+        # OPTIONAL, If the intercepted request had a corresponding requestWillBeSent event fired for it, thenthis requestId will be the same as the requestId present in the requestWillBeSent event.
+        self.requestId: RequestId = RequestId
+
+
 # event: requestServedFromCache
 class requestServedFromCache(EventT):
     """
@@ -728,6 +763,34 @@ class requestWillBeSent(EventT):
         self.frameId: Page.FrameId = Page.FrameId
         # OPTIONAL, Whether the request is initiated by a user gesture. Defaults to false.
         self.hasUserGesture: bool = bool
+
+
+# event: resourceChangedPriority
+class resourceChangedPriority(EventT):
+    """
+        Fired when resource loading priority is changed
+    """
+    event="Network.resourceChangedPriority"
+    def __init__(self):
+        # Request identifier.
+        self.requestId: RequestId = RequestId
+        # New priority
+        self.newPriority: ResourcePriority = ResourcePriority
+        # Timestamp.
+        self.timestamp: MonotonicTime = MonotonicTime
+
+
+# event: signedExchangeReceived
+class signedExchangeReceived(EventT):
+    """
+        Fired when a signed exchange was received over the network
+    """
+    event="Network.signedExchangeReceived"
+    def __init__(self):
+        # Request identifier.
+        self.requestId: RequestId = RequestId
+        # Information about the signed exchange response.
+        self.info: SignedExchangeInfo = SignedExchangeInfo
 
 
 # event: responseReceived
@@ -854,6 +917,43 @@ class webSocketWillSendHandshakeRequest(EventT):
         self.wallTime: TimeSinceEpoch = TimeSinceEpoch
         # WebSocket request data.
         self.request: WebSocketRequest = WebSocketRequest
+
+
+# event: requestWillBeSentExtraInfo
+class requestWillBeSentExtraInfo(EventT):
+    """
+        Fired when additional information about a requestWillBeSent event is available from the
+        network stack. Not every requestWillBeSent event will have an additional
+        requestWillBeSentExtraInfo fired for it, and there is no guarantee whether requestWillBeSent
+        or requestWillBeSentExtraInfo will be fired first for the same request.
+    """
+    event="Network.requestWillBeSentExtraInfo"
+    def __init__(self):
+        # Request identifier. Used to match this information to an existing requestWillBeSent event.
+        self.requestId: RequestId = RequestId
+        # A list of cookies potentially associated to the requested URL. This includes both cookies sent withthe request and the ones not sent; the latter are distinguished by having blockedReason field set.
+        self.associatedCookies: List[BlockedCookieWithReason] = [BlockedCookieWithReason]
+        # Raw request headers as they will be sent over the wire.
+        self.headers: Headers = Headers
+
+
+# event: responseReceivedExtraInfo
+class responseReceivedExtraInfo(EventT):
+    """
+        Fired when additional information about a responseReceived event is available from the network
+        stack. Not every responseReceived event will have an additional responseReceivedExtraInfo for
+        it, and responseReceivedExtraInfo may be fired before or after responseReceived.
+    """
+    event="Network.responseReceivedExtraInfo"
+    def __init__(self):
+        # Request identifier. Used to match this information to another responseReceived event.
+        self.requestId: RequestId = RequestId
+        # A list of cookies which were not stored from the response along with the correspondingreasons for blocking. The cookies here may not be valid due to syntax errors, whichare represented by the invalid cookie line string instead of a proper cookie.
+        self.blockedCookies: List[BlockedSetCookieWithReason] = [BlockedSetCookieWithReason]
+        # Raw response headers as they were received over the wire.
+        self.headers: Headers = Headers
+        # OPTIONAL, Raw response header text as it was received over the wire. The raw text may not always beavailable, such as in the case of HTTP/2 or QUIC.
+        self.headersText: str = str
 
 
 import cdp.Debugger as Debugger
