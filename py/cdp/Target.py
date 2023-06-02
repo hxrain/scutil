@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Target Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: TargetID
 TargetID = str
 
@@ -46,6 +49,9 @@ class RemoteLocation(TypingT):
         self.port: int = int
 
 
+# --------------------------------------------------------------------------------
+# Target Domain Event.
+# --------------------------------------------------------------------------------
 # event: attachedToTarget
 class attachedToTarget(EventT):
     """
@@ -140,9 +146,9 @@ class targetInfoChanged(EventT):
         self.targetInfo: TargetInfo = TargetInfo
 
 
-import cdp.Browser as Browser
+from cdp import Browser
 # ================================================================================
-# Target Domain.
+# Target Domain Class.
 # ================================================================================
 class Target(DomainT):
     """

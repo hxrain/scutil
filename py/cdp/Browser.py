@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Browser Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: BrowserContextID
 BrowserContextID = str
 
@@ -92,9 +95,9 @@ class Histogram(TypingT):
         self.buckets: List[Bucket] = [Bucket]
 
 
-import cdp.Target as Target
+from cdp import Target
 # ================================================================================
-# Browser Domain.
+# Browser Domain Class.
 # ================================================================================
 class Browser(DomainT):
     """

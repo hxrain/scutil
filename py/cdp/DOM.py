@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# DOM Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: Unique DOM node identifier.
 NodeId = int
 
@@ -183,6 +186,9 @@ class CSSComputedStyleProperty(TypingT):
         self.value: str = str
 
 
+# --------------------------------------------------------------------------------
+# DOM Domain Event.
+# --------------------------------------------------------------------------------
 # event: attributeModified
 class attributeModified(EventT):
     """
@@ -365,10 +371,10 @@ class shadowRootPushed(EventT):
         self.root: Node = Node
 
 
-import cdp.Runtime as Runtime
-import cdp.Page as Page
+from cdp import Runtime
+from cdp import Page
 # ================================================================================
-# DOM Domain.
+# DOM Domain Class.
 # ================================================================================
 class DOM(DomainT):
     """

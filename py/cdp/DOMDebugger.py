@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# DOMDebugger Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: DOM breakpoint type.
 DOMBreakpointType = str
 DOMBreakpointTypeEnums = ['subtree-modified', 'attribute-modified', 'node-removed']
@@ -35,11 +38,11 @@ class EventListener(TypingT):
         self.backendNodeId: DOM.BackendNodeId = DOM.BackendNodeId
 
 
-import cdp.DOM as DOM
-import cdp.Debugger as Debugger
-import cdp.Runtime as Runtime
+from cdp import DOM
+from cdp import Debugger
+from cdp import Runtime
 # ================================================================================
-# DOMDebugger Domain.
+# DOMDebugger Domain Class.
 # ================================================================================
 class DOMDebugger(DomainT):
     """

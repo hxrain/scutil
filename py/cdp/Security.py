@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Security Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: An internal certificate ID value.
 CertificateId = int
 
@@ -142,6 +145,9 @@ CertificateErrorAction = str
 CertificateErrorActionEnums = ['continue', 'cancel']
 
 
+# --------------------------------------------------------------------------------
+# Security Domain Event.
+# --------------------------------------------------------------------------------
 # event: certificateError
 class certificateError(EventT):
     """
@@ -191,7 +197,7 @@ class securityStateChanged(EventT):
 
 
 # ================================================================================
-# Security Domain.
+# Security Domain Class.
 # ================================================================================
 class Security(DomainT):
     """

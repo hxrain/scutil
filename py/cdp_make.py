@@ -25,21 +25,24 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
             else:
                 rst.append(f"{' ' * indent * 4}{' ' * sp * 4}{line}")
 
-    def make_import(domain, name):
+    def make_import_head(domain, name):
         """生成功能域文件导入项"""
         rec('''"""THIS IS AUTOMATICALLY GENERATED CODE, DO NOT MANUALLY MODIFY!"""''')
         rec('''from cdp.cdp_comm import *''')
         rec()
+        rec(f'''# --------------------------------------------------------------------------------''')
+        rec(f'''# {name} Domain Typing.''')
+        rec(f'''# --------------------------------------------------------------------------------''')
 
     def make_domain(domain, name):
         """生成功能域对应的类结构"""
         deps = domain.get('dependencies', [])
         for dep in deps:
-            rec(f'''import cdp.{dep} as {dep}''')
+            rec(f'''from cdp import {dep}''')
 
         desc = domain.get('description', name)
         rec(f'''# ================================================================================''')
-        rec(f'''# {name} Domain.''')
+        rec(f'''# {name} Domain Class.''')
         rec(f'''# ================================================================================''')
         rec(f'''class {name}(DomainT):''')
         rec(f'''"""''', 1)
@@ -228,11 +231,19 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
             continue  # 被废弃功能域不处理
         domain_name = dm['domain']
         domains.append(domain_name)
-        make_import(dm, domain_name)
+
+        make_import_head(dm, domain_name)
         for data in dm.get('types', []):
             make_type(data, domain_name)
-        for data in dm.get('events', []):
-            make_event(data, domain_name)
+
+        events = dm.get('events', [])
+        if events:
+            rec(f'''# --------------------------------------------------------------------------------''')
+            rec(f'''# {domain_name} Domain Event.''')
+            rec(f'''# --------------------------------------------------------------------------------''')
+            for data in events:
+                make_event(data, domain_name)
+
         make_domain(dm, domain_name)
         for data in dm.get('commands', []):
             make_method_return(data, domain_name)

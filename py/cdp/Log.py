@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Log Domain Typing.
+# --------------------------------------------------------------------------------
 # object: LogEntry
 class LogEntry(TypingT):
     """
@@ -42,6 +45,9 @@ class ViolationSetting(TypingT):
         self.threshold: int = int
 
 
+# --------------------------------------------------------------------------------
+# Log Domain Event.
+# --------------------------------------------------------------------------------
 # event: entryAdded
 class entryAdded(EventT):
     """
@@ -53,10 +59,10 @@ class entryAdded(EventT):
         self.entry: LogEntry = LogEntry
 
 
-import cdp.Runtime as Runtime
-import cdp.Network as Network
+from cdp import Runtime
+from cdp import Network
 # ================================================================================
-# Log Domain.
+# Log Domain Class.
 # ================================================================================
 class Log(DomainT):
     """

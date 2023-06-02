@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Debugger Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: Breakpoint identifier.
 BreakpointId = str
 
@@ -137,6 +140,9 @@ class DebugSymbols(TypingT):
         self.externalURL: str = str
 
 
+# --------------------------------------------------------------------------------
+# Debugger Domain Event.
+# --------------------------------------------------------------------------------
 # event: breakpointResolved
 class breakpointResolved(EventT):
     """
@@ -275,9 +281,9 @@ class scriptParsed(EventT):
         self.embedderName: str = str
 
 
-import cdp.Runtime as Runtime
+from cdp import Runtime
 # ================================================================================
-# Debugger Domain.
+# Debugger Domain Class.
 # ================================================================================
 class Debugger(DomainT):
     """

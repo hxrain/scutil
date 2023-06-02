@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Emulation Domain Typing.
+# --------------------------------------------------------------------------------
 # object: ScreenOrientation
 class ScreenOrientation(TypingT):
     """
@@ -79,6 +82,9 @@ class UserAgentMetadata(TypingT):
         self.mobile: bool = bool
 
 
+# --------------------------------------------------------------------------------
+# Emulation Domain Event.
+# --------------------------------------------------------------------------------
 # event: virtualTimeBudgetExpired
 class virtualTimeBudgetExpired(EventT):
     """
@@ -89,12 +95,12 @@ class virtualTimeBudgetExpired(EventT):
         pass
 
 
-import cdp.DOM as DOM
-import cdp.Page as Page
-import cdp.Runtime as Runtime
-import cdp.Network as Network
+from cdp import DOM
+from cdp import Page
+from cdp import Runtime
+from cdp import Network
 # ================================================================================
-# Emulation Domain.
+# Emulation Domain Class.
 # ================================================================================
 class Emulation(DomainT):
     """

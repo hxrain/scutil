@@ -2,13 +2,16 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# IO Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: This is either obtained from another method or specifed as `blob:&lt;uuid&gt;` where`&lt;uuid&gt` is an UUID of a Blob.
 StreamHandle = str
 
 
-import cdp.Runtime as Runtime
+from cdp import Runtime
 # ================================================================================
-# IO Domain.
+# IO Domain Class.
 # ================================================================================
 class IO(DomainT):
     """

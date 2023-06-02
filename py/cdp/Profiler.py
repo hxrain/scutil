@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Profiler Domain Typing.
+# --------------------------------------------------------------------------------
 # object: ProfileNode
 class ProfileNode(TypingT):
     """
@@ -142,6 +145,9 @@ class CounterInfo(TypingT):
         self.value: int = int
 
 
+# --------------------------------------------------------------------------------
+# Profiler Domain Event.
+# --------------------------------------------------------------------------------
 # event: consoleProfileFinished
 class consoleProfileFinished(EventT):
     """
@@ -192,10 +198,10 @@ class preciseCoverageDeltaUpdate(EventT):
         self.result: List[ScriptCoverage] = [ScriptCoverage]
 
 
-import cdp.Runtime as Runtime
-import cdp.Debugger as Debugger
+from cdp import Runtime
+from cdp import Debugger
 # ================================================================================
-# Profiler Domain.
+# Profiler Domain Class.
 # ================================================================================
 class Profiler(DomainT):
     """

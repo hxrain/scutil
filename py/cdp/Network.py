@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Network Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: Resource type as it was perceived by the rendering engine.
 ResourceType = str
 ResourceTypeEnums = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Script', 'TextTrack', 'XHR', 'Fetch', 'EventSource', 'WebSocket', 'Manifest', 'SignedExchange', 'Ping', 'CSPViolationReport', 'Other']
@@ -614,6 +617,9 @@ class SecurityIsolationStatus(TypingT):
         self.coep: CrossOriginEmbedderPolicyStatus = CrossOriginEmbedderPolicyStatus
 
 
+# --------------------------------------------------------------------------------
+# Network Domain Event.
+# --------------------------------------------------------------------------------
 # event: dataReceived
 class dataReceived(EventT):
     """
@@ -956,13 +962,13 @@ class responseReceivedExtraInfo(EventT):
         self.headersText: str = str
 
 
-import cdp.Debugger as Debugger
-import cdp.Runtime as Runtime
-import cdp.Security as Security
-import cdp.Emulation as Emulation
-import cdp.Page as Page
+from cdp import Debugger
+from cdp import Runtime
+from cdp import Security
+from cdp import Emulation
+from cdp import Page
 # ================================================================================
-# Network Domain.
+# Network Domain Class.
 # ================================================================================
 class Network(DomainT):
     """

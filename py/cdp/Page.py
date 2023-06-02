@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Page Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: Unique frame identifier.
 FrameId = str
 
@@ -314,6 +317,9 @@ ReferrerPolicy = str
 ReferrerPolicyEnums = ['noReferrer', 'noReferrerWhenDowngrade', 'origin', 'originWhenCrossOrigin', 'sameOrigin', 'strictOrigin', 'strictOriginWhenCrossOrigin', 'unsafeUrl']
 
 
+# --------------------------------------------------------------------------------
+# Page Domain Event.
+# --------------------------------------------------------------------------------
 # event: domContentEventFired
 class domContentEventFired(EventT):
     """
@@ -644,14 +650,14 @@ class compilationCacheProduced(EventT):
         self.data: str = str
 
 
-import cdp.Debugger as Debugger
-import cdp.DOM as DOM
-import cdp.IO as IO
-import cdp.Network as Network
-import cdp.Runtime as Runtime
-import cdp.Emulation as Emulation
+from cdp import Debugger
+from cdp import DOM
+from cdp import IO
+from cdp import Network
+from cdp import Runtime
+from cdp import Emulation
 # ================================================================================
-# Page Domain.
+# Page Domain Class.
 # ================================================================================
 class Page(DomainT):
     """

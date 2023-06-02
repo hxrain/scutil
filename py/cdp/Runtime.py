@@ -2,6 +2,9 @@
 from cdp.cdp_comm import *
 
 
+# --------------------------------------------------------------------------------
+# Runtime Domain Typing.
+# --------------------------------------------------------------------------------
 # typing: Unique script identifier.
 ScriptId = str
 
@@ -279,6 +282,9 @@ class StackTraceId(TypingT):
         self.debuggerId: UniqueDebuggerId = UniqueDebuggerId
 
 
+# --------------------------------------------------------------------------------
+# Runtime Domain Event.
+# --------------------------------------------------------------------------------
 # event: bindingCalled
 class bindingCalled(EventT):
     """
@@ -389,7 +395,7 @@ class inspectRequested(EventT):
 
 
 # ================================================================================
-# Runtime Domain.
+# Runtime Domain Class.
 # ================================================================================
 class Runtime(DomainT):
     """
