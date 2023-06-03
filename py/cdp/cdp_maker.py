@@ -238,6 +238,10 @@ def make_cdp_driver_api(fname='./cdp.json', indent=0):
         for domain_name in domains:
             rec(f'''from cdp import {domain_name}''')
         rec()
+
+        rec(f'''DOMAINS = [{', '.join(domains)}]''')
+        rec()
+
         rec(f'''def __init__(self):''')
         for domain_name in domains:
             rec(f'''self.{domain_name} = {domain_name}.{domain_name}(self)''', 1)
