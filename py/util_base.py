@@ -42,47 +42,13 @@ def is_basic_type(value):
     return value in {int, float, str, bool}
 
 
-class jsonable:
-    """自定义对象的序列化和反序列化功能"""
+def bind_closure(func, usrdat):
+    """绑定func与usrdat,返回对应的闭包函数"""
 
-    @staticmethod
-    def save(obj):
-        """将当前对象完整导出为json对象"""
+    def closure_func(*args, **kwargs):
+        return func(usrdat, *args, **kwargs)
 
-        def _as_dict(obj, datas):
-            """将obj对象完整递归转换为datas字典数据"""
-            for key in dir(obj):
-                if not is_normal_attr(obj, key):
-                    continue
-                value = getattr(obj, key)
-                if is_basic_type(value):
-                    datas[key] = value
-                else:
-                    datas[key] = {}
-                    _as_dict(value, datas[key])
-            return datas
-
-        return json.dumps(_as_dict(obj, {}), ensure_ascii=False)
-
-    @staticmethod
-    def load(cls, j, *args, **argv):
-        """装载json串或数据字典j到cls类别实例对象中并返回."""
-        obj = cls(*args, **argv)
-
-        def clone(obj, dat):
-            for key in dir(obj):
-                if not is_normal_attr(obj, key):
-                    continue
-                if key not in dat:
-                    continue
-                od = getattr(obj, key)
-                if is_basic_type(od):
-                    setattr(obj, key, dat[key])
-                else:
-                    clone(od, dat[key])
-            return obj
-
-        return clone(obj, json.loads(j, encoding='utf8') if isinstance(j, str) else j)
+    return closure_func
 
 
 # -----------------------------------------------------------------------------
