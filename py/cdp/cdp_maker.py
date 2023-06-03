@@ -1,18 +1,39 @@
 # -*- coding: utf-8 -*-
 """
      CDP - Chrome DevTools Protocol
-     这里封装一套CDP客户端,便于操控Chrome,完成高级爬虫相关功能.
+     根据cdp.json描述文档生成cdp的python api原型.
 """
 
 import util_base as ub
 import json
 
 
-def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
+def dict_load(fname, encoding=None, defval=None):
+    try:
+        fp = open(fname, 'r', encoding=encoding)
+        ret = json.load(fp)
+        fp.close()
+        return ret, ''
+    except Exception as e:
+        return defval, str(e)
+
+
+# 保存指定内容到文件
+def save_to_file(fname, strdata, encode='utf-8', mode='w'):
+    try:
+        f = open(fname, mode, encoding=encode)
+        f.write(strdata)
+        f.close()
+        return True
+    except Exception as e:
+        return False
+
+
+def make_cdp_driver_api(fname='./cdp.json', indent=0):
     """根据CDP描述文件生成驱动模块的API接口代码"""
     from flask import Flask, render_template_string
     app = Flask(__name__)
-    srcs, err = ub.dict_load2(fname)
+    srcs, err = dict_load(fname)
     if err:
         return err
     rst = []
@@ -249,10 +270,10 @@ def make_cdp_driver_api(fname='./cdp/cdp.json', indent=0):
             make_method_return(data, domain_name)
             make_method_func(data, domain_name)
         rec()
-        ub.save_to_file2('./cdp/', f'{domain_name}.py', '\n'.join(rst))
+        save_to_file(f'./{domain_name}.py', '\n'.join(rst))
 
     return make_drv_init(domains)
 
 
-c = make_cdp_driver_api()
-print(c)
+if __name__ == '__main__':
+    print(make_cdp_driver_api())
