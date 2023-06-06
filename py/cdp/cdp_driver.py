@@ -41,9 +41,8 @@ DOMAINS = [Browser, DOM, DOMDebugger, Emulation, IO, Input, Log, Network, Page, 
 from cdp.cdp_session import *
 
 
-def list_events(domains):
+def list_events(rst, domains):
     """列出所有event类映射,返回值:{'事件名字':事件类}"""
-    rst = {}
     for dm in domains:
         for dmk in dir(dm):
             if dmk.startswith('_'):
@@ -57,7 +56,7 @@ def list_events(domains):
 
 
 # 全部已知的事件名称与类别登记表
-EVENTS = list_events(DOMAINS)
+list_events(EVENTS, DOMAINS)
 
 
 class driver_t(session_t):
