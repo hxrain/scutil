@@ -255,6 +255,8 @@ class driver_t:
             timeout - 可指定连接超时上限
             返回值:None成功,errot_t错误.
         """
+        self.close()
+
         timeout = timeout or self.timeout
         ws_url = dst or self.__ws_url
         if not ws_url:  # 没有已知地址,则连接本地9222浏览器主体
@@ -270,8 +272,10 @@ class driver_t:
             if is_error(v):
                 return v
             ws_url = v.webSocketDebuggerUrl
+            self.__session_ids[0] = None
+        else:
+            self.__session_ids[0] = ws_url.split('/')[-1]  # 使用ws连接地址中的端点id作为默认tid
 
-        self.close()
         self.__ws_url = ws_url
 
         opt = [(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 256)]
@@ -393,8 +397,8 @@ class driver_t:
     @trying
     def call(self, ReturnType, Command, **args):
         """核心方法,发起CDP协议请求,接收得到回应结果.
-            返回值:error_t错误; 其他为回应结果,ReturnType/ErrorT/rsp['result']
-                error_t.tag = 0 超时
+            返回值: 正常时为回应结果,ReturnType/ErrorT/rsp['result']
+                交互错误时为error_t,且 error_t.tag = 0 为接收超时
         """
         if not self.__websocket:
             return error_t('not websocket connection.', -4)
@@ -445,26 +449,27 @@ class driver_t:
     @trying
     def wait(self, timeout=None, seq=None, cb_idle=None):
         """在当前的ws连接上,等待CDP事件或之前交互序列seq对应的结果.
-            timeout - 时间等待上限
-            seq - 等待指定交互序列号的回应,None不进行强制等待.
-                  <=0,则代表在等待特定的EventT(对应的事件回调函数返回True)
+            timeout: 时间等待上限
+            seq: None - 不进行强制等待,单次接收超时即返回.
+                  <0 - 等待特定的EventT(对应的事件回调函数返回True)
+                  =0 - 循环接收等待完整的timeout结束
+                  >0 - 等待指定交互序号的回应结果
+            cb_idle: 空闲时的回调函数
             返回值:None超时未等到seq结果; error_t错误; 其他为seq回应报文dict,或指定等待的事件EventT对象实例
         """
         if not self.__websocket:
             return error_t('not websocket connection.', -4)
 
-        if timeout is None:
-            timeout = self.timeout
-        if cb_idle is None:
-            cb_idle = self.cb_idle
+        timeout = timeout or self.timeout
+        cb_idle = cb_idle or self.cb_idle
 
-        waited = waited_t(timeout)  # 使用逻辑计时器,进行更灵活的接收逻辑处理
         ret = None
+        waited = waited_t(timeout)  # 使用逻辑计时器,进行更灵活的接收逻辑处理
         while not waited.timeouted():  # 小步快跑,尝试进行多次短时接收等待,给出处理空闲回调的机会.
             rcv = self.__ws_recv(0.01)  # 进行很短时间的接收等待,避免阻塞在接收动作上,且释放cpu.
             if is_error(rcv):
                 return rcv  # 接收错误,直接返回
-            elif rcv is None:
+            if rcv is None:
                 if seq is None:
                     return ret  # 非强制等待,且接收超时,则直接返回避免浪费等待时间
                 else:
@@ -476,13 +481,13 @@ class driver_t:
                 # 接收到事件报文
                 try:
                     evt = self.__evt_proc(rcv['method'], rcv.get('params', []), rcv.get('sessionId'))
-                    if evt is not None and (isinstance(seq, int) and seq <= 0):
+                    if evt is not None and (isinstance(seq, int) and seq < 0):
                         return evt  # 定向等待的事件发生了,立即返回
                 except Exception as e:
                     return error_e(e, -5)
             elif "id" in rcv:
                 # 接收到回应报文
-                if rcv.get('id') == seq:
+                if rcv.get('id') == seq:  # 需要等待回应报文的时候,就是在CALL方法中
                     ret = rcv
                     seq = None  # 不要立即返回,尝试继续循环处理一些后续可能出现的事件消息
             else:
@@ -508,9 +513,7 @@ class driver_t:
             return None  # 无回调函数,不处理
 
         obj = jsonable.decode(evtcls, dat)  # 反序列化事件类别对象
-        tid = self.__session_ids.get(sid)  # 尝试获取会话id绑定的tab标识
-        if tid is None:
-            tid = self.__ws_url.split('/')[-1]  # 使用ws连接地址中的断点id作为默认tid
+        tid = self.__session_ids.get(sid, self.__session_ids[0])  # 尝试获取会话id绑定的tab标识
 
         if self.cb_events:
             self.cb_events(self, obj, sid, tid)  # 全部事件处理回调
