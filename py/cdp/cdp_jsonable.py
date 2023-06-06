@@ -1,4 +1,5 @@
 import json
+import sys
 
 """
     针对自动生成的CDP类型与事件对象(构造函数中描述了成员与类别)的轻量级序列化和反序列化功能.
@@ -100,7 +101,13 @@ class jsonable:
                         setattr(obj, key, [_as_value(stype(), v) for v in dat[datkey]])  # 可迭代的对象类型
             return obj
 
-        dat = json.loads(jdat, encoding='utf8') if isinstance(jdat, str) else jdat
+        if isinstance(jdat, str):
+            if sys.version_info < (3, 9):
+                dat = json.loads(jdat, encoding='utf8')
+            else:
+                dat = json.loads(jdat)
+        else:
+            dat = jdat
 
         # 尝试使用自定义解码函数进行特殊解码处理
         clsname = obj.__class__.__name__
