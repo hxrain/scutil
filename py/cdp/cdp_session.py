@@ -21,7 +21,6 @@ import urllib.parse as up
 from cdp.cdp_jsonable import jsonable
 from cdp.cdp_comm import *
 
-
 # 记录所有的事件类映射表
 EVENTS = {}
 
@@ -138,7 +137,6 @@ class waited_t:
         return 0 if r <= 0 else r
 
 
-
 class session_t:
     """CDP交互会话功能类"""
 
@@ -152,7 +150,7 @@ class session_t:
         self.__session_ids = {}  # 'flat'模式使用的sessionId标识与targetId对照表
         self.__session_sid = None  # 'flat'模式使用的当前会话sessionId
 
-        self.timeout = 10  # 默认交互超时上限
+        self.timeout = 60  # 默认交互超时上限
         self.cb_idle = None  # wait接收过程,空闲回调函数
         self.cb_events = None  # 全部事件的过滤回调,原型为 def cb_event(drv:driver_t, evt:EventT, sid, tid)
 
