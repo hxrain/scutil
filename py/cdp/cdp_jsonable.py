@@ -1,9 +1,9 @@
-import json
-import sys
-
+# -*- coding: utf-8 -*-
 """
     针对自动生成的CDP类型与事件对象(构造函数中描述了成员与类别)的轻量级序列化和反序列化功能.
 """
+import json
+import sys
 
 
 class jsonable:

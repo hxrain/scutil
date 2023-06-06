@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-     CDP(Chrome DevTools Protocol) 功能基类
+     CDP(Chrome DevTools Protocol) 协议交互功能基类
 """
 
 from typing import List
