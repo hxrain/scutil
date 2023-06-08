@@ -18,6 +18,7 @@ import socket
 import traceback
 import py_util
 import util_curve
+import urllib.parse as up
 
 
 # 代码来自 https://github.com/fate0/pychrome 进行了调整.
@@ -101,6 +102,7 @@ class Tab(object):
         self._cur_id = 1000  # 交互消息的初始流水序号
         self.downpath = None  # 控制浏览器的下载路径
         self.timeout = 3  # 默认的交互超时时间
+        self._brwId = kwargs.get("brwId")  # 绑定在指定的浏览器上下文id
         self.disable_alert_url_re = None  # 需要关闭alert对话框的页面url配置
 
         if debug_out:
@@ -693,21 +695,22 @@ class Tab(object):
             return True
         self.downpath = downpath
         self.req_event_filter_re = req_event_filter
-        self.reopen()
-        return True
+        return self.reopen()
 
     def reopen(self):
         """对tab的websocket连接进行强制重连处理"""
         try:
             self._close_websock()
             self._open_websock()
-            self.call_method('Page.enable', _timeout=1)
-            self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
+            if self.type != 'browser':
+                self.call_method('Page.enable', _timeout=1)
+                self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
             if self.downpath:
                 self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=1)
             return True
         except websocket.WebSocketBadStatusException as e:
             logger.warning('reopen error: %s :: %d' % (self._websocket_url, e.status_code))
+            return False
         except Exception as e:
             logger.warning('reopen error: %s :: %s' % (self._websocket_url, py_util.get_trace_stack()))
             return False
@@ -865,15 +868,97 @@ class MouseAct:
 class Browser(object):
 
     def __init__(self, url="http://127.0.0.1:9222"):
-        self.dev_url = url
+        self.hostport = up.urlparse(url)[1]
         self._tabs = {}  # 记录被管理的tab页
-        self.downpath = os.getcwd() + '\\tmpdown' + spd_base.query_re_str(url, r'://.*:(\d+)', 'tmpdown') + '\\'
+        ver = self.version()
+        sp = '\\'
+        if ver:
+            if ver['User-Agent'].find('Linux') != -1:
+                basedir = '/home/'
+                sp = '/'
+            elif self.hostport.startswith('127.'):
+                basedir = os.getcwd() + '\\'
+            else:
+                basedir = 'c:\\'
+        else:
+            basedir = os.getcwd() + '\\'
+        self.downpath = basedir + 'tmpdown' + spd_base.query_re_str(url, r'://.*:(\d+)', '9222') + sp
 
-    def new_tab(self, url=None, timeout=None, start=True, req_event_filter=None):
+        self._brw = None
+        self._brws = {}  # 代理关联的浏览器id映射表 {'代理地址':'浏览器上下文id'}
+
+    def brw_conn(self):
+        """连接目标浏览器主体端点"""
+        ver = self.version()
+        if ver is None:
+            return f'query browser version <{self.hostport}> fail.'
+        url = ver['webSocketDebuggerUrl']
+        dst = {'id': url.split('/')[-1], 'type': 'browser', 'url': url, 'title': 'browser', 'webSocketDebuggerUrl': url}
+        self._brw = Tab(**dst)
+        self._brw.clear_listeners()
+        if not self._brw.init():
+            return f'conn browser <{url}> fail.'
+        return ''
+
+    def brw_take(self, proxy, url=None):
+        """使用指定的代理线路打开一个新的tab.
+            proxy - 代理服务器地址,如 '172.17.200.2:3039'
+           返回值:tab信息字典,或None
+        """
+        if self._brw is None and self.brw_conn():
+            return None
+        url = url or ''
+
+        def get_brw(proxy):
+            brwId = self._brws.get(proxy)
+            if brwId is None:
+                rst = self._brw.call_method('Target.createBrowserContext', disposeOnDetach=True, proxyServer=proxy, _timeout=20)
+                if rst is None:
+                    return None
+                brwId = rst['browserContextId']
+                self._brws[proxy] = brwId
+            return brwId
+
+        for i in range(2):
+            brwId = get_brw(proxy)
+            if brwId is None:
+                return None  # 上下文获取/创建失败,直接返回
+
+            try:
+                rst = self._brw.call_method('Target.createTarget', url=url, browserContextId=brwId, _timeout=20)
+                tid = rst['targetId']
+                return {'id': tid, 'type': 'page', 'brwId': brwId, 'webSocketDebuggerUrl': f'ws://{self.hostport}/devtools/page/{tid}'}
+            except Exception as e:
+                self.brw_close(proxy)  # 交互失败,放弃当前浏览器上下文,准备重试
+
+        return None
+
+    def brw_close(self, proxy):
+        """关闭指定代理线路对应的浏览器上下文核心"""
+        brwId = self._brws.get(proxy)
+        if brwId is None:
+            return None
+
+        try:
+            del self.brws[proxy]
+            self._brw.call_method('Target.disposeBrowserContext', browserContextId=brwId, _timeout=20)
+            return True
+        except Exception as e:
+            return False
+
+    def new_tab(self, url=None, timeout=None, start=True, req_event_filter=None, proxy=None):
         """打开新tab页,并浏览指定的网址"""
         url = url or ''
-        rp = requests.get("%s/json/new?%s" % (self.dev_url, url), json=True, timeout=timeout, proxies={'http': None, 'https': None})
-        tab = Tab(**self._load_json(rp))
+        if proxy is None:
+            rp = requests.get(f"http://{self.hostport}/json/new?{url}", json=True, timeout=timeout, proxies={'http': None, 'https': None})
+            tab = Tab(**self._load_json(rp))
+        else:
+            # 使用指定的代理线路打开tab页
+            tinfo = self.brw_take(proxy, url)
+            if tinfo is None:
+                raise PyChromeException('browserId with proxy open fail.')
+            tab = Tab(**tinfo)
+
         self._tabs[tab.id] = tab
         if start:
             tab.init(req_event_filter, downpath=self.downpath)
@@ -890,7 +975,7 @@ class Browser(object):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控.
             返回值:[{'id': tabid, 'title': '', 'url': ''}]
         """
-        dst_url = "%s/json" % self.dev_url
+        dst_url = f"http://{self.hostport}/json"
         rp = requests.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
 
         tabs_map = {}
@@ -928,7 +1013,7 @@ class Browser(object):
         if isinstance(tab_id, Tab):
             tab_id = tab_id.id
 
-        rp = requests.get("%s/json/activate/%s" % (self.dev_url, tab_id), timeout=timeout, proxies={'http': None, 'https': None})
+        rp = requests.get(f"http://{self.hostport}/json/activate/{tab_id}", timeout=timeout, proxies={'http': None, 'https': None})
         return rp.text
 
     def close_tab(self, tab_id, timeout=None):
@@ -936,7 +1021,7 @@ class Browser(object):
         if isinstance(tab_id, Tab):
             tab_id = tab_id.id
 
-        rp = requests.get("%s/json/close/%s" % (self.dev_url, tab_id), timeout=timeout, proxies={'http': None, 'https': None})
+        rp = requests.get(f"http://{self.hostport}/json/close/{tab_id}", timeout=timeout, proxies={'http': None, 'https': None})
 
         tab = self._tabs.pop(tab_id, None)
         tab.close()
@@ -946,7 +1031,7 @@ class Browser(object):
 
     def version(self, timeout=None):
         """查询浏览器的版本信息"""
-        rp = requests.get("%s/json/version" % self.dev_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        rp = requests.get(f"http://{self.hostport}/json/version", json=True, timeout=timeout, proxies={'http': None, 'https': None})
         return self._load_json(rp)
 
 
@@ -1204,18 +1289,18 @@ class spd_chrome:
 
         return False
 
-    def open(self, url='', req_event_filter=None):
+    def open(self, url='', req_event_filter=None, proxy=None):
         """打开tab页,并浏览指定的url;返回值:(tab页标识id,错误消息)"""
         try:
-            tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter)
+            tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter, proxy=proxy)
             return tab.id, ''
         except Exception as e:
             return '', py_util.get_trace_stack()
 
-    def new(self, url='', req_event_filter=None):
+    def new(self, url='', req_event_filter=None, proxy=None):
         """打开tab页,并浏览指定的url;返回值:(tab页对象,错误消息)"""
         try:
-            tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter)
+            tab = self.browser.new_tab(url, self.proto_timeout, req_event_filter=req_event_filter, proxy=proxy)
             return tab, ''
         except Exception as e:
             return None, py_util.get_trace_stack()
