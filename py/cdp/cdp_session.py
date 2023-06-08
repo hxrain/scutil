@@ -391,7 +391,7 @@ class session_t:
         try:
             if self.__session_http is None:
                 self.__session_http = requests.Session()
-            return self.__session_http.get(url)
+            return self.__session_http.get(url, proxies={'http': None, 'https': None})
         except Exception as e:
             return error_e(e, -10)
 
