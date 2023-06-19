@@ -2,6 +2,7 @@
 
 from tkinter import *
 from tkinter import ttk
+from tkinter import messagebox
 from tkinter.font import Font
 import time
 import bisect
@@ -218,11 +219,11 @@ def tag_color(ui_txt, tag_name, fg=None, bg=None):
         ui_txt.tag_config(tag_name, background=bg)
 
 
-def text_next_idx(ui_txt, idx):
+def text_next_idx(ui_txt, idx, cnt=1):
     """计算文本框指定索引位置出的后一个字符索引"""
     if not idx:
         return '1.0'
-    return ui_txt.index('%s +1 chars' % idx)
+    return ui_txt.index(f'{idx} +{cnt} chars')
 
 
 def text_tag_attrib(ui_txt, tagname, att, defval=None):
@@ -254,13 +255,17 @@ def text_search_re_all(ui_txt, rxexp, offset='1.0', exact=True):
     """在text控件中进行re搜索,得到所有的结果位置列表[(位置idx,字符数cnt)]"""
     rxcnt = IntVar(ui_txt)
     rst = []
-    pos = ui_txt.search(rxexp, offset, exact=exact, regexp=True, count=rxcnt)
-    while pos:
-        rst.append((pos, rxcnt.get()))
-        offset = text_next_idx(ui_txt, pos)
-        pos = ui_txt.search(rxexp, offset, forwards=True, exact=exact, regexp=True, count=rxcnt)
-        if rst[0][0] == pos:
-            break  # 查找一圈了,结束
+    try:
+        pos = ui_txt.search(rxexp, offset, exact=exact, regexp=True, count=rxcnt)
+        while pos:
+            cnt = rxcnt.get()
+            rst.append((pos, cnt))
+            offset = text_next_idx(ui_txt, pos, cnt)
+            pos = ui_txt.search(rxexp, offset, forwards=True, exact=exact, regexp=True, count=rxcnt)
+            if rst[0][0] == pos:
+                break  # 查找一圈了,结束
+    except Exception as e:
+        messagebox.showinfo(f'检索错误: {e}')
     return rst
 
 

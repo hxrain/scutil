@@ -350,6 +350,18 @@ def strip_root(xstr, tags=('td', 'tr', 'th'), fixNode=' '):
         return xstr, str(e)
 
 
+def node_text(node):
+    """获取node的text与tail节点值"""
+    rst = []
+    if node.text is not None:
+        rst.append(node.text)
+    if node.tail is not None:
+        rst.append(node.tail)
+    if not rst:
+        return None
+    return ''.join(rst)
+
+
 def remove_empty(xstr, cc_xpath, fixNode=' '):
     """尝试删除xstr中cc_xpath对应节点,当其下所有子节点的text()都无效的时候.
         返回值:(修正后的内容结果,错误消息) 正常时错误消息为空.
@@ -361,8 +373,9 @@ def remove_empty(xstr, cc_xpath, fixNode=' '):
 
     try:
         def rec(node):
-            if node.text is not None:
-                r = re.sub(r'[\r\n\t ]+', '', node.text)
+            ntxt = node_text(node)
+            if ntxt is not None:
+                r = re.sub(r'[\r\n\t ]+', '', ntxt)
                 if r:
                     return True  # 存在有效数据,直接返回.
             childs = list(node)
