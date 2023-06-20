@@ -1031,8 +1031,11 @@ class Browser(object):
 
     def version(self, timeout=None):
         """查询浏览器的版本信息"""
-        rp = requests.get(f"http://{self.hostport}/json/version", json=True, timeout=timeout, proxies={'http': None, 'https': None})
-        return self._load_json(rp)
+        try:
+            rp = requests.get(f"http://{self.hostport}/json/version", json=True, timeout=timeout, proxies={'http': None, 'https': None})
+            return self._load_json(rp)
+        except Exception as e:
+            return None
 
 
 dom100 = '''
@@ -1313,7 +1316,7 @@ class spd_chrome:
             rst = self.browser.list_tab(self.proto_timeout, backinit, excludes=excludes)
             return rst, ''
         except requests.exceptions.ConnectionError:
-            return '', 'connect fail: %s' % self.browser.dev_url
+            return '', 'connect fail: %s' % self.browser.hostport
         except Exception as e:
             return '', py_util.get_trace_stack()
 
@@ -1714,7 +1717,7 @@ class spd_chrome:
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '' or html == '':  # html内容导出错误
                 if msg:
-                    logger.warning('wait (%s) take error <%s> :\n%s' % (cond, msg, html))
+                    logger.warning('wait (%s) take error <%s> :\n%s' % (cond, msg, html[:400]))
                 else:
                     msg = 'waiting'
             else:  # html内容导出完成,需要检查完成条件
@@ -1731,7 +1734,7 @@ class spd_chrome:
                             msg = ''  # 如果有串包含的结果,也认为匹配成功了.
 
                 if msg != '':
-                    logger.warning('%s wait (%s) query error <%s> :\n%s' % (t.last_url, cond, msg, html))
+                    logger.warning('%s wait (%s) query error <%s> :\n%s' % (t.last_url, cond, msg, html[:400]))
                 elif check_cond(isnot, r):
                     if self.on_waiting:
                         self.on_waiting(t, html, 0, wait.remain())  # 给出完成通知
