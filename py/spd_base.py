@@ -14,6 +14,7 @@ import magic
 import base64
 import requests
 import mimetypes
+import socket
 import urllib.parse as up
 from util_xml import *
 from hash_calc import *
@@ -170,6 +171,19 @@ def url_equ(a, b):
         return True
 
     return False
+
+
+def localip_by_dest(dstip='202.97.224.68'):
+    """基于udp目标socket,获取对应的本地ip.
+        返回值:正常为访问dstip时使用的(本机ip串,本机端口)
+              错误为(None,异常对象).
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
+        s.connect((dstip, 53))  # udp/socket的connect方法,会根据目标地址查询本机路由表,绑定本机ip
+        return s.getsockname()  # 得到访问目标地址使用的本机ip与本机端口
+    except Exception as e:
+        return None, e
 
 
 # 获取字典dct中的指定key对应的值,不存在时返回默认值
