@@ -937,13 +937,13 @@ def get_curr_date(fmt='%Y-%m-%d', now=None):
     return now.strftime(fmt)
 
 
-def adj_date_day(datestr, day):
+def adj_date_day(datestr, day, outfmt='%Y-%m-%d'):
     """对给定的日期串datestr进行天数day增减运算,得到新的日期,ISO串"""
     if not datestr:
         datestr = get_curr_date()
     date = datetime.datetime.strptime(datestr, '%Y-%m-%d')
     date += datetime.timedelta(days=day)
-    return date.strftime('%Y-%m-%d')
+    return date.strftime(outfmt)
 
 
 def date_to_utc(datestr):
@@ -981,6 +981,18 @@ def find_dcts(lst, value, key='name'):
         if lst[i][key] == value:
             return i
     return -1
+
+
+def make_datedir(root='./files', make=True, fmt='%Y%m%d%H'):
+    """用当前日期时间创建目录.返回值:完成时为路径串,错误时为None"""
+    dt = ub.get_curr_date(fmt)
+    path = f'{root}/{dt}'
+    try:
+        if make:
+            os.makedirs(path)
+        return path
+    except FileExistsError:
+        return path
 
 
 class tick_meter:
@@ -1371,3 +1383,22 @@ def str_add(txt, val, pos=None):
         return f'{val}{txt}'
     else:
         return f'{txt[:pos + 1]}{val}{txt[pos + 1:]}'
+
+
+def take_dirs(path, dironly=False, toponly=False):
+    """递归遍历path,查找文件或目录.
+        dironly - 是否只记录目录名
+        toponly - 是否只遍历顶级路径
+        返回值:[(目录path,True),(文件path,False)]
+    """
+    rst = []
+
+    for root, dirs, files in os.walk(path, topdown=True):
+        for name in dirs:
+            rst.append((os.path.join(root, name), True))
+        if not dironly:
+            for name in files:
+                rst.append((os.path.join(root, name), False))
+        if toponly:
+            break
+    return rst
