@@ -132,7 +132,7 @@ class Tab(object):
 
     def _srctag(self):
         """获取当前tab的标识串"""
-        return f'tab<{self._srcid}/{self.id}/{self.last_url}>'
+        return f'tab<{self._srcid}|{self.id}|{self.last_url}>'
 
     def _last_act(self, using):
         """记录该tab是否处于使用中,便于外部跟踪状态"""
@@ -165,7 +165,7 @@ class Tab(object):
             return (None, None, spd_base.es(e))  # 其他错误
 
         if debug_out:  # 如果开启了调试输出,则打印接收到的消息
-            logger.debug(f'< {self._srctag()} RECV: {message_json}')
+            logger.debug(f'< {self._srctag()} RECV\n{message_json}')
 
         if "method" in message:
             # 接收到事件报文,尝试进行回调处理
@@ -174,7 +174,7 @@ class Tab(object):
                 try:
                     self.event_handlers[method](**message['params'])
                 except Exception as e:
-                    logger.warning(f"{self._srctag()} callback <{method}> exception: {py_util.get_trace_stack()}")
+                    logger.warning(f"{self._srctag()} callback <{method}> exception {py_util.get_trace_stack()}")
             return (0, 1, '')
         elif "id" in message:
             # 接收到结果报文
@@ -183,7 +183,7 @@ class Tab(object):
                 self.method_results[msg_id] = message  # 得到了等待的对应结果,则记录下来
                 return (1, 0, '')
         else:
-            logger.warning(f"{self._srctag()} unknown CDP message: {message}")
+            logger.warning(f"{self._srctag()} unknown CDP message\n{message}")
             return (None, None, 'unknown CDP message.')
         return (0, 0, '')
 
@@ -225,7 +225,7 @@ class Tab(object):
         self.method_results[msg_id] = None  # 提前登记待接收结果对应的消息id
 
         if debug_out:  # pragma: no cover
-            logger.debug(f"> {self._srctag()} SEND: {msg_json}")
+            logger.debug(f"> {self._srctag()} SEND\n{msg_json}")
 
         reconn = False
         try:
@@ -285,7 +285,7 @@ class Tab(object):
         if 'result' not in result and 'error' in result:
             # logger.warning("%s error: %s" % (_method, result['error']['message']))
             msg = result.get('error', {}).get('message', 'unknown')
-            raise CallMethodException(f"{self._srctag()} calling method <{_method}> error: {msg}")
+            raise CallMethodException(f"{self._srctag()} calling method <{_method}> error\n{msg}")
 
         return result['result']
 
@@ -714,10 +714,10 @@ class Tab(object):
                 self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=1)
             return True
         except websocket.WebSocketBadStatusException as e:
-            logger.warning(f'{self._srctag()} reopen error: {self._websocket_url} :: {e.status_code}')
+            logger.warning(f'{self._srctag()} reopen error {self._websocket_url} => {e.status_code}')
             return False
         except Exception as e:
-            logger.warning(f'{self._srctag()} reopen error: {self._websocket_url} :: {py_util.get_trace_stack()}')
+            logger.warning(f'{self._srctag()} reopen error {self._websocket_url} => {py_util.get_trace_stack()}')
             return False
 
     def close(self):
@@ -1712,6 +1712,7 @@ class spd_chrome:
         xhtml = ''
         loops = 0
         msg = 'waiting'
+        err = ''
         # 进行循环等待
         while True:
             loops += 1
@@ -1722,7 +1723,7 @@ class spd_chrome:
             html, msg = self.dhtml(t, body_only, frmSel)
             if msg != '' or html == '':  # html内容导出错误
                 if msg:
-                    logger.warning(f'{t._srctag()} wait ({cond}) take error <{msg}> :\n{html[:400]}')
+                    err = f'{t._srctag()} wait ({cond}) take error <{msg}>\n{html[:400]}'
                 else:
                     msg = 'waiting'
             else:  # html内容导出完成,需要检查完成条件
@@ -1739,7 +1740,7 @@ class spd_chrome:
                             msg = ''  # 如果有串包含的结果,也认为匹配成功了.
 
                 if msg != '':
-                    logger.warning(f'{t._srctag()} wait ({cond}) query error <{msg}> :\n{html[:400]}')
+                    err = f'{t._srctag()} wait ({cond}) query error <{msg}>\n{html[:400]}'
                 elif check_cond(isnot, r):
                     if self.on_waiting:
                         self.on_waiting(t, html, 0, wait.remain())  # 给出完成通知
@@ -1752,7 +1753,8 @@ class spd_chrome:
             if wait.timeout():
                 break
             time.sleep(0.45)
-
+        if msg and err:
+            logger.warning(err)
         return xhtml, msg
 
     def wait_re(self, tab, regexp, max_sec=60, body_only=False, frmSel=None):
