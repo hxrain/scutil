@@ -1008,7 +1008,7 @@ class spider_base:
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if self.source._list_content != __EMPTY_PAGE__:
-                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>' % (list_url, self.http.get_status_code()))
+                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(),self.source._list_content[:200]))
                             self.source.rec_stat(994)
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
