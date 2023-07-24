@@ -264,11 +264,11 @@ class source_base:
         return ret
 
     def on_list_begin(self, infos):
-        """对一个概览页开始进行遍历处理之前的事件.infos记录已经抓取的信息数量"""
+        """对一个概览页开始进行处理之前的事件.infos记录已经抓取的信息数量"""
         pass
 
     def on_list_end(self, infos, news):
-        """对一个概览页完成遍历处理之后的事件.infos记录已经抓取的信息总量,news为本次有效信息数量"""
+        """对一个概览页完成处理之后的事件.infos记录已经抓取的信息总量,news为本次有效信息数量(None代表抓取处理失败)"""
         pass
 
     def on_page_format(self, rsp):
@@ -878,7 +878,7 @@ class spider_base:
     def _do_page_loop(self, list_items, list_url, dbs):
         """执行细览抓取处理循环,返回值告知本次成功抓取并保存的信息数量"""
         infos = 0
-        self.call_src_method('on_list_begin', self.infos)  # 概览页处理开始
+        # self.call_src_method('on_list_begin', self.infos)  # 概览页处理开始
 
         # 进行细览循环
         tol_items = len(list_items)
@@ -891,7 +891,7 @@ class spider_base:
                 infos += self.call_src_method('on_save_info', info, self.updid)  # 概览页处理完成
 
         self.infos += infos
-        self.call_src_method('on_list_end', self.infos, infos)  # 概览页处理完成
+        # self.call_src_method('on_list_end', self.infos, infos)  # 概览页处理完成
 
         if self.list_info_bulking is not None:
             self.list_info_bulking += infos  # 处于增量抓取状态时,累计增量抓取的数量
@@ -995,8 +995,9 @@ class spider_base:
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
+            self.call_src_method('on_list_begin', self.infos)  # 概览页处理开始
             self.source._list_content, self.source._list_infos, msg = self._do_list_take(list_url, req_param)
-
+            page_news = None
             if self.source._list_content:  # 抓取成功
                 self.rsps += 1
                 reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
@@ -1008,7 +1009,7 @@ class spider_base:
                     if self.source.last_list_items == 0:
                         # 概览页面提取为空,需要判断连续为空的次数是否超过了循环停止条件
                         if self.source._list_content != __EMPTY_PAGE__:
-                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(),self.source._list_content[:200]))
+                            self.source.log_warn('list_url pair_extract empty <%s> :: <%d>\n%s' % (list_url, self.http.get_status_code(), self.source._list_content[:200]))
                             self.source.rec_stat(994)
                             list_emptys += 1
                             if list_emptys >= self.source.on_list_empty_limit:
@@ -1021,11 +1022,13 @@ class spider_base:
                     else:
                         list_emptys = 0
                         self.succ += 1
-                        infos = self._do_page_loop(self.source._list_infos, list_url, dbs)  # 进行概览循环
-                        self.source.log_info('news <%3d> list %s <%s> %s' % (infos, plan, list_url, reqbody))
+                        page_news = self._do_page_loop(self.source._list_infos, list_url, dbs)  # 进行概览循环
+                        self.source.log_info('news <%3d> list %s <%s> %s' % (page_news, plan, list_url, reqbody))
                 else:
                     self.source.rec_stat(993)
                     self.source.log_warn('list_url pair_extract error <%s> :: %s %s\n%s' % (list_url, msg, reqbody, self.http.get_BODY()))
+
+            self.call_src_method('on_list_end', self.infos, page_news)  # 概览页处理完成
 
             if self.source._list_content is None:
                 dbs.update_act(self, False)  # 进行中间状态更新
