@@ -38,12 +38,14 @@ class RuntimeException(PyChromeException):
 
 logger = logging.getLogger(__name__)
 debug_out = os.getenv("SPD_CHROME_DEBUG", False)  # 是否显示收发内容
-if debug_out:
-    filehandler = logging.handlers.RotatingFileHandler('./dbg_cdp.txt', encoding='utf-8', maxBytes=1024 * 1024 * 32, backupCount=8)
-    filehandler.setLevel(logging.DEBUG)
-    filehandler.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
-    logger.addHandler(filehandler)
-    logger.setLevel(logging.DEBUG)
+
+
+# if debug_out:
+#     filehandler = logging.handlers.RotatingFileHandler('./dbg_cdp.txt', encoding='utf-8', maxBytes=1024 * 1024 * 32, backupCount=8)
+#     filehandler.setLevel(logging.DEBUG)
+#     filehandler.setFormatter(logging.Formatter('%(asctime)s :: %(levelname)s :: %(message)s'))
+#     logger.addHandler(filehandler)
+#     logger.setLevel(logging.DEBUG)
 
 
 # 协议方法伪装
@@ -129,10 +131,22 @@ class Tab(object):
         self.set_listener('Network.responseReceived', self._on_responseReceived)
         self.set_listener('Network.loadingFinished', self._on_loadingFinished)
         self.set_listener('Page.javascriptDialogOpening', self._on_Page_javascriptDialogOpening)
+        self.set_listener('Inspector.detached', self._on_Inspector_detached)
+        self.set_listener('Inspector.targetCrashed', self._on_Inspector_targetCrashed)
 
-    def _srctag(self):
+    def _on_Inspector_detached(self, reason):
+        """接收调试器通知:调试分离"""
+        logger.warning(f"{self._srctag()} callback <Inspector.detached> {reason}")
+        self.type = 'BAD'
+
+    def _on_Inspector_targetCrashed(self):
+        """接收调试器通知:目标崩溃"""
+        logger.warning(f"{self._srctag()} callback <Inspector.targetCrashed>")
+        self.type = 'BAD'
+
+    def _srctag(self, pre='tab'):
         """获取当前tab的标识串"""
-        return f'tab<{self._srcid}|{self.id}|{self.last_url}>'
+        return f'{pre}<{self._srcid}|{self.id}|{self.last_url}>'
 
     def _last_act(self, using):
         """记录该tab是否处于使用中,便于外部跟踪状态"""
@@ -143,6 +157,10 @@ class Tab(object):
         attr = GenericAttr(item, self)
         setattr(self, item, attr)
         return attr
+
+    def _is_bad(self):
+        """判断当前tab对象是否已经崩坏或关闭"""
+        return self.type in {'CLOSE', 'BAD'}
 
     def _recv(self, timeout=0.01):
         """尝试进行一次接收处理.
@@ -165,7 +183,7 @@ class Tab(object):
             return (None, None, spd_base.es(e))  # 其他错误
 
         if debug_out:  # 如果开启了调试输出,则打印接收到的消息
-            logger.debug(f'< {self._srctag()} RECV\n{message_json}')
+            logger.debug(f'<RECV {self._srctag()}\n{message_json}')
 
         if "method" in message:
             # 接收到事件报文,尝试进行回调处理
@@ -187,7 +205,26 @@ class Tab(object):
             return (None, None, 'unknown CDP message.')
         return (0, 0, '')
 
-    def recv_loop(self, wait_result=False, timeout=1):
+    def recv_try(self):
+        """尝试0等待持续接收可能存在的报文;
+           返回值:(结果数,事件数,错误消息)
+        """
+        _rcnt = 0
+        _ecnt = 0
+        err = ''
+        while True:  # 真正按照总的最大超时时间进行循环
+            if self._is_bad():
+                break
+            rcnt, ecnt, err = self._recv(0)  # 尝试进行一次接收处理
+            if err:
+                break
+            if rcnt + ecnt == 0:
+                break
+            _rcnt += rcnt
+            _ecnt += ecnt
+        return _rcnt, _ecnt, err
+
+    def recv_loop(self, wait_result=False, timeout=1, step=0.05):
         """在指定的时间范围内进行接收处理.可告知是否必须等到结果或超时才结束;
            返回值:(结果或事件数,错误消息)
                     (None,错误消息) - 通信错误;
@@ -195,7 +232,9 @@ class Tab(object):
         """
         wait = spd_base.waited_t(timeout)
         while True:  # 真正按照总的最大超时时间进行循环
-            rcnt, ecnt, err = self._recv(0.05)  # 尝试进行一次接收处理
+            if self._is_bad():
+                break
+            rcnt, ecnt, err = self._recv(step)  # 尝试进行一次接收处理
             if rcnt is None:
                 return (None, err)
             if wait_result:  # 如果要求必须等待回应结果
@@ -225,7 +264,7 @@ class Tab(object):
         self.method_results[msg_id] = None  # 提前登记待接收结果对应的消息id
 
         if debug_out:  # pragma: no cover
-            logger.debug(f"> {self._srctag()} SEND\n{msg_json}")
+            logger.debug(f">SEND {self._srctag()}\n{msg_json}")
 
         reconn = False
         try:
@@ -269,6 +308,8 @@ class Tab(object):
         """调用协议方法,核心功能.具体请求交互细节可参考协议描述. https://chromedevtools.github.io/devtools-protocol/
            返回值:None超时;其他为回应结果"""
         self.last_err = None
+        if self._is_bad():
+            return None
         if not self._websocket or (self.cycle and self.cycle.hit()):
             self.reopen()  # 进行ws的重连
 
@@ -684,8 +725,6 @@ class Tab(object):
         opt = [(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 64)]
         try:
             self._websocket = websocket.create_connection(self._websocket_url, enable_multithread=True, sockopt=opt, skip_utf8_validation=True)
-        except websocket.WebSocketBadStatusException as e:
-            raise CallMethodException('tab ws open fail: %s' % self._websocket_url)
         except Exception as e:
             raise e
 
@@ -707,6 +746,8 @@ class Tab(object):
         try:
             self._close_websock()
             self._open_websock()
+            if self._is_bad():
+                return False
             if self.type != 'browser':
                 self.call_method('Page.enable', _timeout=1)
                 self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
@@ -714,7 +755,7 @@ class Tab(object):
                 self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=1)
             return True
         except websocket.WebSocketBadStatusException as e:
-            logger.warning(f'{self._srctag()} reopen error {self._websocket_url} => {e.status_code}')
+            logger.warning(f'{self._srctag()} reopen fail => {self._websocket_url}')
             return False
         except Exception as e:
             logger.warning(f'{self._srctag()} reopen error {self._websocket_url} => {py_util.get_trace_stack()}')
@@ -724,6 +765,7 @@ class Tab(object):
         """停止tab交互,关闭websocket连接"""
         self._close_websock()
         self.clear_request_historys()
+        self.type = 'CLOSE'
         return True
 
     def goto(self, url, proto_timeout=10):
@@ -869,13 +911,116 @@ class MouseAct:
         return self
 
 
+def chrome_list_tab(chrome_addr, session=None, excludes={}, timeout=None):
+    """查询chrome_addr浏览器所有打开的tab页列表.
+        session - 多次调用时使用的http会话管理器
+        timeout - 超时时间
+        excludes - 需要排除的tabid集合
+        返回值:[{'id': tabid, 'title': '', 'url': ''}],''
+            或 None,error
+    """
+    if session is None:
+        session = requests
+
+    try:
+        dst_url = f"http://{chrome_addr}/json"
+        rst_tabs = []
+        rp = session.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
+
+        tab_jsons = rp.json()
+        for tab_json in tab_jsons:
+            if tab_json['type'] != 'page':  # pragma: no cover
+                continue  # 只保留page页面tab,其他后台进程不记录
+
+            id = tab_json['id']
+            if id in excludes:
+                continue
+
+            # 构造基本的tab信息对象
+            tinfo = {'id': id, 'title': tab_json['title'], 'url': tab_json['url'], 'webSocketDebuggerUrl': tab_json['webSocketDebuggerUrl']}
+            rst_tabs.append(tinfo)
+        return rst_tabs, ''
+    except Exception as e:
+        return None, spd_base.es(e)
+
+
+def chrome_makeup_tabs(infos, tabs, backinit=True, req_event_filter=None, excludes={}):
+    """根据给定的tab信息列表infos,在已有的tab对象字典tabs中补充新的tab对象,并可进行初始化
+        返回值:新增补充的tab数量
+    """
+    rc = 0
+    for tinfo in infos:
+        id = tinfo['id']
+        if id not in tabs:
+            if id in excludes:  # 明确被排除的tab,不处理.
+                continue
+            # 补充新的tab信息对应的tab对象
+            rc += 1
+            tabs[id] = Tab(**tinfo)
+            if backinit:
+                tabs[id].init(req_event_filter)
+        else:
+            # 更新已有tab对象的相关属性
+            tabs[id].last_url = tinfo['url']
+            tabs[id].last_title = tinfo['title']
+    return rc
+
+
+def chrome_open_tab(chrome_addr, dsturl, session=None, timeout=None):
+    """在指定的chrome_addr上打开新tab并浏览目标dsturl
+        返回值:tabinfo,''
+            或 None,error
+    """
+    if session is None:
+        session = requests
+    try:
+        rp = session.get(f"http://{chrome_addr}/json/new?{dsturl}", json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        return rp.json(), ''
+    except Exception as e:
+        return None, spd_base.es(e)
+
+
+def chrome_activate_tab(chrome_addr, tab_id, session=None, timeout=None):
+    """激活指定的tab页.返回值:空正常,否则为错误."""
+    if session is None:
+        session = requests
+    try:
+        rp = session.get(f"http://{chrome_addr}/json/activate/{tab_id}", timeout=timeout, proxies={'http': None, 'https': None})
+        return ''
+    except Exception as e:
+        return spd_base.es(e)
+
+
+def chrome_close_tab(chrome_addr, tab_id, session=None, timeout=None):
+    """关闭指定的tab页,返回值:空正常,否则为错误."""
+    if session is None:
+        session = requests
+    try:
+        rp = session.get(f"http://{chrome_addr}/json/close/{tab_id}", timeout=timeout, proxies={'http': None, 'https': None})
+        return ''
+    except Exception as e:
+        return spd_base.es(e)
+
+
+def chrome_version(chrome_addr, session=None, timeout=None):
+    """查询浏览器的版本信息,返回值:(ver,'')或(None,error)"""
+    if session is None:
+        session = requests
+    try:
+        rp = session.get(f"http://{chrome_addr}/json/version", json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        return rp.json(), ''
+    except Exception as e:
+        return None, spd_base.es(e)
+
+
 # Chrome浏览器管理对象
 class Browser(object):
 
     def __init__(self, url="http://127.0.0.1:9222"):
         self.hostport = up.urlparse(url)[1]
         self._tabs = {}  # 记录被管理的tab页
-        ver = self.version()
+        self._session = requests.Session()  # http会话对象
+        ver, _ = chrome_version(self.hostport, self._session)
         sp = '\\'
         if ver:
             if ver['User-Agent'].find('Linux') != -1:
@@ -894,15 +1039,15 @@ class Browser(object):
 
     def brw_conn(self):
         """连接目标浏览器主体端点"""
-        ver = self.version()
+        ver, _ = chrome_version(self.hostport, self._session)
         if ver is None:
-            return f'query browser version <{self.hostport}> fail.'
+            return f'query browser version fail: {self.hostport}'
         url = ver['webSocketDebuggerUrl']
         dst = {'id': url.split('/')[-1], 'type': 'browser', 'url': url, 'title': 'browser', 'webSocketDebuggerUrl': url}
         self._brw = Tab(**dst)
         self._brw.clear_listeners()
         if not self._brw.init():
-            return f'conn browser <{url}> fail.'
+            return f'conn browser fail: {url}'
         return ''
 
     def brw_take(self, proxy, url=None):
@@ -955,13 +1100,15 @@ class Browser(object):
         """打开新tab页,并浏览指定的网址"""
         url = url or ''
         if proxy is None:
-            rp = requests.get(f"http://{self.hostport}/json/new?{url}", json=True, timeout=timeout, proxies={'http': None, 'https': None})
-            tab = Tab(**self._load_json(rp), srcid=srcid)
+            rp, err = chrome_open_tab(self.hostport, url, self._session, timeout)
+            if err:
+                raise PyChromeException(f'open_tab fail: {url}')
+            tab = Tab(**rp, srcid=srcid)
         else:
             # 使用指定的代理线路打开tab页
             tinfo = self.brw_take(proxy, url)
             if tinfo is None:
-                raise PyChromeException('browserId with proxy open fail.')
+                raise PyChromeException(f'new_tab with proxy fail: {url}')
             tab = Tab(**tinfo, srcid=srcid)
 
         self._tabs[tab.id] = tab
@@ -980,67 +1127,50 @@ class Browser(object):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控.
             返回值:[{'id': tabid, 'title': '', 'url': ''}]
         """
-        dst_url = f"http://{self.hostport}/json"
-        rp = requests.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        _tabs_list, err = chrome_list_tab(self.hostport, self._session, excludes, timeout)
+        if err:
+            raise PyChromeException(f'list_tab fail: {self.hostport}')
 
-        tabs_map = {}
-        _tabs_list = []
-
-        tab_jsons = self._load_json(rp)
-        if tab_jsons is None:
-            logger.warning(dst_url)
-
-        for tab_json in tab_jsons:
-            if tab_json['type'] != 'page':  # pragma: no cover
-                continue  # 只保留page页面tab,其他后台进程不记录
-
-            id = tab_json['id']
-            tinfo = {'id': id, 'title': tab_json['title'], 'url': tab_json['url']}
-
-            if id in self._tabs:
-                _tabs_list.append(tinfo)
-                tabs_map[id] = self._tabs[id]
-            elif id not in excludes:
-                _tabs_list.append(tinfo)
-                tabs_map[id] = Tab(**tab_json)
-                if backinit:
-                    tabs_map[id].init(req_event_filter)
-
-            if id in tabs_map:
-                tabs_map[id].last_url = tinfo['url']
-                tabs_map[id].last_title = tinfo['title']
-
-        self._tabs = tabs_map
+        self.makeup_tab(_tabs_list, backinit, req_event_filter, excludes)
         return _tabs_list
+
+    def makeup_tab(self, tabs, backinit=True, req_event_filter=None, excludes={}):
+        """使用tabs信息列表,反向补全外部打开的tab页.
+            返回值:补充的tab对象数量
+        """
+        return chrome_makeup_tabs(tabs, self._tabs, backinit, req_event_filter, excludes)
+
+    def tab_infos(self):
+        """根据已有tab对象生成tab信息列表"""
+        _tabs_list = []
+        for id in self._tabs:
+            t = self._tabs[id]
+            tinfo = {'id': id, 'title': t.last_title, 'url': t.last_url}
+            _tabs_list.append(tinfo)
+        return _tabs_list
+
+    def tabs(self):
+        """获取已知tab的数量"""
+        return len(self._tabs)
 
     def activate_tab(self, tab_id, timeout=None):
         """激活指定的tab页"""
         if isinstance(tab_id, Tab):
             tab_id = tab_id.id
-
-        rp = requests.get(f"http://{self.hostport}/json/activate/{tab_id}", timeout=timeout, proxies={'http': None, 'https': None})
-        return rp.text
+        if chrome_activate_tab(self.hostport, tab_id, self._session, timeout):
+            raise PyChromeException(f'activate_tab fail: {tab_id}')
 
     def close_tab(self, tab_id, timeout=None):
         """关闭指定的tab页"""
         if isinstance(tab_id, Tab):
             tab_id = tab_id.id
 
-        rp = requests.get(f"http://{self.hostport}/json/close/{tab_id}", timeout=timeout, proxies={'http': None, 'https': None})
+        if chrome_close_tab(self.hostport, tab_id, self._session, timeout):
+            raise PyChromeException(f'close_tab fail: {tab_id}')
 
         tab = self._tabs.pop(tab_id, None)
         tab.close()
         tab = None
-
-        return rp.text
-
-    def version(self, timeout=None):
-        """查询浏览器的版本信息"""
-        try:
-            rp = requests.get(f"http://{self.hostport}/json/version", json=True, timeout=timeout, proxies={'http': None, 'https': None})
-            return self._load_json(rp)
-        except Exception as e:
-            return None
 
 
 dom100 = '''
@@ -1268,7 +1398,7 @@ def make_cookie_dct(cks):
 class spd_chrome:
     def __init__(self, proto_url="http://127.0.0.1:9222", enable_wait_evt=False):
         self.browser = Browser(proto_url)
-        self.proto_timeout = 10
+        self.proto_timeout = 30
         self.on_waiting = None if not enable_wait_evt else self.on_cb_waiting  # 等待事件回调
 
     def on_cb_waiting(self, tab, page, loops, remain):
