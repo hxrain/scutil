@@ -1017,11 +1017,31 @@ class time_meter:
     def __init__(self):
         self._begin = time.time()
 
+    def reset(self):
+        self._begin = time.time()
+
     def use(self):
         end = time.time()
         ut = end - self._begin
         self._begin = end
         return ut
+
+    def hit(self, timeout, msg=None):
+        """判断use用时是否超过了timeout"""
+        ut = self.use()
+        self.reset()
+        if ut > timeout and msg:
+            printf(f"USE<{ut}>:{msg}")
+            return True
+
+
+def sleep(sec, delay=0.5, idle_cb=None, *cb_arg):
+    """多次短时休眠,直到指定的时间结束.中间醒来时可以进行回调处理."""
+    beg = time.time()
+    while time.time() - beg < sec:
+        time.sleep(delay)
+        if idle_cb:
+            idle_cb(*cb_arg)
 
 
 # -----------------------------------------------------------------------------
