@@ -8,6 +8,7 @@ from threading import Semaphore
 from threading import currentThread
 import time
 import traceback
+import copy
 
 """
 locker = lock_t()  # 定义互斥锁封装对象
@@ -93,7 +94,62 @@ class sem_t:
 
 
 # 给指定函数绑定锁保护的装饰器函数
-def guard(locker):  # 顶层装饰函数,用来接收用户参数,返回外层装饰函数
+def guard_ext(locker, timeout=2):  # 顶层装饰函数,用来接收用户参数,返回外层装饰函数
+    if 'ownfunc' not in locker.__dict__:
+        locker.__dict__['waitimes'] = {}
+        locker.__dict__['ownfunc'] = ''
+
+    def outside(fun):  # 外层装饰函数,用来接收真实的目标函数
+        @wraps(fun)  # 使用内置包装器保留fun的原属性(下面的fun已经是闭包中的一个变量了)
+        def wrap(*args, **kwargs):  # 包装函数对真实函数进行锁保护的调用
+            tm_begin = time.time()  # 得到锁之前先记录开始时间和可能的拥有者
+            own = locker.__dict__['ownfunc']
+            locker.lock()  # 得到锁
+            tm_wait = int(time.time() - tm_begin)  # 计算等待时间
+            cur = f'{fun.__module__}.{fun.__name__}'
+            if tm_wait > timeout and own:  # 如果等待时间超过限定值,则进行上一个拥有者的记录
+                waits = locker.__dict__['waitimes']
+                key = f'{cur}@{own}'  # 记录当前调用者与上一个拥有者,以及阻塞等待时间
+                if key not in waits:
+                    waits[key] = set()
+                owns = waits[key]
+                owns.add(tm_wait)
+                if len(owns) > 20:
+                    owns.remove(min(owns))
+
+            locker.__dict__['ownfunc'] = f'{fun.__module__}.{fun.__name__}'
+            try:
+                ret = fun(*args, **kwargs)
+            except Exception as e:
+                ret = e
+                print(f"{e.__class__.__name__}:{str(e)}\n{''.join(traceback.format_tb(e.__traceback__))}")
+                pass
+            locker.__dict__['ownfunc'] = ''
+            locker.unlock()  # 释放锁
+
+            return ret
+
+        return wrap
+
+    return outside
+
+
+def guard_owns(locker, isclean=False):
+    """查询获取指定锁对象记录的拥有者超时数据"""
+    ret = None
+    with locker:
+        if 'ownfunc' not in locker.__dict__:
+            return None
+        if isclean:
+            ret = copy.deepcopy(locker.__dict__['waitimes'])
+            locker.__dict__['waitimes'] = {}
+        else:
+            ret = locker.__dict__['waitimes']
+    return ret
+
+
+# 给指定函数绑定锁保护的装饰器函数
+def guard_std(locker):  # 顶层装饰函数,用来接收用户参数,返回外层装饰函数
     def outside(fun):  # 外层装饰函数,用来接收真实的目标函数
         @wraps(fun)  # 使用内置包装器保留fun的原属性(下面的fun已经是闭包中的一个变量了)
         def wrap(*args, **kwargs):  # 包装函数对真实函数进行锁保护的调用
@@ -110,6 +166,9 @@ def guard(locker):  # 顶层装饰函数,用来接收用户参数,返回外层�
         return wrap
 
     return outside
+
+#默认使用标准guard模式,不记录锁等待信息.
+guard = guard_std
 
 
 # 创建并启动一个线程
