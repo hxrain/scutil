@@ -911,6 +911,10 @@ class MouseAct:
         return self
 
 
+def _load_json(rp: requests.Response) -> dict:
+    return json.loads(rp.content)
+
+
 def chrome_list_tab(chrome_addr, session=None, excludes={}, timeout=None):
     """查询chrome_addr浏览器所有打开的tab页列表.
         session - 多次调用时使用的http会话管理器
@@ -927,7 +931,7 @@ def chrome_list_tab(chrome_addr, session=None, excludes={}, timeout=None):
         rst_tabs = []
         rp = session.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
 
-        tab_jsons = rp.json()
+        tab_jsons = _load_json(rp)
         for tab_json in tab_jsons:
             if tab_json['type'] != 'page':  # pragma: no cover
                 continue  # 只保留page页面tab,其他后台进程不记录
@@ -975,7 +979,8 @@ def chrome_open_tab(chrome_addr, dsturl, session=None, timeout=None):
         session = requests
     try:
         rp = session.get(f"http://{chrome_addr}/json/new?{dsturl}", json=True, timeout=timeout, proxies={'http': None, 'https': None})
-        return rp.json(), ''
+        rst = _load_json(rp)
+        return rst, ''
     except Exception as e:
         return None, spd_base.es(e)
 
@@ -1008,7 +1013,8 @@ def chrome_version(chrome_addr, session=None, timeout=None):
         session = requests
     try:
         rp = session.get(f"http://{chrome_addr}/json/version", json=True, timeout=timeout, proxies={'http': None, 'https': None})
-        return rp.json(), ''
+        rst = _load_json(rp)
+        return rst, ''
     except Exception as e:
         return None, spd_base.es(e)
 
@@ -1115,13 +1121,6 @@ class Browser(object):
         if start:
             tab.init(req_event_filter, downpath=self.downpath)
         return tab
-
-    def _load_json(self, rp):
-        try:
-            return rp.json()
-        except Exception as e:
-            logger.warning('json decode fail:\n%s' % rp.text)
-            return None
 
     def list_tab(self, timeout=None, backinit=True, req_event_filter=None, excludes={}):
         """列出浏览器所有打开的tab页,可控制是否反向补全外部打开的tab进行操控.
@@ -1666,6 +1665,8 @@ class spd_chrome:
                 rst = t.call_method('Network.getCookies', urls=urls, _timeout=self.proto_timeout)
             else:
                 rst = t.call_method('Network.getCookies', _timeout=self.proto_timeout)
+            if rst is None:
+                return None, 'Network.getCookies Error.'
             # 丢弃结果中的不关注内容
             ret = rst['cookies']
             for r in ret:

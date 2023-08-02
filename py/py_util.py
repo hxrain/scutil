@@ -62,16 +62,15 @@ class tramem_mgr:
         self.snap2 = None  # 快照槽位2
         self.min_size = min_size
 
-        self.filters = [  # 定义过滤器,丢弃不关注的信息
-            tracemalloc.Filter(False, '<frozen importlib._bootstrap_external>'),
-            tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
-            tracemalloc.Filter(False, "<unknown>"),
-            tracemalloc.Filter(False, '<string>'),
-            tracemalloc.Filter(False, '*tracemalloc.*'),
-            tracemalloc.Filter(False, '*pycharm*'),
-        ]
+        self.filters = []  # 定义过滤器,可丢弃不关注的信息
         if exclude_std:
             self.filters.append(tracemalloc.Filter(False, '*python*'))
+            self.filters.append(tracemalloc.Filter(False, '<frozen importlib._bootstrap_external>'))
+            self.filters.append(tracemalloc.Filter(False, "<frozen importlib._bootstrap>"))
+            self.filters.append(tracemalloc.Filter(False, "<unknown>"))
+            self.filters.append(tracemalloc.Filter(False, '<string>'))
+            self.filters.append(tracemalloc.Filter(False, '*tracemalloc.*'))
+            self.filters.append(tracemalloc.Filter(False, '*pycharm*'))
 
         self.init(frames)
 
