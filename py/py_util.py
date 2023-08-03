@@ -111,3 +111,67 @@ class tramem_mgr:
             stats = 'wait take snap 2'
 
         return stats
+
+
+def loop_globals(limit=4000):
+    """递归遍历全局变量,查看子元素过大的变量"""
+    old_mods = set()
+    result = []
+
+    def can(obj):
+        if obj is None:
+            return []
+        typename = type(obj).__name__
+        if typename in {'int', 'str', 'float', 'type'}:
+            return []
+
+        if id(obj) in old_mods:
+            return []
+        old_mods.add(id(obj))
+
+        if typename in {'module'}:
+            return dir(obj)
+        try:
+            return list(obj.keys())
+        except:
+            return []
+
+    def siz(obj):
+        try:
+            if isinstance(obj, str):
+                return 0
+            return len(obj)
+        except:
+            return 0
+
+    def tak(obj, name):
+        try:
+            return obj[name]
+        except:
+            pass
+
+        try:
+            return getattr(obj, name)
+        except:
+            return None
+
+    def loop(root, path):
+        """对当前根进行全遍历递归"""
+        keys = can(root)
+        if not keys:
+            return
+        for name in keys:
+            obj = tak(root, name)
+            if obj is None:
+                continue
+            if not isinstance(name, str):
+                name = str(name)
+            path.append(name)
+            s = siz(obj)
+            if s >= limit:
+                result.append((s, '/'.join(path), str(type(obj))))
+            loop(obj, path)
+            path.pop(-1)
+
+    loop(globals(), ['globals'])
+    return result

@@ -912,7 +912,7 @@ class MouseAct:
 
 
 def _load_json(rp: requests.Response) -> dict:
-    return json.loads(rp.content)
+    return json.loads(rp.text)
 
 
 def chrome_list_tab(chrome_addr, session=None, excludes={}, timeout=None):
