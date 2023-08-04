@@ -9,7 +9,7 @@ from db_sqlite import *
 from mutex_lock import *
 from spd_base import *
 from spd_chrome import *
-
+from spd_mime import *
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
     1 基于sqlite数据库,部署简单
