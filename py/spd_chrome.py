@@ -119,7 +119,7 @@ class Tab(object):
 
         self._websocket = None  # websocket功能对象
         self.event_handlers = {}  # 记录tab事件处理器
-        self.method_results = {}  # 记录请求对应的回应结果
+        self._wait_result = -1  # 用于记录当前等待的结果id与结果dict
 
         self._data_requestWillBeSent = {}  # 记录请求内容,以url为key,value为[请求内容对象]列表
         self._data_requestIDs = {}  # 记录请求ID对应的请求信息
@@ -196,9 +196,8 @@ class Tab(object):
             return (0, 1, '')
         elif "id" in message:
             # 接收到结果报文
-            msg_id = message["id"]
-            if msg_id in self.method_results:
-                self.method_results[msg_id] = message  # 得到了等待的对应结果,则记录下来
+            if self._wait_result == message["id"]:
+                self._wait_result = message  # 得到了等待的对应结果,则记录下来
                 return (1, 0, '')
         else:
             logger.warning(f"{self._srctag()} unknown CDP message\n{message}")
@@ -215,13 +214,14 @@ class Tab(object):
         while True:  # 真正按照总的最大超时时间进行循环
             if self._is_bad():
                 break
-            rcnt, ecnt, err = self._recv(0)  # 尝试进行一次接收处理
+            rcnt, ecnt, err = self._recv(0.001)  # 尝试进行一次接收处理
             if err:
                 break
             if rcnt + ecnt == 0:
                 break
             _rcnt += rcnt
             _ecnt += ecnt
+        self.clear_request_historys()  # 顺手清理事件回调记录的数据
         return _rcnt, _ecnt, err
 
     def recv_loop(self, wait_result=False, timeout=1, step=0.05):
@@ -259,9 +259,8 @@ class Tab(object):
             self._cur_id += 1
             message['id'] = self._cur_id
         msg_id = message['id']  # 得到本次请求的消息id
-        assert (msg_id not in self.method_results)
         msg_json = json.dumps(message)  # 生成本次请求的消息json串
-        self.method_results[msg_id] = None  # 提前登记待接收结果对应的消息id
+        self._wait_result = msg_id  # 提前登记待接收结果对应的消息id
 
         if debug_out:  # pragma: no cover
             logger.debug(f">SEND {self._srctag()}\n{msg_json}")
@@ -279,16 +278,15 @@ class Tab(object):
                 self._open_websock()
                 self._websocket.send(msg_json)  # 重新发送请求
 
-            rst = self.recv_loop(True, timeout)  # 循环接收,要求必须尝试等待结果
-            if rst[1]:
-                return None, rst[1]  # 出错了
-            if rst[0]:
-                return self.method_results[msg_id], ''  # 正常返回
+            cnt, err = self.recv_loop(True, timeout)  # 循环接收,要求必须尝试等待结果
+            if err:
+                return None, err  # 出错了
+            if cnt:
+                return self._wait_result, ''  # 正常返回
             else:
                 return None, ''  # 等待超时,需要继续尝试接收
-
-        finally:
-            del self.method_results[msg_id]  # 无论结果如何,当前请求的期待应答登记结果都删除,避免字典无限增大
+        except Exception as e:
+            return None, spd_base.es(e)
 
     def _on_Page_javascriptDialogOpening(self, url, message, type, hasBrowserHandler, *args, **kwargs):
         """拦截页面对话框"""
@@ -765,6 +763,7 @@ class Tab(object):
         """停止tab交互,关闭websocket连接"""
         self._close_websock()
         self.clear_request_historys()
+        self._wait_result = -1
         self.type = 'CLOSE'
         return True
 
@@ -929,7 +928,7 @@ def chrome_list_tab(chrome_addr, session=None, excludes={}, timeout=None):
     try:
         dst_url = f"http://{chrome_addr}/json"
         rst_tabs = []
-        rp = session.get(dst_url, json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        rp = session.get(dst_url, timeout=timeout, proxies={'http': None, 'https': None})
 
         tab_jsons = _load_json(rp)
         for tab_json in tab_jsons:
@@ -978,7 +977,7 @@ def chrome_open_tab(chrome_addr, dsturl, session=None, timeout=None):
     if session is None:
         session = requests
     try:
-        rp = session.get(f"http://{chrome_addr}/json/new?{dsturl}", json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        rp = session.get(f"http://{chrome_addr}/json/new?{dsturl}", timeout=timeout, proxies={'http': None, 'https': None})
         rst = _load_json(rp)
         return rst, ''
     except Exception as e:
@@ -1012,7 +1011,7 @@ def chrome_version(chrome_addr, session=None, timeout=None):
     if session is None:
         session = requests
     try:
-        rp = session.get(f"http://{chrome_addr}/json/version", json=True, timeout=timeout, proxies={'http': None, 'https': None})
+        rp = session.get(f"http://{chrome_addr}/json/version", timeout=timeout, proxies={'http': None, 'https': None})
         rst = _load_json(rp)
         return rst, ''
     except Exception as e:
