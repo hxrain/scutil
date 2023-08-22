@@ -16,6 +16,7 @@ import match_util as mu
 import china_area_id as ca
 import nlp_ner_hmm as nnh
 import nlp_ner_data as nnd
+import nlp_util as nu
 from nlp_ner_data import types
 import util_base as ub
 
@@ -28,7 +29,6 @@ class nt_parser_t:
     tags_NM = {types.NM}  # 组织机构/后缀
     tags_NZ = {types.NZ}  # 专业名词
     tags_NN = {types.NN}  # 名称字号
-    tags_ND = {types.ND}  # 用来规避NO单字匹配的词
     tags_NU = {types.NU}  # 数字序号
     tags_NO = {types.NO}  # 单独尾字
     tags_NB = {types.NB}  # 分支机构
@@ -71,9 +71,9 @@ class nt_parser_t:
 
     # 数字序号分支归一化
     num_norm = [
-        (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)([分号]*[小中厂店部亭号组校院馆台处师村团局园队所站区会厅库连矿])(?![件河乡镇])', 1, __nu_nm.__func__),
+        (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)([分号]*[小中厂店部亭号组校院馆台处师村团局园队所站区会厅库连矿届])(?![件河乡镇])', 1, __nu_nm.__func__),
         (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(分公司|公司)', 1, __nu_nm.__func__),
-        (r'[第东南西北]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(马路|路|弄|街|里|亩)', 1, __nu_ns.__func__),
+        (r'[第东南西北]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(马路|路|弄|街|里|亩|线)', 1, __nu_ns.__func__),
         (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)[号]?', 1, __nu.__func__),
         (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]{2,})[号]?', 1, __nu.__func__),
     ]
@@ -112,10 +112,21 @@ class nt_parser_t:
         self._load_check_cb = None  # 检查词典回调输出函数
         self.matcher = mac.ac_match_t()  # 定义ac匹配树
         self._loaded_base_nt = False  # 是否装载过内置NT数据
+        self._bads = self.make_tails_bads()  # 尾缀坏词匹配器
 
         if light:
             self.load_nt(isend=False)
             self.load_ns(isend=True)
+
+    @staticmethod
+    def make_tails_bads():
+        """利用内置NT组份表构造坏词匹配器"""
+        trie = nu.words_trie_t(True)  # 反向匹配器
+        for tn in nnd.nt_tails:
+            bads = nnd.nt_tails[tn]['-']
+            for en in bads:  # 记录排斥词汇
+                trie.add(en)
+        return trie
 
     def __load(self, fname, tags, encode='utf-8', vals_cb=None):
         """装载词典文件fname并绑定数据标记tags,返回值:''正常,否则为错误信息."""
@@ -175,10 +186,6 @@ class nt_parser_t:
                     r = self.matcher.dict_add(e, tags, force=True)
                     if not r:
                         print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat!')
-                for b in nobs:
-                    r = self.matcher.dict_add(b, self.tags_ND, force=True)
-                    if not r:
-                        print(f'nt_parser_t.nt_tails-: {k}/{b} is repeat!')
             self._loaded_base_nt = True
 
         if isend:
@@ -294,26 +301,18 @@ class nt_parser_t:
 
         def chk(rst, seg):
             """检查并处理当前段在已记录结果中的重叠情况.返回值:是否记录当前段"""
-            if types.equ(seg[2], types.ND):
-                while rst:
-                    r = mu.related_segs(rst[-1], seg)[0]
-                    if r[1] in {'&', '@'} and types.equ(rst[-1][2], types.NO):
-                        rst.pop(-1)  # 被坏词碰到的单尾字需要丢弃
+            while rst:
+                last = rst[-1]
+                r = mu.related_segs(last, seg)[0]
+                if r in {'A@B', 'A=B'}:
+                    if nnd.types.cmp(last[2], seg[2]) >= 0:
+                        return False  # 当前段被包含且优先级较低,不记录
                     else:
-                        break
-            else:
-                while rst:
-                    last = rst[-1]
-                    r = mu.related_segs(last, seg)[0]
-                    if r in {'A@B', 'A=B'}:
-                        if nnd.types.cmp(last[2], seg[2]) >= 0:
-                            return False  # 当前段被包含且优先级较低,不记录
-                        else:
-                            rst.pop(-1)  # 前一个段落优先级较低,丢弃
-                    elif r == 'B@A':
-                        rst.pop(-1)  # 前一个段落被包含,丢弃
-                    else:
-                        break
+                        return True
+                elif r == 'B@A':
+                    rst.pop(-1)  # 前一个段落被包含,丢弃
+                else:
+                    return True
             return True  # 默认情况,记录当前段
 
         for seg in segs:  # 对待记录的段落逐一进行检查
@@ -448,9 +447,9 @@ class nt_parser_t:
             nums = self.query_nu(txt, nulst)  # 进行数字序号匹配
             if nums:
                 self.__merge_nums(mres, nums)
-        mres = self.drop_nesting(mres, txt)  # 删除嵌套包含的部分
-        self.drop_crossing(mres)  # 删除交叉重叠
-        return self.__merge_segs(mres, merge)
+        nres = self.drop_nesting(mres, txt)  # 删除嵌套包含的部分
+        self.drop_crossing(nres)  # 删除交叉重叠
+        return self.__merge_segs(nres, merge)
 
     def query(self, txt, merge=True, nulst=None, with_useg=False):
         '''在txt中查找可能的组份段落
@@ -485,7 +484,7 @@ class nt_parser_t:
             nulst可给出外部数字模式匹配列表
             rsts可记录匹配的分段结果列表,无论是否完整拼装
             crwords告知允许交叉叠加的词汇
-            返回值: None - 非完整拼装(有缺口); 0 - 非完整拼装(有交叉); 1 - 完整拼装(无交叉); 2 - 完整拼装(有允许的交叉)
+            返回值: None - 非完整拼装(有缺口); 0 - 完整拼装(有交叉); 1 - 完整拼装(无交叉); 2 - 完整拼装(有允许的交叉)
         """
         mres, clst = self.parse(txt, False, nulst)
         if rsts is not None:
@@ -502,10 +501,10 @@ class nt_parser_t:
         rl = clst[0][1]
         cr = clst[0][3]
         if rl == 'A&B' and txt[cr[0]:cr[1]] in crwords:
-            return 2  # 告知是完整拼装(有交叉)
-        return 0  # 告知非完整拼装(有交叉)
+            return 2  # 告知是完整拼装(有允许的交叉)
+        return 0  # 告知完整拼装(有交叉)
 
-    def verify(self, name, segs=None,merge_types=False):
+    def verify(self, name, segs=None, merge_types=False):
         """对name中出现的多重NT构成进行分组并校验有效性,如附属机构/分支机构/工会
             segs - 可记录组份分段数据的列表.
             返回值:分隔点列表[(bpos,epos,types)]
@@ -519,16 +518,36 @@ class nt_parser_t:
         def rec(bpos, epos, stype):
             opos.append((bpos, epos, stype))
 
+        def chk_bads(i, seg):
+            """检查当前段尾缀是否为坏词.返回值:尾部匹配了坏词"""
+            end = len(segs) - 1
+            if i == end:
+                # 最后一段,直接判定
+                txt = name[bpos:seg[1]]
+                begin, deep, node = self._bads.query(txt, True)
+                return deep > 0 and not node
+            else:
+                # 非最后段,先直接判定
+                txt = name[bpos:seg[1]]
+                begin, deep, node = self._bads.query(txt, True)
+                if deep > 0 and not node:
+                    return True
+                # 再扩展判定
+                txt += name[seg[1]:seg[1] + 3]
+                begin, deep, node = self._bads.query(txt, False)
+                return deep > 0 and not node
+
         for i, seg in enumerate(segs):
             stype = seg[2]
             epos = seg[1]
-            if types.equ(stype, types.ND):
-                bpos = epos
+            if chk_bads(i, seg):
+                bpos = epos  # 当前段含有坏词,跳过
             elif types.joint(stype, (types.NM, types.NL)):
-                rec(bpos, epos, types.NM)
+                rec(bpos, epos, types.NM)  # 当前段是普通NT结尾,记录
             elif types.equ(stype, types.NB):
-                rec(bpos, epos, types.NB)
+                rec(bpos, epos, types.NB)  # 当前段是分支NT结尾,记录
             elif types.equ(stype, types.NO) and i > 0 and i == len(segs) - 1:
+                # 当前段是单字NT结尾,需要判断特例
                 pseg = segs[i - 1]
                 if types.joint(pseg[2], (types.NZ, types.NU, types.NS, types.NN, types.NB)):
                     rec(bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`/`NS|NO`/`NN|NO`可以作为NT机构

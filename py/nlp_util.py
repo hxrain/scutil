@@ -148,3 +148,38 @@ class words_trie_t:
             deep += 1
             node = node[char]  # 指向下级节点
         return deep, node
+
+    def query(self, word, strict=False):
+        """尝试查找是否有匹配的词汇.
+            返回值:(begin,deep,node)
+                deep=0          - 不匹配:node为None;
+                deep=len(word)  - node为空字典为完整匹配,否则为不完整匹配;
+                0<deep<len(word)- 部分匹配:node为下级节点
+        """
+        if not word:
+            return 0, self.root
+
+        if self.reversed:
+            iter = range(len(word) - 1, -1, -1)
+        else:
+            iter = range(len(word))
+
+        begin = None
+        deep = 0
+        node = self.root
+        for i in iter:
+            char = word[i]
+            if char not in node:
+                if begin is None and not strict:
+                    continue
+                else:
+                    break
+            elif begin is None:
+                begin = i
+            deep += 1
+            node = node[char]  # 指向下级节点
+        if self.reversed and begin is not None and deep:
+            begin -= deep - 1
+        if deep == 0:
+            node = None
+        return begin, deep, node
