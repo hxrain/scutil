@@ -117,12 +117,25 @@ def html_to_xhtml(html_str):
 
 # -----------------------------------------------------------------------------
 # 进行xml代码修正格式化
-def format_xml(html_soup, desc, chs='utf-8'):
+def format_xml(xml_str, desc='', chs='utf-8', pretty_print=True, with_comments=True):
     try:
-        root = etree.fromstring(html_soup.encode(chs))
-        return desc + '\n' + etree.tostring(root, encoding=chs, pretty_print=True, method='xml').decode(chs)
+        if chs:
+            xml_str = xml_str.encode(chs)
+        root = etree.fromstring(xml_str)
+        rst = etree.tostring(root, encoding=chs, pretty_print=pretty_print, method='xml', with_comments=with_comments)
+        if chs:
+            rst = rst.decode(chs)
+        return desc + '\n' + rst
     except Exception as e:
-        return html_soup
+        return xml_str
+
+
+def xml_value_strip(xml_str,with_node=True):
+    """修正xml节点值左右的空白与\n\t"""
+    rst= re.sub(r'>[\s\n\t]*(.*?)[\s\n\t]*</', r'>\1</', xml_str)
+    if with_node:
+        rst=re.sub(r'>[\s\n\t]+<','><',rst)
+    return rst
 
 
 # 修正xml串xstr中的自闭合节点与空内容节点值为dst
