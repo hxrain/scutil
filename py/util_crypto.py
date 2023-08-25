@@ -42,12 +42,12 @@ def unpadding_pkcs7(data, block_size):
 
 def padding_pkcs5(data, block_size=None):
     """pkcs5填充"""
-    return aes_crypto_t.padding_pkcs7(data, 8)
+    return padding_pkcs7(data, 8)
 
 
 def unpadding_pkcs5(data, block_size=None):
     """pkcs5解填充"""
-    return aes_crypto_t.unpadding_pkcs7(data, 8)
+    return unpadding_pkcs7(data, 8)
 
 
 # 填充模式映射表

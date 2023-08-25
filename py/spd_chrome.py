@@ -204,7 +204,7 @@ class Tab(object):
             return (None, None, 'unknown CDP message.')
         return (0, 0, '')
 
-    def recv_try(self):
+    def recv_try(self, clear_his=False):
         """尝试0等待持续接收可能存在的报文;
            返回值:(结果数,事件数,错误消息)
         """
@@ -221,7 +221,8 @@ class Tab(object):
                 break
             _rcnt += rcnt
             _ecnt += ecnt
-        self.clear_request_historys()  # 顺手清理事件回调记录的数据
+        if clear_his:
+            self.clear_request_historys()  # 顺手清理事件回调记录的数据
         return _rcnt, _ecnt, err
 
     def recv_loop(self, wait_result=False, timeout=1, step=0.05):
@@ -589,10 +590,8 @@ class Tab(object):
     def _on_requestWillBeSent(self, requestId, loaderId, documentURL, request, timestamp, wallTime, initiator, **param):
         """记录发送的请求信息"""
         url = request['url']
-
         if self.req_event_filter_re and not spd_base.query_re_str(url, self.req_event_filter_re):
             return  # 如果明确指定了re规则进行匹配,则不匹配时直接退出
-
         if url not in self._data_requestWillBeSent:
             self._data_requestWillBeSent[url] = []  # 创建url对应的发送请求信息列表
         if len(self._data_requestWillBeSent[url]) > 100:
