@@ -162,6 +162,26 @@ class train_hmm_t:
         self.hmm.train_add(row[1], row[0])
 
 
+class trains_all_t(train_hmm_t):
+    """对hmm进行标注训练处理的功能转发适配器,便于一次性训练多个模型"""
+
+    def __init__(self):
+        self.makers = []
+
+    def on_begin(self):
+        for maker in self.makers:
+            maker.on_begin()
+
+    def on_end(self):
+        for maker in self.makers:
+            maker.on_end()
+
+    def on_add(self, row, rc):
+        """对row正文和已知nt进行预处理,生成训练数据"""
+        for maker in self.makers:
+            maker.on_add(row, rc)
+
+
 def train_from_file(hmm: train_hmm_t, fn_label, cb_parse=None):
     """基于标注样本文件fn_label,对hmm进行训练的通用方法.
         要求每一行有两个元素,文字和状态序号,使用逗号进行分隔.
@@ -302,4 +322,9 @@ class ner_hmm_bioe_t(ner_hmm_bio_t):
 
     def on_check(self, r):
         """检查识别结果是否可以使用,返回值:可用的结果,或None"""
-        return r if r[2][0] == tags.B.value and r[2][-1] == tags.E.value else None  # 要求NER结尾状态为3(E)
+        ss = r[2]
+        if ss[0] != tags.B.value or ss[-1] != tags.E.value:
+            return None
+        if self.txt[r[1] - 1] in SEP_CHARSTR:
+            return None
+        return r

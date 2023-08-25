@@ -321,14 +321,21 @@ class nt_parser_t:
         return rst
 
     @staticmethod
-    def drop_crossing(segs):
+    def drop_crossing(segs, bylvl=False):
         """丢弃segs段落列表中被交叉重叠的部分"""
         drops = []
         for i in range(len(segs) - 2, 0, -1):
-            c = segs[i]  # 当前匹配分段
-            p = segs[i - 1]  # 前匹配分段
-            n = segs[i + 1]  # 后匹配分段
-            if p[1] == n[0]:  # 当前匹配分段恰好被前后分段重叠接续,则放弃当前分段
+            c = segs[i]  # 当前段
+            p = segs[i - 1]  # 前段
+            n = segs[i + 1]  # 后段
+            if p[1] == n[0]:  # 当前段被前后段重叠接续
+                if bylvl and mu.related_segs(c, n)[0] in {'A@B', 'A==B'} and nnd.types.cmp(c[2], n[2]) > 0:
+                    # 如果判断分段优先级,并且后段被中段包含,则丢弃后段
+                    drops.append(n)
+                    segs.pop(i + 1)
+                    continue
+
+                # 否则丢弃中段
                 drops.append(c)
                 segs.pop(i)
         return drops
@@ -447,6 +454,7 @@ class nt_parser_t:
             nums = self.query_nu(txt, nulst)  # 进行数字序号匹配
             if nums:
                 self.__merge_nums(mres, nums)
+        self.drop_crossing(mres, True)  # 删除交叉重叠
         nres = self.drop_nesting(mres, txt)  # 删除嵌套包含的部分
         self.drop_crossing(nres)  # 删除交叉重叠
         return self.__merge_segs(nres, merge)
