@@ -33,7 +33,7 @@ class tiny_tcp_svr_sock:
 
         return True
 
-    def take(self, wait_time=0.01):
+    def take(self, wait_time=0.1):
         '服务器进行周期性调取,尝试获取可用客户端连接'
         rlist, wlist, elist = select.select([self.svr_sock], [], [], wait_time)
         if self.svr_sock not in rlist:
@@ -52,7 +52,7 @@ def parse_http_head(data, is_req=True):
     lines = data.decode('ascii').split('\r\n')
     if is_req:
         # 解析首行
-        m = re.search(r'([A-Z]+) (.*) HTTP/', lines[0])
+        m = re.search(r'([A-Z]+) (.+) HTTP/', lines[0])
         if m is None:
             return None
         # 得到首行的方法与url路径
@@ -73,11 +73,12 @@ def parse_http_head(data, is_req=True):
     lines.remove(lines[0])
     for l in lines:
         # 将http头内容进行拆分放入字典
+        if l == '':
+            break
+
         m = re.search(r'\s*(.*?)\s*:\s*(.*)', l)
         if m is not None:
             head[m.group(1)] = m.group(2)
-        if l == '':
-            break
     return head
 
 
@@ -97,18 +98,13 @@ def make_tcp_conn(host, port, time_out=5):
         return None
 
 
-def get_value(dict, key):
-    """尝试从头信息中获取指定字段"""
-    return dict[key] if key in dict else None
-
-
 def make_http_head(old_head, pauth, method=None):
     """基于原有的请求头,构造新的请求头"""
     if not method:
         method = old_head['method']
 
     rst = []
-    rst.append('%s %s HTTP/1.1' % (method, get_value(old_head, 'url')))
+    rst.append('%s %s HTTP/1.1' % (method, old_head.get('url')))
     if pauth:
         rst.append('Proxy-Authorization: %s' % pauth)
 
@@ -146,7 +142,14 @@ class tiny_proxy_sock:
 
     def is_CONNECT(self):
         '判断接收的是否为CONNECT方法'
-        return get_value(self.head, 'method') == 'CONNECT'
+        return self.head.get('method') == 'CONNECT'
+
+    def get_TARGET(self):
+        """获取本次请求要连接的目标"""
+        if self.is_CONNECT():
+            return self.head.get('url')
+        else:
+            return self.head.get('Host')
 
     def wait_head(self, wait_time=120, wait_one=5, is_req=True):
         '在给定的时间范围内接收请求,返回值告知是否成功,请求内容可以在head和data中获取'
@@ -335,7 +338,7 @@ def tiny_proxy_svr(port, handler, maxconn=200):
                 return False
 
             # 等待目标端回应
-            if not session.dst_sock.wait_head(is_req=False) or get_value(session.dst_sock.head, 'status') != 200:
+            if not session.dst_sock.wait_head(is_req=False) or session.dst_sock.head.get('status') != 200:
                 session.warn('recv resp CONNECT error.')
                 return False
 
@@ -381,7 +384,7 @@ def tiny_proxy_svr(port, handler, maxconn=200):
             if rc1 + rc2 == 0:
                 time.sleep(0.001)
 
-        session.log('TinyProxyFor End.')
+        session.log(' End.')
         return True
 
     # -----------------------------------------------------
@@ -398,13 +401,14 @@ def tiny_proxy_svr(port, handler, maxconn=200):
     while loop:
         # 获取新连接
         clt_sock = svr.take()
-        if clt_sock is None or handler.meter_idle.hit():
-            loop = 0 if handler.on_idle() else 1  # 如果外部事件要求停止,则循环结束
+        if clt_sock is None:
+            if handler.meter_idle.hit():
+                loop = 0 if handler.on_idle() else 1  # 如果外部事件要求停止,则循环结束
             continue
 
         # 构造proxy服务端会话对象
         session = tiny_proxy_session(clt_sock, handler.on_log)
-        handler.on_log('INFO:', get_sock_info(clt_sock), 'TinyProxyFor Accept.')
+        session.log(' Begin.')
 
         # 调用回调函数,进行proxy请求的处理,启动新的连接处理过程
         start_thread(on_req, session, handler)
