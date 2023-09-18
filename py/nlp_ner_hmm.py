@@ -6,12 +6,12 @@ import uni_blocks as ub
 import util_hmm as uh
 
 # 用于分句的符号
-SEP_CHARS = {'\n', '！', '？', '#', '￥', '%', '，', '。', '、', '|', '!', '?', '#', '$', '%', ',', '\\', '`', '~', ':', '丶', '、', ' ', '：'}
+SEP_CHARS = {'\n', '！', '？', '#', '￥', '%', '，', '。', '、', '|', '!', '?', '#', '$', '%', ',', '\\', '`', '~', ':', '丶', '、', ' ', '：', ';', '；', '*', '\u200b', '\uf0d8', '\ufeff'}
 SEP_CHARSTR = '[' + ''.join(SEP_CHARS) + ']'
 
 # 名字分隔符归一化
-SEP_NAMES = {'·': '.', '°': '.', '—': '.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.', '\\': '.', '"': "'",
-             '[': '(', ']': ')', '{': '(', '}': ')'}
+SEP_NAMES = {'·': '.', '°': '.', '—': '.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.',
+             '\\': '.', '"': "'", '●': '.', '[': '(', ']': ')', '{': '(', '}': ')', '&': '.'}
 
 
 def ner_text_clean(txt):
@@ -19,6 +19,11 @@ def ner_text_clean(txt):
     txt = ub.sbccase_to_ascii_str2(txt, True, True)
     txt = ub.char_replace(txt, SEP_NAMES).upper()
     return txt
+
+
+def ner_text_split(txt):
+    """对txt进行简单分行处理,返回值:[line]"""
+    return re.split(SEP_CHARSTR, txt)
 
 
 @unique
@@ -46,7 +51,7 @@ class ner_hmm_bio_t:
 
     def on_split_lines(self, txt):
         """对txt进行分行处理"""
-        return re.split(SEP_CHARSTR, txt)  # 对文本简单分行
+        return ner_text_split(txt)  # 对文本简单分行
 
     def on_conv_seqs(self, line):
         """将字符转换为观测序列"""
