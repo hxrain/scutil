@@ -691,7 +691,7 @@ def find_bracket_end(restr, bpos, echr, epos=-1):
     return -1, max_deep
 
 
-def find_brackets(restr, chrs, bpos, epos):
+def find_brackets(restr, chrs, bpos=0, epos=-1):
     """在restr的指定范围[bpos:epos]内,查找chrs[0]和同级配对的chrs[1]的位置.返回值:(b,e,最大深度),或者(None,None,None)"""
     b = find_bracket_begin(restr, chrs[0], bpos, epos)
     if b < 0:
