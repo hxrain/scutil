@@ -19,12 +19,13 @@ import nlp_ner_data as nnd
 import nlp_util as nu
 from nlp_ner_data import types
 import util_base as ub
+import uni_blocks as uni
 
 
 class nt_parser_t:
     '''NT特征解析器.
         与分词器类似,基于字典进行匹配;
-        分词器需要给出尽量准确的分词结果,而本解析器则尽可能的对目标串进行组合覆盖,给出覆盖后的分段列表.
+        分词器需给出尽量准确的分词结果,而本解析器则尝试进行组合覆盖,给出覆盖后的分段特征结果.
     '''
     tags_NM = {types.NM}  # 组织机构/后缀
     tags_NZ = {types.NZ}  # 专业名词
@@ -71,12 +72,16 @@ class nt_parser_t:
 
     # 数字序号分支归一化
     num_norm = [
-        (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)([分号]*[厂店部亭号组校院馆台处师村团局园队所站区会厅库连矿届])(?![件河乡镇])', 1, __nu_nm.__func__),
-        (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(分公司|公司)', 1, __nu_nm.__func__),
-        (r'[第东南西北]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)(马路|路|弄|街|里|亩|线)', 1, __nu_ns.__func__),
-        (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]+)[号]?', 1, __nu.__func__),
-        (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟]{2,})[号]?', 1, __nu.__func__),
+        (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})([分号大]*[厂店部亭号组校院馆台处师村团局园队所站区会厅库连矿届])(?![件河乡镇])', 1, __nu_nm.__func__),
+        (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})(分公司|公司)', 1, __nu_nm.__func__),
+        (r'[第东南西北G]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})(号院|马路|[路弄街里亩线楼室])', 1, __nu_ns.__func__),
+        (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})([中小])(?![学])', 1, __nu_ns.__func__),
+        (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})[号]?', 1, __nu.__func__),
+        (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{2,4})[号]?', 1, __nu.__func__),
     ]
+
+    # 行前缀检查模式
+    line_pre_patts = [r'^([\d\._①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇]+)']
 
     @staticmethod
     def nums(txt, nulst=None):
@@ -113,7 +118,7 @@ class nt_parser_t:
         self.matcher = mac.ac_match_t()  # 定义ac匹配树
         self._loaded_base_nt = False  # 是否装载过内置NT数据
         self._bads = self.make_tails_bads()  # 尾缀坏词匹配器
-
+        self.matcher.dict_add('.', self.tags_NZ)  # NT中的连字符,被统一替换为'.'之后,认为其是一个专属组份
         if light:
             self.load_nt(isend=False)
             self.load_ns(isend=True)
@@ -131,7 +136,7 @@ class nt_parser_t:
     def __load(self, fname, tags, encode='utf-8', vals_cb=None):
         """装载词典文件fname并绑定数据标记tags,返回值:''正常,否则为错误信息."""
 
-        def add(txt, tag):
+        def add(txt, tag, row):
             ret = self.matcher.dict_add(txt, tag, force=True)
             if self._load_check_cb is not None and ret is False:
                 b, e, ctag = self.matcher.do_check(txt)[0]
@@ -140,18 +145,18 @@ class nt_parser_t:
         try:
             row = -1
             with open(fname, 'r', encoding=encode) as fp:
-                for line in fp:
+                for _line in fp:
                     row += 1
-                    if not line:
+                    txt = _line.strip()
+                    if not txt or txt[0] == '#':
                         continue
-                    txt = line[:-1] if line[-1] == '\n' else line
                     if vals_cb:
                         vals = vals_cb(txt)
                         for val in vals:
-                            add(val[0], val[1])
+                            add(val[0], val[1], row)
                     else:
                         tag = tags(txt) if isfunction(tags) else tags
-                        add(txt, tag)
+                        add(txt, tag, row)
             return ''
         except Exception as e:
             return e
@@ -288,9 +293,9 @@ class nt_parser_t:
                 p = seg[0] - 1
                 n = seg[1]
                 if is_brackets(txt[p], txt[n]):
-                    rst.append((p, n + 1, deepcopy(seg[2])))  # 当前是"(北京)"这样的括号地区,那么需要进行范围修正
+                    rst.append((p, n + 1, {a for a in seg[2]}))  # 当前是"(北京)"这样的括号地区,那么需要进行范围修正
                     continue
-            rst.append((seg[0], seg[1], deepcopy(seg[2])))  # 记录原有段落,重新构造新元素,规避对原始对象的涂改.
+            rst.append((seg[0], seg[1], {a for a in seg[2]}))  # 记录原有段落,重新构造新元素,规避对原始对象的涂改.
 
         return rst
 
@@ -324,20 +329,38 @@ class nt_parser_t:
     def drop_crossing(segs, bylvl=False):
         """丢弃segs段落列表中被交叉重叠的部分"""
         drops = []
-        for i in range(len(segs) - 2, 0, -1):
-            c = segs[i]  # 当前段
+        # for i in range(len(segs) - 2, 0, -1):
+        #     c = segs[i]  # 当前段
+        #     p = segs[i - 1]  # 前段
+        #     n = segs[i + 1]  # 后段
+        #     if p[1] == n[0]:  # 当前段被前后段重叠接续
+        #         if bylvl and mu.related_segs(c, n)[0] in {'A@B', 'A==B'} and nnd.types.cmp(c[2], n[2]) > 0:
+        #             # 如果判断分段优先级,并且后段被中段包含,则丢弃后段
+        #             drops.append(n)
+        #             segs.pop(i + 1)
+        #             continue
+        #
+        #         # 否则丢弃中段
+        #         drops.append(c)
+        #         segs.pop(i)
+        i = 1
+        while i < len(segs) - 1:
             p = segs[i - 1]  # 前段
+            c = segs[i]  # 当前段
             n = segs[i + 1]  # 后段
-            if p[1] == n[0]:  # 当前段被前后段重叠接续
-                if bylvl and mu.related_segs(c, n)[0] in {'A@B', 'A==B'} and nnd.types.cmp(c[2], n[2]) > 0:
-                    # 如果判断分段优先级,并且后段被中段包含,则丢弃后段
-                    drops.append(n)
-                    segs.pop(i + 1)
-                    continue
-
+            if p[1] != n[0]:
+                i += 1
+                continue
+            # 当前段被前后段重叠接续
+            if bylvl and mu.related_segs(c, n)[0] in {'A@B', 'A==B'} and nnd.types.cmp(c[2], n[2]) > 0:
+                # 如果判断分段优先级,并且后段被中段包含,则丢弃后段
+                drops.append(n)
+                segs.pop(i + 1)
+            else:
                 # 否则丢弃中段
                 drops.append(c)
                 segs.pop(i)
+
         return drops
 
     @staticmethod
@@ -348,8 +371,10 @@ class nt_parser_t:
 
         def rec_tags_merge(pseg, seg):
             """记录前后两个段落的合并结果"""
-            pseg[2].update(seg[2])  # 合并标记集合
-            rst[-1] = (pseg[0], seg[1], pseg[2])  # 记录合并后的新段
+            # pseg[2].update(seg[2])
+            att = set(pseg[2])
+            att.update(seg[2])  # 合并标记集合
+            rst[-1] = (pseg[0], seg[1], att)  # 记录合并后的新段
 
         def rec_tags_cross(pseg, seg):
             """记录前后两个段落的相交结果"""
@@ -374,7 +399,7 @@ class nt_parser_t:
             pseg = rst[-1]
             rl, cr = mu.related_segs(pseg, seg)
             if rl != 'A+B':
-                clst.append((pseg, rl, seg, cr))  # 不是顺序连接,那就记录交叉情况
+                clst.append((pseg, rl, seg, cr))  # 不是顺序连接,那就记录关联情况
             if rl in {'A+B', 'A&B'}:
                 if merge_types and types.equ(pseg[2], seg[2]):
                     rec_tags_merge(pseg, seg)
@@ -454,9 +479,9 @@ class nt_parser_t:
             nums = self.query_nu(txt, nulst)  # 进行数字序号匹配
             if nums:
                 self.__merge_nums(mres, nums)
-        self.drop_crossing(mres, True)  # 删除交叉重叠
+        self.drop_crossing(mres, True)  # 删除接续交叉重叠
         nres = self.drop_nesting(mres, txt)  # 删除嵌套包含的部分
-        self.drop_crossing(nres)  # 删除交叉重叠
+        self.drop_crossing(nres)  # 删除接续交叉重叠
         return self.__merge_segs(nres, merge)
 
     def query(self, txt, merge=True, nulst=None, with_useg=False):
@@ -513,7 +538,7 @@ class nt_parser_t:
         return 0  # 告知完整拼装(有交叉)
 
     def verify(self, name, segs=None, merge_types=False):
-        """对name中出现的多重NT构成进行分组并校验有效性,如附属机构/分支机构/工会
+        """对name中出现的多重NT构成特征进行拆分并校验有效性,如附属机构/分支机构/工会
             segs - 可记录组份分段数据的列表.
             返回值:分隔点列表[(bpos,epos,types)]
                   返回的types只有NM与NB两种机构类型
@@ -522,9 +547,6 @@ class nt_parser_t:
         segs, _ = mu.complete_segs(cons, len(name), True, segs)
         opos = []
         bpos = 0
-
-        def rec(bpos, epos, stype):
-            opos.append((bpos, epos, stype))
 
         def chk_bads(i, seg):
             """检查当前段尾缀是否为坏词.返回值:尾部匹配了坏词"""
@@ -545,21 +567,154 @@ class nt_parser_t:
                 begin, deep, node = self._bads.query(txt, False)
                 return deep > 0 and not node
 
+        def rec(i, seg, bpos, epos, stype):
+            if chk_bads(i, seg):
+                return
+            opos.append((bpos, epos, stype))
+
         for i, seg in enumerate(segs):
             stype = seg[2]
             epos = seg[1]
-            if chk_bads(i, seg):
-                bpos = epos  # 当前段含有坏词,跳过
-            elif types.joint(stype, (types.NM, types.NL)):
-                rec(bpos, epos, types.NM)  # 当前段是普通NT结尾,记录
+            if types.joint(stype, (types.NM, types.NL)):
+                rec(i, seg, bpos, epos, types.NM)  # 当前段是普通NT结尾,记录
             elif types.equ(stype, types.NB):
-                rec(bpos, epos, types.NB)  # 当前段是分支NT结尾,记录
+                rec(i, seg, bpos, epos, types.NB)  # 当前段是分支NT结尾,记录
             elif types.equ(stype, types.NO) and i > 0 and i == len(segs) - 1:
                 # 当前段是单字NT结尾,需要判断特例
                 pseg = segs[i - 1]
                 if types.joint(pseg[2], (types.NZ, types.NU, types.NS, types.NN, types.NB)):
-                    rec(bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`/`NS|NO`/`NN|NO`可以作为NT机构
+                    rec(i, seg, bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`/`NS|NO`/`NN|NO`可以作为NT机构
                 elif types.joint(pseg[2], (types.NM, types.NO)):
                     if name[pseg[1] - 1] != name[seg[0]] or name[seg[0]] in {'店', '站'}:
-                        rec(bpos, epos, types.NM)  # `NM|NO` 不可以为'图书馆馆'/'经销处处',可以是'马店店'/'哈站站',可以作为NT机构
+                        rec(i, seg, bpos, epos, types.NM)  # `NM|NO` 不可以为'图书馆馆'/'经销处处',可以是'马店店'/'哈站站',可以作为NT机构
         return opos
+
+    def check_pre(self, line):
+        """检查line的首部特征.返回值:出需要跳过的长度"""
+
+        if not line:
+            return 0
+
+        def chk_patt(patt):
+            mres = re.findall(patt, line)
+            if not mres:
+                return 0  # 特定模式未匹配,不用跳过首部
+            mrst = self.matcher.do_check(mres[0], mode=mac.mode_t.max_match)
+            if not mrst:
+                return len(mres[0])  # 模式匹配的部分是未知要素,跳过首部
+            if mu.slen(mrst[0]) == len(mres[0]) and mrst[0][2] is not None:
+                return 0  # 模式匹配的部分是完整的已知要素,不用跳过首部
+            return len(mres[0])  # 其他情况,跳过首部
+
+        for patt in self.line_pre_patts:
+            sc = chk_patt(patt)
+            if sc:
+                return sc
+
+        if line[0] == '(':
+            m = uni.find_brackets(line, '()')
+            if m[0] is None:
+                return 1
+        if line[0] == '[':
+            m = uni.find_brackets(line, '[]')
+            if m[0] is None:
+                return 1
+        if line[0] in {')', ']', '>'}:
+            return 1
+        return 0
+
+
+def make_segs_chars(txt, segs, offset=0, nx=False):
+    """将txt文本的segs分段列表,转换为字符列表与对应的分段属性列表.
+        nx - 控制是否使用NX标记代替未知短语
+        返回值:([字符列表],[字符对应的分段属性(b,e,att)])
+    """
+    chars = []
+    ranges = []
+    for seg in segs:
+        if seg[2] is None:
+            if nx:
+                chars.append(chr(types.NX.value))
+                ranges.append((offset + seg[0], offset + seg[1], types.NX))
+            else:
+                for i in range(seg[0], seg[1]):
+                    chars.append(txt[i])
+                    ranges.append((offset + i, offset + i + 1, None))
+        else:
+            t = types.type(seg[2])
+            chars.append(chr(t.value))
+            ranges.append((offset + seg[0], offset + seg[1], t))
+    return chars, ranges
+
+
+def make_segs_tags(line, segs, nx=False):
+    """根据组份分段列表segs和文本串line,生成标记表达格式串
+        nx - 控制是否使用NX标记代替未知短语
+        返回值:[标记或未知短语]
+    """
+    usegs = []
+    for useg in segs:
+        if useg[2] is None:
+            if nx:
+                t = nnd.types.NX.name
+            else:
+                t = line[useg[0]:useg[1]]
+        else:
+            t = nnd.types.type(useg[2]).name
+        usegs.append(t)
+    return usegs
+
+
+def calc_range_map(bidx, eidx, ranges):
+    """获取make_segs_chars返回的分段映射对应的实际范围"""
+    return ranges[bidx][0], ranges[eidx][1]
+
+
+def conv_names_list(fn_name, out_name, dicts, tag=False, nx=False):
+    """转换nt样例文件fn_names中的每行值为组份要素构成,输出到out_name文件中.
+        fn_names = 命名实体样例文件名称
+        out_name = 输出文件名称
+        dicts = 解析组份需要的词典数据列表
+        tag = 是否输出带有类型标记的可阅读文本串,或输出不可阅读的类型字符文本串
+        nx = 是否未知短语也被NX类型替代.(最大化压缩)
+    """
+    mchk = nt_parser_t(False)
+    mchk.loads(dicts)
+
+    stats = {}
+    rc = 0
+    with open(fn_name, 'r', encoding='utf-8') as fn:
+        line = fn.readline().strip()
+        while line:
+            mres = mchk.query(line, with_useg=True)
+            if tag:
+                chars = make_segs_tags(line, mres, nx)
+                out = '|'.join(chars)
+            else:
+                chars, segs = make_segs_chars(line, mres, nx)
+                out = ''.join(chars)
+            ub.inc(stats, out)
+            line = fn.readline().strip()
+            rc += 1
+            if rc % 1000 == 0:
+                print(rc)
+
+    keys = sorted(stats.keys(), key=lambda x: (stats[x], x))
+    with open(out_name, 'w+', encoding='utf-8') as out:
+        for key in keys:
+            out.write(f'{key}:{stats[key]}\n')
+
+
+def load_tags_tree(fn_name, ac=None, end=True):
+    """装载nt样本组份文件fn_name到ac匹配树.返回值:ac匹配树对象"""
+    if ac is None:
+        ac = mac.ac_match_t()
+    with open(fn_name, 'r', encoding='utf-8') as fn:
+        line = fn.readline()
+        while line:
+            seg, frq = line.split(':')
+            ac.dict_add(seg, int(frq))
+            line = fn.readline()
+    if end:
+        ac.dict_end()
+    return ac
