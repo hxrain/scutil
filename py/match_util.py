@@ -169,7 +169,7 @@ def merge_match_segs(mres, keepback=False):
     return rst
 
 
-def complete_segs(mres, slen, isfull=False,segs=None, ext=None):
+def complete_segs(mres, slen, isfull=False, segs=None, ext=None):
     """在总长度为slen的范围内,获取mres分段列表中未包含的部分,或isfull完整列表
         返回值:[(b,e,v)],rc
         v is None - 未匹配段
@@ -190,6 +190,15 @@ def complete_segs(mres, slen, isfull=False,segs=None, ext=None):
         rst.append((pos, slen, ext))
         rc += 1
     return rst, rc
+
+
+def take_unsegs(segs):
+    """获取分段列表segs中的未知分段.返回值:[未知分段索引]"""
+    rst = []
+    for i, seg in enumerate(segs):
+        if seg[2] is None:
+            rst.append(i)
+    return rst
 
 
 def is_full_segs(mres, slen):
@@ -273,4 +282,13 @@ def drop_nesting(segs):
     for seg in segs:
         if chk(seg):
             rst.append(seg)
+    return rst
+
+
+def max_seg(segs):
+    """在segs分段列表中,查找第一个最长的段.返回值:索引"""
+    rst = 0
+    for i in range(1, len(segs)):
+        if slen(segs[i]) > slen(segs[rst]):
+            rst = i
     return rst

@@ -326,3 +326,68 @@ class ac_match_t:
                 do_rep(m[0], m[1], m[2])
 
         return ''.join(rst)
+
+
+class spliter_t:
+    """基于ac匹配树的多字符串列表分隔器.
+        以绑定的关键词集合进行分段切分,如果关键词以'!'结尾则不进行切分.
+    """
+
+    def __init__(self, strs=None):
+        self.matcher = ac_match_t()
+        if strs:
+            self.bind(strs)
+
+    def bind(self, strs, isend=True):
+        for i, line in enumerate(strs):
+            if not line or line[0] == '#':
+                continue
+            if line[-1] in {'!'}:
+                self.matcher.dict_add(line[:-1], line[-1])  # 特殊匹配模式
+            else:
+                self.matcher.dict_add(line, i + 1)  # 分段匹配模式
+        if isend:
+            self.matcher.dict_end()
+
+    def load(self, fname, encode='utf-8'):
+        with open(fname, 'r', encoding=encode) as f:
+            self.bind(f.readlines())
+
+    def match(self, txt):
+        """用txt匹配内部词表.返回值:[(begin,end,val)],val is None对应未匹配部分"""
+        segs = self.matcher.do_match(txt, mode=mode_t.max_match)
+        return segs if segs else [(0, len(txt), None)]
+
+    def split(self, txt):
+        """用strs串列表拆分txt.返回值:[分段字符串]"""
+        rst = []
+        segs = self.match(txt)
+        attach = False
+        for seg in segs:
+            if seg[2] == '!':  # 如果遇到特殊匹配
+                line = rst.pop(-1) + txt[seg[0]:seg[1]]  # 则进行当前与前一段的拼装
+                rst.append(line)
+                attach = True  # 设置附加状态
+            elif attach:  # 如果要求附加连接
+                if seg[2] in {None, '!'}:  # 且当前不是分段匹配
+                    line = rst.pop(-1) + txt[seg[0]:seg[1]]  # 则进行当前与前一段的拼装
+                    rst.append(line)
+                attach = seg[2] == '!'  # 更新附加状态,可能继续附加
+            elif seg[2] is None:  # 当前就是普通分段
+                rst.append(txt[seg[0]:seg[1]])
+
+        return rst
+
+
+def split_by_strs(txt, strs, outstrs=False):
+    """用strs串列表拆分txt.
+        outstrs 为 True:
+            返回值:[(begin,end,val)],val is None对应未匹配部分
+        outstrs 为 False:
+            返回值:[分段字符串]
+    """
+    match = spliter_t(strs)
+    if outstrs:
+        return match.split(txt)
+    else:
+        return match.match(txt)
