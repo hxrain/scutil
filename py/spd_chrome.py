@@ -1517,17 +1517,17 @@ class spd_chrome:
             return filedata
 
         # 先等待请求信息被发出
-        req_lst, msg = self.wait_request_infos(tab, url, 10, url_is_re)
+        req_lst, msg = self.wait_request_infos(tab, url, timeout, url_is_re)
         if msg:
             return None, msg
-        if req_lst is None or len(req_lst) == 0:
-            return None, 'request waiting.'
+        if not req_lst:
+            return None, 'requestWaiting.'
 
         # 再等待请求的回应内容到达
         _, reqid = req_lst[-1]
         rrinfo = wait_response(reqid, timeout)
         if not rrinfo:
-            return None, 'response waiting'
+            return None, 'responseWaiting.'
 
         # 不要求回应body的时候,等待回应完成就直接返回
         if not get_body:
