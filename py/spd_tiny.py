@@ -712,7 +712,7 @@ class source_base:
                     ename = names[-1]
 
             # 扩展名不能直接获取时则尝试根据数据内容进行猜测
-            if not ename or len(ename) >= 6:
+            if not ename or len(ename) >= 8:
                 ename = guess_mime(attdata, True)
 
             # 生成落地后的多级路径,构造落地后的附件文件名
