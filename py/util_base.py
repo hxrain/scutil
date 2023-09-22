@@ -556,12 +556,14 @@ class lines_writer:
         self.keys = set()
         self.keyIdx = keyIdx
         self.sep = sep
+        self.name = None
         if fname:
             self.open(fname, mode=mode)
 
     def open(self, fname, encoding='utf-8', mode='a+'):
         if self.fp is not None:
             return True
+        self.name = fname
         try:
             self.fp = open(fname, mode, encoding=encoding)
             self.fp.seek(0, 0)
@@ -1353,7 +1355,7 @@ def text_file_unrepeat(fname, encoding='utf-8', oname=None, cb=None):
             out.appendx(lines)
         else:
             for line in lines:
-                txt = cb(line[:-1] if line[-1] == '\n' else line)
+                txt = cb(line.strip())
                 out.append(txt)
         return ''
     except Exception as e:
