@@ -251,10 +251,11 @@ def load_as_dict(fname, encoding='utf-8', rst=None, row_as_key=False):
         row = 0
         for line in fp:
             row += 1
+            txt = line[:-1] if line[-1] == '\n' else line
             if row_as_key:
-                rst[row] = line[:-1] if line[-1] == '\n' else line
+                rst[row] = txt
             else:
-                rst[line[:-1] if line[-1] == '\n' else line] = row
+                rst[txt] = row
         fp.close()
         return rst, ''
     except Exception as e:
@@ -658,6 +659,21 @@ def save_to_file(fname, strdata, encode='utf-8', mode='w'):
         return False
 
 
+def make_paths(filepath, last_is_file=True):
+    """生成filepath路径依赖的所有父路径.
+        last_is_file - 告知filepath最后一段是否为文件名(不用创建最后一段)
+        返回值:'' - 正常;其他为错误信息
+    """
+    paths = re.split(r'[/\\]', filepath)
+    if last_is_file:
+        paths.pop(-1)
+    try:
+        os.makedirs(os.path.sep.join(paths), exist_ok=True)
+        return ''
+    except Exception as e:
+        return ei(e)
+
+
 # 保存指定内容到文件,同时创建不存在的层级目录
 def save_to_file2(path, fname, strdata, encode='utf-8', mode='w'):
     try:
@@ -671,7 +687,7 @@ def save_to_file2(path, fname, strdata, encode='utf-8', mode='w'):
 # 将数据保存到fn对应的文件中
 def save_file(fn, data, encoding='utf-8'):
     try:
-        if type(data).__name__ == 'str':
+        if type(data).__name__ == 'str' and encoding:
             data = data.encode(encoding)
         f = open(fn, "wb+")
         f.write(data)
