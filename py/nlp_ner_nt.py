@@ -551,15 +551,13 @@ class nt_parser_t:
         def chk_bads(i, seg):
             """检查当前段尾缀是否为坏词.返回值:尾部匹配了坏词"""
             end = len(segs) - 1
+            txt = name[bpos:seg[1]]
+            begin, deep, node = self._bads.query(txt, True)
             if i == end:
                 # 最后一段,直接判定
-                txt = name[bpos:seg[1]]
-                begin, deep, node = self._bads.query(txt, True)
                 return deep > 0 and not node
             else:
                 # 非最后段,先直接判定
-                txt = name[bpos:seg[1]]
-                begin, deep, node = self._bads.query(txt, True)
                 if deep > 0 and not node:
                     return True
                 # 再扩展判定
@@ -569,6 +567,8 @@ class nt_parser_t:
 
         def rec(i, seg, bpos, epos, stype):
             if chk_bads(i, seg):
+                return
+            if epos - bpos < 3: # 太短的实体名称不记录.
                 return
             opos.append((bpos, epos, stype))
 
