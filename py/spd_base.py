@@ -13,6 +13,7 @@ import time
 import base64
 import requests
 import socket
+import brotli
 import urllib.parse as up
 from util_xml import *
 from hash_calc import *
@@ -66,6 +67,12 @@ def decodeURIComponent(url):
 # 基于url_base补全url_path,得到新路径
 def full_url(url_path, url_base):
     return up.urljoin(url_base, url_path)
+
+
+def make_host_base(url):
+    """解析得到url的host基地址"""
+    ext = up.urlparse(url)
+    return f'{ext.scheme}://{ext.netloc}/'
 
 
 # -----------------------------------------------------------------------------
@@ -192,6 +199,9 @@ def find_chs_by_cnt(cnt):
             ret = m.group(1)
     if len(ret) <= 2:
         return ''
+
+    if ret.lower() == 'gbk2312':
+        ret = 'GB18030'
     return ret
 
 
@@ -353,17 +363,23 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     # 判断是否需要进行额外的br解压缩处理
     rsp_cnt = ''
     if is_br_content(rsp.headers):
-        import brotli
-        rsp_cnt = brotli.decompress(rsp.content)
+        try:
+            rsp_cnt = brotli.decompress(rsp.content)
+        except Exception as e:
+            rst['error'] = es(e)
+            rsp_cnt = rsp.content
     else:
         rsp_cnt = rsp.content
 
     # 判断是否需要进行字符集解码处理
-    chs = find_chs_by_cnt(rsp_cnt)
-    if chs == '' and is_text_content(rsp.headers):
-        chs = find_chs_by_head(rsp.headers)
-        if chs == '':
-            chs = 'utf-8'
+    if 'Content-disposition' in rsp.headers:
+        chs = ''  # 回应是附件文件,不要进行解码处理
+    else:
+        chs = find_chs_by_cnt(rsp_cnt)
+        if chs == '' and is_text_content(rsp.headers):
+            chs = find_chs_by_head(rsp.headers)
+            if chs == '':
+                chs = 'utf-8'
 
     def dc(cnt, chs):
         ret = cnt
@@ -391,8 +407,16 @@ def http_req(url, rst, req=None, timeout=15, allow_redirects=True, session=None,
     return True
 
 
-# 快速抓取目标url的get请求函数
 def http_get(url, req=None, timeout=15, allow_redirects=True, session=None, cookieMgr=None):
+    """快速抓取目标url的get请求函数
+        url - 目标地址
+        req - 请求参数字典
+        timeout - 请求超时上限
+        allow_redirects - 是否允许自动处理302跳转
+        session - 多次交互使用的会话对象 requests.sessions.Session()
+        cookieMgr - 多次交互使用的cookie管理器 http.cookiejar.LWPCookieJar(filename)
+        返回值:(body,status_code,error)
+    """
     rst = {}
     http_req(url, rst, req, timeout, allow_redirects, session, cookieMgr)
     return rst.get('BODY', None), rst['status_code'], rst['error']
