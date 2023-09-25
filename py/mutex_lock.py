@@ -167,7 +167,8 @@ def guard_std(locker):  # 顶层装饰函数,用来接收用户参数,返回外�
 
     return outside
 
-#默认使用标准guard模式,不记录锁等待信息.
+
+# 默认使用标准guard模式,不记录锁等待信息.
 guard = guard_std
 
 
@@ -249,6 +250,23 @@ def wait_threads_count(thds, max_thds, timeout=0.1, idle_cb=None):
         if stop:
             return True
     return False
+
+
+def with_threads(datas, task_cb, threads=32, stat_cb=None):
+    """并发threads线程处理datas字典,字典的每个元素都传递给task_cb(key,val)在独立的线程中运行.
+        如果给出了状态回调,则周期性调用stat_cb(remain,total)便于进行计数或进度更新.
+    """
+    workers = []
+    ids = list(datas.keys())
+    total = len(ids)
+    while ids:
+        if stat_cb:
+            stat_cb(len(ids), total)
+        cnt = min(threads - len(workers), len(ids))
+        for i in range(cnt):
+            id = ids.pop(0)
+            workers.append(start_thread(task_cb, id, datas[id]))
+        wait_threads(workers, 1)
 
 
 class obj_pool_t:
