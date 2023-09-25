@@ -151,10 +151,12 @@ class words_trie_t:
 
     def query(self, word, strict=False):
         """尝试查找是否有匹配的词汇.
+            word - 待匹配的短语
+            strict - 是否进行严格的边界匹配
             返回值:(begin,deep,node)
-                deep=0          - 不匹配:node为None;
-                deep=len(word)  - node为空字典为完整匹配,否则为不完整匹配;
-                0<deep<len(word)- 部分匹配:node为下级节点
+                deep=0           - 不匹配:node为None;
+                deep=len(word)   - node为空字典为完整匹配,否则为部分匹配;
+                0<deep<len(word) - 部分匹配:node为下级节点
         """
         if not word:
             return 0, self.root
