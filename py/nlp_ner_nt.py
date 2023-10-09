@@ -13,7 +13,7 @@ from collections.abc import Iterable
 
 import match_ac as mac
 import match_util as mu
-import china_area_id as ca
+import china_area_id as cai
 import nlp_ner_hmm as nnh
 import nlp_ner_data as nnd
 import nlp_util as nu
@@ -200,21 +200,21 @@ class nt_parser_t:
     def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars={'省', '市', '区', '县', '州', '盟', '旗', '乡', '村', '镇'}):
         """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
         lvls = {0: self.tags_NS, 1: self.tags_NS1, 2: self.tags_NS2, 3: self.tags_NS3, 4: self.tags_NS4, 5: self.tags_NS5}
-        for id in ca.map_id_areas:  # 装入内置的行政区划名称
-            alst = ca.map_id_areas[id]
-            lvl = ca.query_aera_level(alst[0])  # 根据正式地名得到行政区划级别
+        for id in cai.map_id_areas:  # 装入内置的行政区划名称
+            alst = cai.map_id_areas[id]
+            lvl = cai.query_aera_level(alst[0])  # 根据正式地名得到行政区划级别
             if lvl > lv_limit:
                 continue
             tags = lvls[lvl]
             for name in alst:
                 self.matcher.dict_add(name, tags, force=True)
-                aname = ca.drop_area_tail(name, drops_tailchars)
+                aname = cai.drop_area_tail(name, drops_tailchars)
                 if name != aname and aname not in nnd.nt_tail_datas:
                     self.matcher.dict_add(aname, tags, force=True)  # 特定尾缀地区名称,放入简称
 
         if worlds:
-            for state in ca.map_worlds:  # 装入内置的世界主要国家与首都
-                city = ca.map_worlds[state]
+            for state in cai.map_worlds:  # 装入内置的世界主要国家与首都
+                city = cai.map_worlds[state]
                 self.matcher.dict_add(state, self.tags_NS, force=True)
                 self.matcher.dict_add(city, self.tags_NS1, force=True)
 
@@ -226,13 +226,13 @@ class nt_parser_t:
             """根据地名进行行政级别查询,返回对应的标记"""
             if line[-2:] in {'社区', '林场', '农场', '牧场', '渔场'}:
                 return self.tags_NSNM
-            lvl = ca.query_aera_level(line)
+            lvl = cai.query_aera_level(line)
             return lvls[lvl]
 
         def vals_cb(name):
             if name[-1] == '!':
                 return [(name[:-1], ns_tags(name[:-1]))]  # 特殊地名,不进行尾缀移除处理
-            aname = ca.drop_area_tail(name, drops_tailchars)
+            aname = cai.drop_area_tail(name, drops_tailchars)
             if name != aname and aname not in nnd.nt_tail_datas:
                 return [(name, ns_tags(name)), (aname, self.tags_NN)]
             return [(name, self.tags_NS)]
@@ -563,12 +563,14 @@ class nt_parser_t:
                 # 再扩展判定
                 txt += name[seg[1]:seg[1] + 3]
                 begin, deep, node = self._bads.query(txt, False)
+                if begin is None or begin < seg[0]:
+                    return False
                 return deep > 0 and not node
 
         def rec(i, seg, bpos, epos, stype):
             if chk_bads(i, seg):
                 return
-            if epos - bpos < 3: # 太短的实体名称不记录.
+            if epos - bpos < 3:  # 太短的实体名称不记录.
                 return
             opos.append((bpos, epos, stype))
 
