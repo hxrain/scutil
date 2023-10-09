@@ -3863,20 +3863,20 @@ def drop_area_tail(name, tails={'省', '市', '区', '县', '州', '盟', '旗',
     nlen = len(name)
     if nlen <= 2 or not tails:
         return name
-    if name in {'三台县', '五台县', '九台县'}:
-        return name
+    if name in {'三台县', '五台县', '九台县', '九台区'}:
+        return name  # 特定地名不进行简化处理
     if name[-2:] in {'新区', '地区', '林区', '矿区', '政区', '市区', '开区', '发区', '业区', '理区', '坝区', '园区'}:
-        return name
-    if nlen >= 4 and name[-2:] in {'社区', '街道', '嘎查', '苏木', '新村', '农场', '林场', '牧场', '渔场', '古村'}:
-        return name[:-2]
-    if nlen >= 5 and name[-3:] in {'嘎查村', '苏木村', '自治县', '自治州', '自治区', '中心村', '苏木乡'}:
-        return name[:-3]
+        return name  # 特定尾缀不进行简化处理
     if nlen >= 6 and name[-4:] in {'中心社区'}:
-        return name[:-4]
+        return name[:-4]  # 丢弃尾四字
+    if nlen >= 5 and name[-3:] in {'嘎查村', '苏木村', '自治县', '自治州', '自治区', '中心村', '苏木乡'}:
+        return name[:-3]  # 丢弃尾三字
+    if nlen >= 4 and name[-2:] in {'社区', '街道', '嘎查', '苏木', '新村', '农场', '林场', '牧场', '渔场', '古村'}:
+        return name[:-2]  # 丢弃尾二字
     if name[:2] in {'合作', '安居', '安康', '资源', '路桥', '通道'}:
-        return name
+        return name  # 特定前缀不进行简化处理
     if name[-1] in tails:
-        return name[:-1]
+        return name[:-1]  # 普通情况,丢弃尾字
     return name
 
 
@@ -4123,8 +4123,9 @@ def query_first_id(addr, offset=0, max=15):
     return '', None
 
 
-def query_area_ids(addr, min_words=2):
-    """查询addr地址串对应的具体的行政区划代码.返回值:[区划id集合]
+def query_area_ids(addr, min_words=2, segs=None):
+    """查询addr地址串对应的具体的行政区划代码.返回值:[{区划id}]
+        segs可以为list实例,用于记录匹配的每一段名称的范围
     """
     if not addr:
         return []
@@ -4155,6 +4156,8 @@ def query_area_ids(addr, min_words=2):
             begin += 1
         else:
             ids.append(map_area_ids[addr[begin:end]])  # 找到了匹配的区划名称,记录对应的区划代码集合
+            if segs is not None:
+                segs.append((begin, end))  # 记录匹配的分段范围
             begin = end
 
     return ids
