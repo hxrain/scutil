@@ -74,14 +74,14 @@ class nt_parser_t:
     num_norm = [
         (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})([分号大]*[厂店部亭号组校院馆台处师村团局园队所站区会厅库连矿届])(?![件河乡镇])', 1, __nu_nm.__func__),
         (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})(分公司|公司)', 1, __nu_nm.__func__),
-        (r'[第东南西北G]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})(号院|马路|[路弄街里亩线楼室])', 1, __nu_ns.__func__),
+        (r'[第东南西北G]*([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})(号院|马路|[路弄街里亩线楼室栋段])', 1, __nu_ns.__func__),
         (r'第?([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})([中小])(?![学])', 1, __nu_ns.__func__),
         (r'第([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{1,4})[号]?', 1, __nu.__func__),
         (r'([O\d零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾百千仟廿卅]{2,4})[号]?', 1, __nu.__func__),
     ]
 
     # 行前缀检查模式
-    line_pre_patts = [r'^([\d\._①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇]+)']
+    line_pre_patts = [r'^([\s\n\._①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇]+)']
 
     @staticmethod
     def nums(txt, nulst=None):
@@ -541,7 +541,7 @@ class nt_parser_t:
         """对name中出现的多重NT构成特征进行拆分并校验有效性,如附属机构/分支机构/工会
             segs - 可记录组份分段数据的列表.
             返回值:分隔点列表[(bpos,epos,types)]
-                  返回的types只有NM与NB两种机构类型
+                  返回的types只有NM与NB两种组份模式
         """
         cons, _ = self.parse(name, merge_types)
         segs, _ = mu.complete_segs(cons, len(name), True, segs)
@@ -551,7 +551,7 @@ class nt_parser_t:
         def chk_bads(i, seg):
             """检查当前段尾缀是否为坏词.返回值:尾部匹配了坏词"""
             end = len(segs) - 1
-            txt = name[bpos:seg[1]]
+            txt = name[seg[0]:seg[1]]
             begin, deep, node = self._bads.query(txt, True)
             if i == end:
                 # 最后一段,直接判定
@@ -561,38 +561,58 @@ class nt_parser_t:
                 if deep > 0 and not node:
                     return True
                 # 再扩展判定
-                txt += name[seg[1]:seg[1] + 3]
+                txt = name[seg[0]:seg[1] + 3]
                 begin, deep, node = self._bads.query(txt, False)
-                if begin is None or begin < seg[0]:
+                if begin is None or seg[0] + begin >= seg[1]:
                     return False
                 return deep > 0 and not node
+
+        def chk_errs(i, seg):
+            """检查当前段是否为错误切分.如'师范学院路'->师范学院/学院路->师范/学院路,此时的'师范'仍是NM,但明显是错误的."""
+            if types.equ(seg[2], types.NM) and mu.slen(seg) >= 2:
+                p = segs[i - 1][0] if i > 0 else 0
+                txt = name[p:seg[1]]
+                mres = self.matcher.do_check(txt)  # 按词典进行全部匹配
+                for mr in mres:
+                    if mr[1] == len(txt) and types.equ(mr[2], types.NM):
+                        return False
+                return True  # 外面给出的NM经过检查后发现并不是NM,切分错误,不分段
+            return False
 
         def rec(i, seg, bpos, epos, stype):
             if chk_bads(i, seg):
                 return
+            if chk_errs(i, seg):
+                return
             if epos - bpos < 3:  # 太短的实体名称不记录.
                 return
-            opos.append((bpos, epos, stype))
+            newr = (bpos, epos, stype)
+            if opos and types.joint(seg[2], (types.NO, types.NM)):
+                oldr = opos[-1]  # 当前段是NO单字尾缀,需要尝试剔除前一个紧邻的结果分段
+                if oldr[0] == newr[0] and oldr[1] == newr[1] - 1:
+                    opos.pop(-1)  # 后一段结果比前一段结果多一个字,则丢弃前段结果
+            opos.append(newr)
 
         for i, seg in enumerate(segs):
             stype = seg[2]
             epos = seg[1]
+            islast = i == len(segs) - 1
             if types.joint(stype, (types.NM, types.NL)):
                 rec(i, seg, bpos, epos, types.NM)  # 当前段是普通NT结尾,记录
             elif types.equ(stype, types.NB):
                 rec(i, seg, bpos, epos, types.NB)  # 当前段是分支NT结尾,记录
-            elif types.equ(stype, types.NO) and i > 0 and i == len(segs) - 1:
+            elif types.equ(stype, types.NO) and i > 0 and islast:
                 # 当前段是单字NT结尾,需要判断特例
                 pseg = segs[i - 1]
                 if types.joint(pseg[2], (types.NZ, types.NU, types.NS, types.NN, types.NB)):
-                    rec(i, seg, bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`/`NS|NO`/`NN|NO`可以作为NT机构
+                    rec(i, seg, bpos, epos, types.NM)  # `NZ|NO`/`NU|NO`/`NS|NO`/`NN|NO`/`NB/NO`可以作为NT机构
                 elif types.joint(pseg[2], (types.NM, types.NO)):
                     if name[pseg[1] - 1] != name[seg[0]] or name[seg[0]] in {'店', '站'}:
                         rec(i, seg, bpos, epos, types.NM)  # `NM|NO` 不可以为'图书馆馆'/'经销处处',可以是'马店店'/'哈站站',可以作为NT机构
         return opos
 
-    def check_pre(self, line):
-        """检查line的首部特征.返回值:出需要跳过的长度"""
+    def front(self, line):
+        """根据已知前缀特征line_pre_patts,检查line的前缀特征,判断是否需要丢弃.返回值:需要丢弃的前缀长度"""
 
         if not line:
             return 0
@@ -624,6 +644,67 @@ class nt_parser_t:
         if line[0] in {')', ']', '>'}:
             return 1
         return 0
+
+    def extend(self, txt, names, lborder=3, rborder=2):
+        """在txt文本中针对已经识别出的names实体集合,进行左右border延展分析,用于规避神经网络识别时导致的匹配缺失或错误等问题.
+            返回值:[(nb,ne,oldname,ob,oe)],(nb,ne)为延展后新分段位置,oldname为names中传入的原实体名,(ob,oe)为原实体名匹配的位置
+        """
+        # 先构建全文匹配树
+        ac = mac.ac_match_t()
+        for name in names:
+            ac.dict_add(name)
+        ac.dict_end()
+        # 进行全文匹配,定位每个名字匹配的位置
+        mres = ac.do_check(txt, mode=mac.mode_t.max_match)
+        # 进行扩展分析
+        return self.expand(txt, mres, lborder, rborder)
+
+    def expand(self, txt, mres, lborder, rborder):
+        """在txt文本中针对已经识别出的mres实体分段集合,进行左右border延展分析,用于规避神经网络识别时导致的匹配缺失或错误等问题.
+            返回值:[(nb,ne,oldname,ob,oe)],(nb,ne)为延展后新分段位置,oldname为names中传入的原实体名,(ob,oe)为原实体名匹配的位置
+        """
+        rst = []
+
+        def check(b, e, lborder, rborder):
+            """对txt中(b,e)处的实体名进行(b-lborder, e+rborder)延展分析.返回值:(nb,ne,name)
+                核心动作:1 判断是否可以被front丢弃前缀;2判断是否可以被verify丢弃尾缀;3是否可以进行前缀补全
+            """
+            name = txt[b:e]  # 原实体名
+            loffset = b - lborder  # 左侧延展后的开始位置
+            xname = txt[loffset:e + rborder]  # 延展后的文本
+
+            segs = []
+            nts = self.verify(xname, segs)  # 对延展后的文本进行整体校验
+            if not nts:
+                return None  # 尾部特征校验未通过,直接返回
+            ne = nts[-1][1] + loffset  # 记录最长的尾部偏移
+
+            skip = self.front(name)
+            if skip:
+                nb = b + skip  # 如果原名字存在需丢弃前缀,则可以直接返回了.
+                return nb, ne, name, b, e
+
+            # 现在判断是否需要进行首部补全
+            idx = 0
+            while segs[idx][1] <= lborder:
+                idx += 1
+            head = segs[idx]  # 选取最接近原首段的新匹配段
+
+            if types.joint(head[2], (types.NS, types.NZ, types.NN)):
+                nb = head[0] + loffset  # 使用新的首段作为左侧延展位置
+            else:
+                nb = b
+
+            return nb, ne, name, b, e
+
+        for mr in mres:
+            lborder = lborder if mr[0] >= lborder else mr[0]  # 左侧可延展的边界距离
+            rborder = rborder if mr[1] + rborder <= len(txt) else len(txt) - mr[1]  # 右侧可延展的边界距离
+            nr = check(mr[0], mr[1], lborder, rborder)
+            if nr:
+                rst.append(nr)
+
+        return rst
 
 
 def make_segs_chars(txt, segs, offset=0, nx=False):
