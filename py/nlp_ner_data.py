@@ -57,7 +57,8 @@ class types(Enum):
     SP = 130  # 简化类别分隔符
 
     # NT组份类别优先级
-    NX = 133  # 专用于指代未知类型
+    NX = 132  # 专用于指代未知类型
+    NA = 133  # 弱化的特殊名称(地名中含有NO单字尾缀的名称)
     NO = 134  # 组织机构的单字尾缀
     NN = 135  # 企业名称字号
     NZ = 136  # 专用名词,业务词
@@ -98,7 +99,7 @@ class types(Enum):
         global _maps
         if _maps is None:
             _maps = {
-                types.NO.value: types.NO, types.NN.value: types.NN, types.NZ.value: types.NZ, types.NU.value: types.NU, types.NF.value: types.NF,
+                types.NA.value: types.NA, types.NO.value: types.NO, types.NN.value: types.NN, types.NZ.value: types.NZ, types.NU.value: types.NU, types.NF.value: types.NF,
                 types.NS.value: types.NS, types.NS1.value: types.NS, types.NS2.value: types.NS, types.NS3.value: types.NS, types.NS4.value: types.NS, types.NS5.value: types.NS,
                 types.NR.value: types.NR, types.NR1.value: types.NR, types.NR2.value: types.NR, types.NR3.value: types.NR,
                 types.NM.value: types.NM, types.NB.value: types.NB, types.NL.value: types.NL,
@@ -172,6 +173,9 @@ class types(Enum):
         set_t = make_set(t)
         set_v = make_set(v)
         return not set_t.isdisjoint(set_v)
+
+    def __repr__(self):
+        return self.name
 
 
 # 常见NT组织形式尾缀数据表
@@ -453,7 +457,7 @@ nt_tails = {
            '+': {'干调床', "肉摊床", "肉档", "菜摊床", "蔬菜摊床", '果蔬摊床', "菜档", "粥铺", "肉铺", }},
     # 邮政
     '邮局': {'.': {types.NM, types.postal}, '-': {},
-           '+': {'邮政一站通', '邮政所', '邮政局', '邮政支局', '电信局', '电报局', '驿站', '邮政港', '驿栈', '火车站邮政支局', '火车站邮政所'}},
+           '+': {'邮政一站通', '邮政所', '邮政局', '邮政支局', '电信局', '电报局', '驿站', '邮政港', '驿栈', '火车站邮政支局', '火车站邮政所', '邮电局'}},
     '报刊亭': {'.': {types.NM, types.retail}, '-': {'亭子'},
             '+': {'报亭', "电话亭", '刊亭', '书报亭', '邮政亭', '公话亭'}},
     # 交通运输仓储
@@ -475,7 +479,7 @@ nt_tails = {
                  '储运库', '直管库', '石油气库', '糖库', '装备库', '配送库', '仓储栈', '储运栈', '转运栈', '煤栈', '货栈', '贸易栈', '贸易货栈', '暖车库', '车库', '保管场', '中心仓库', '库区', }},
     # 小微运输业
     '运输户': {'.': {types.NM, types.traffic, types.service}, '-': {},
-            '+': {'客运户', '货运户','贩运户','输运户','搬运户','营运户'}},
+            '+': {'客运户', '货运户', '贩运户', '输运户', '搬运户', '营运户'}},
 
     # 常见机关:局/所/处
     '事务局': {'.': {types.NM, types.gov}, '-': {},
@@ -631,7 +635,7 @@ nt_tails = {
     '产业园': {'.': {types.NS4, types.NM, types.industry, types.service}, '-': {},
             '+': {'科技产业园', '创业园', '工业园', '软件园', '科技园', '创新园', '示范园', '物流园', '发展园', '绿色产业园', '冶金工业园', '科学园', '北区园', '南区园', '科学工业园', '汽车产业园', '科技创新园', '大学科技园',
                   '电子商务产业园', '低碳经济园', '高新产业园', '高新技术产业园', '硅工业园', '农业示范园', '矿化工业园', '煤化工业园', '临空综合经济园', '新兴产业工业园', '高科技园', '创意园', '加速园', '高科园', '大学创业园',
-                  '乐器工业园',
+                  '乐器工业园','仓储园',
                   }},
     '公园': {'.': {types.NS5, types.NM, types.cultural}, '-': {},
            '+': {'乐园', '游乐园', '游乐场', '游乐城', '音乐城', '游乐苑', '森林公园', '动物园', '风景园', '娱乐湾', '赛马场', '骝马场', '走马场', '溜冰城', '旱冰城', '文化城', '动漫城', '广场', '中心广场', }},
