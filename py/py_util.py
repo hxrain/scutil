@@ -36,7 +36,7 @@ def get_trace_stack():
     """获取当前调用栈信息,包括之上的父调用与之下的异常抛出点"""
     up = get_stackup(2)
     dn = traceback.format_exc()
-    return '%s\n%s' % (up, dn)
+    return up, dn
 
 
 def get_curr_func_params(drop_self=True):
