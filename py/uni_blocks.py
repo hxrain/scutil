@@ -307,7 +307,7 @@ def sbccase_to_ascii_str(u, retain_CRFL=False):
 
 
 # 强制进行中文符号到英文符号的映射
-_SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']', '«': '<', '»': '>',
+_SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']', '«': '<', '»': '>', '〈': '<', '〉': '>',
                      '—': '-', '∶': ':', '〇': '0', '‘': "'", '’': "'", '＋': '+', '“': '"', '”': '"', '″': '"', '＆': '&', '％': '%', '！': '!'}
 
 
@@ -693,6 +693,8 @@ def find_bracket_end(restr, bpos, echr, epos=-1):
 
 def find_brackets(restr, chrs, bpos=0, epos=-1):
     """在restr的指定范围[bpos:epos]内,查找chrs[0]和同级配对的chrs[1]的位置.返回值:(b,e,最大深度),或者(None,None,None)"""
+    if epos == -1:
+        epos = len(restr)
     b = find_bracket_begin(restr, chrs[0], bpos, epos)
     if b < 0:
         return (None, None, None)
