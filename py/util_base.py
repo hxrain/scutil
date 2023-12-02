@@ -482,7 +482,7 @@ class read_lines_t:
 
 def conv_file_lines(infile, outfile, cbfunc, cbargs=None):
     """逐行读取infile内容,使用cbfunc处理后,再输出到outfile中.
-        回调函数原型: cbfunc(line, idx, lines, *cbargs) -> newlines
+        回调函数原型: cbfunc(line, idx, oldlines, *cbargs) -> newlines
         返回值:(oldlines,newlines)或errormsg
     """
     oldlines = 0
@@ -511,7 +511,7 @@ def conv_file_lines(infile, outfile, cbfunc, cbargs=None):
     while inlines:
         oldlines += len(inlines)
         for idx, line in enumerate(inlines):
-            outlines = cbfunc(line, idx, lines, *cbargs)
+            outlines = cbfunc(line, idx, oldlines, *cbargs)
             if outlines:
                 newlines += writer.append(outlines)
         inlines = reader.fetch()
@@ -1332,6 +1332,7 @@ def text_file_sort(fname, mode=1, encoding='utf-8'):
             6 - (长度,字符串)/降序
             7 - (长度,字符串反读)/升序
             8 - (长度,字符串反读)/降序
+            mode为tuple的时候:(自定义key方法,是否逆序)
         返回值:''正常;其他为错误信息.
     """
     kf_str_f = lambda x: x
@@ -1343,10 +1344,15 @@ def text_file_sort(fname, mode=1, encoding='utf-8'):
                  5: (kf_str_nf, False), 6: (kf_str_nf, True),
                  7: (kf_str_nr, False), 8: (kf_str_nr, True)}
     try:
-        kf = func_keys[mode]
+        if isinstance(mode, int):
+            kf = func_keys[mode]
+        else:
+            kf = mode
         fp = open(fname, 'r', encoding=encoding)
         lines = fp.readlines()
         fp.close()
+        if lines and lines[-1][-1] != '\n':
+            lines[-1] = lines[-1] + '\n'
         res = sorted(lines, key=kf[0], reverse=kf[1])
         fp = open(fname, 'w', encoding=encoding)
         fp.writelines(res)
@@ -1378,6 +1384,35 @@ def text_file_unrepeat(fname, encoding='utf-8', oname=None, cb=None):
         return ei(e)
 
 
+def text_file_loop(fname, encoding='utf-8', oname=None, cb=None):
+    """对指定的文本文件fname按行调用cb进行处理后写入新文件oname
+            def cb(line,rowno) 返回值为None时放弃当前行的输出
+        返回值:空串正常.否则为错误信息.
+    """
+    try:
+        fp = open(fname, 'r', encoding=encoding)
+        lines = fp.readlines()
+        fp.close()
+
+        if oname is None:
+            oname = fname + '.out'
+        out = open(oname, 'w+', encoding=encoding)
+
+        if cb is None:
+            out.writelines(lines)
+        else:
+            for rowno, line in enumerate(lines):
+                txt = cb(line.strip(), rowno)
+                if txt is not None:
+                    if not txt or txt[-1] != '\n':
+                        out.write(txt + '\n')
+                    else:
+                        out.write(txt)
+        return ''
+    except Exception as e:
+        return ei(e)
+
+
 def inc(dct, key, cnt=1):
     """对指定字典key进行值累加.返回值:累加之前的旧值"""
     old = dct.get(key, 0)
@@ -1386,7 +1421,7 @@ def inc(dct, key, cnt=1):
 
 
 def text_file_drops(fname, xname, encoding='utf-8', oname=None):
-    """对指定的文本文件fname按行进行xname文件重复内容的排除处理.返回值:''正常,否则为错误信息"""
+    """删除fname文件中与xname文件内容相同的行.返回值:''正常,否则为错误信息"""
     try:
         exs, err = load_as_set(xname, encoding)
         if err:
@@ -1440,3 +1475,8 @@ def take_dirs(path, dironly=False, toponly=False):
         if toponly:
             break
     return rst
+
+
+def make_out_log(sfname, txt, row, col=0):
+    """生成外部编辑器日志行结果"""
+    return f'<{sfname}|{row:>8},{col:>2}>:{txt}'
