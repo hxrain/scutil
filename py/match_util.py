@@ -180,7 +180,7 @@ def complete_segs(mres, slen, isfull=False, segs=None, ext=None):
     rc = 0
 
     for seg in mres:
-        if seg[0] != pos:
+        if seg[0] > pos:
             rst.append((pos, seg[0], ext))
             rc += 1
         pos = seg[1]

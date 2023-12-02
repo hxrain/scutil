@@ -223,8 +223,10 @@ class ac_match_t:
             return None, str(e)
 
     def do_loop(self, cb, message, msg_len=None, offset=0):
-        """底层方法:对给定长度为msg_len的消息文本message从offset处进行循环匹配,将匹配结果回调反馈给cb(pos,node)"""
-        rc = 0  # 记录一共匹配了多少次
+        """底层方法:对给定长度为msg_len的消息文本message从offset处进行循环匹配,将匹配结果回调反馈给cb(pos,node).
+            返回值:[(char,pos)],记录message中哪些字符被命中过
+        """
+        rc = []  # 记录一共命中过哪些字符
         pos = offset
         if msg_len is None:
             msg_len = len(message)
@@ -242,10 +244,10 @@ class ac_match_t:
                 continue
 
             node = node.childs[char]  # 得到当前字符匹配的子节点
+            rc.append((char, pos))
             if node.first:
                 # 如果当前节点fail路径是存在的,则可能需要处理匹配结果
                 cb(pos, node)
-                rc += 1
 
         return rc
 
