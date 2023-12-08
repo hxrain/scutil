@@ -264,9 +264,9 @@ class nt_parser_t:
 
         def chk_cb(fname, row, txt, word, tag):
             if txt == word:
-                print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat!')
+                print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat!<{tag}>')
             else:
-                print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat {word}')
+                print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat {word}<{tag}>')
 
         ret = self.__load(fname, self.tags_NS, encode, vals_cb, chk_cb) if fname else ''
         if isend:
