@@ -51,6 +51,17 @@ def bind_closure(func, usrdat):
     return closure_func
 
 
+def find_zh_chars(s, is_zh=True):
+    """查询字符串s中的字符.
+        is_zh 控制是否为中文,或英文字符范围
+        返回值:['中','文','字','符']
+    """
+    if is_zh:
+        return re.findall('[\u4e00-\u9fa5]', s)
+    else:
+        return re.findall('[!-~]', s)
+
+
 # -----------------------------------------------------------------------------
 # 生成指定路径的日志记录器
 def make_logger(pspath, lvl=logging.DEBUG, max_baks=None, tag=None):
@@ -296,11 +307,23 @@ def clean_blank_str(txt):
 
 
 def clean_xml_tags(xstr, tags=['em']):
-    """清理删除指定的xml标签"""
+    """清理删除指定的xml标签,tags为空,则清理全部标签."""
     ret = xstr.strip()  # 字符串两端净空
+    if not tags:
+        tags = ['[^<>]+']
     for tag in tags:
         exp = f'<{tag}(\s+[^>]*)?/>|<{tag}(\s+[^>]*)?>|</{tag}>'
-        ret = re.sub(exp, '', ret)  # 丢弃自闭合节点
+        ret = re.sub(exp, '', ret)
+    return ret
+
+
+def remove_xml_tags(xstr, tags=['style', 'script']):
+    """删除指定的xml标签与其内容"""
+    ret = xstr.strip()  # 字符串两端净空
+    ret = re.sub('<!--(.+)?-->', '', ret)  # 移除注释
+    for tag in tags:
+        exp = f'<{tag}(\s+[^>]*)?>.*?</{tag}>'
+        ret = re.sub(exp, '', ret, flags=re.DOTALL)
     return ret
 
 
