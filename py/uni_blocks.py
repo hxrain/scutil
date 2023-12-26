@@ -308,7 +308,7 @@ def sbccase_to_ascii_str(u, retain_CRFL=False):
 
 # 强制进行中文符号到英文符号的映射
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']', '«': '<', '»': '>', '〈': '<', '〉': '>',
-                     '—': '-', '∶': ':', '〇': '0', '‘': "'", '’': "'", '＋': '+', '“': '"', '”': '"', '″': '"', '＆': '&', '％': '%', '！': '!','―':'-'}
+                     '—': '-', '━': '-', '∶': ':', '〇': '0', '‘': "'", '’': "'", '＋': '+', '“': '"', '”': '"', '″': '"', '＆': '&', '％': '%', '！': '!', '―': '-', '〖': '<', '〗': '>'}
 
 
 def char_replace(src, dct=_SBC_CHR_CONV_TBL):
@@ -640,8 +640,8 @@ def find(txt, dst, pre, begin=0):
     return -1
 
 
-def find_bracket_begin(restr, chr, bpos, epos):
-    """在rs的指定范围[bpos:epos]内搜索没有转义前导符的chr字符的位置.不存在则返回-1"""
+def find_bracket_begin(restr, chr, bpos, epos, esp='\\'):
+    """在rs的指定范围[bpos:epos]内搜索没有转义前导符esp的chr字符的位置.不存在则返回-1"""
     pos = bpos
     while pos < epos:
         c = restr[pos]
@@ -650,12 +650,12 @@ def find_bracket_begin(restr, chr, bpos, epos):
             continue
         if pos == bpos:
             return pos
-        elif restr[pos - 1] != '\\':
+        elif restr[pos - 1] != esp:
             return pos
     return -1
 
 
-def find_bracket_end(restr, bpos, echr, epos=-1):
+def find_bracket_end(restr, bpos, echr, epos=-1, esp='\\'):
     """查找restr中指定范围[bpos:epos]内同级适配的字符echr.返回值:(匹配点,最大深度),匹配点-1未找到"""
     if epos == -1:
         epos = len(restr)
@@ -674,19 +674,19 @@ def find_bracket_end(restr, bpos, echr, epos=-1):
 
     while i < epos:
         c = restr[i]
-        if c == '\\':
+        if c == esp:
             nc = next()  # 遇到转义字符了,尝试获取下一个字符
             if nc is None:
                 return -1, max_deep  # 没有下一个字符了,查找结束
             elif nc in {bchr, echr}:
                 i += 1  # 如果下一个字符是匹配符号则多跳一步
-        elif c == bchr:
-            deep += 1  # 遇到匹配开始符号了,增加深度记录
-            max_deep = max(deep, max_deep)
         elif c == echr:
             if deep == 0:
                 return i, max_deep  # 遇到匹配结束符号了,如果深度持平则作为结果返回
             deep -= 1  # 否则减少深度等待后续字符
+        elif c == bchr:
+            deep += 1  # 遇到匹配开始符号了,增加深度记录
+            max_deep = max(deep, max_deep)
         i += 1  # 正常跳过当前字符
     return -1, max_deep
 
@@ -698,7 +698,7 @@ def find_brackets(restr, chrs, bpos=0, epos=-1):
     b = find_bracket_begin(restr, chrs[0], bpos, epos)
     if b < 0:
         return (None, None, None)
-    e, d = find_bracket_end(restr, b, chrs[1], )
+    e, d = find_bracket_end(restr, b, chrs[1], epos)
     if e < 0:
         return (None, None, None)
     return (b, e, d)
