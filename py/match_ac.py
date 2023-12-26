@@ -244,7 +244,7 @@ class ac_match_t:
                 continue
 
             node = node.childs[char]  # 得到当前字符匹配的子节点
-            rc.append((char, pos))
+            rc.append((char, pos - 1, node))  # 记录完整的匹配信息
             if node.first:
                 # 如果当前节点fail路径是存在的,则可能需要处理匹配结果
                 cb(pos, node)
