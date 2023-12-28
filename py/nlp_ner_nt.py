@@ -467,7 +467,7 @@ class nt_parser_t:
         def can_combi_NM(pseg, seg):
             """判断特殊序列是否可以合并"""
             if types.joint(pseg[2], (types.NZ, types.NS)) and types.equ(seg[2], types.NM):
-                if pseg[1] > seg[0] or (merge_types and mu.slen(seg) <= 3):
+                if pseg[1] > seg[0] or (merge_types and mu.slen(seg) < 3):
                     return True  # 交叉NS & NM,或相连的NM较短,则强制合并前后段
             if pseg[2] is not None and types.equ(seg[2], types.NO) and pseg[1] == seg[0] and mu.slen(seg) == 1:
                 return True  # 紧邻NO,则强制合并前后段
@@ -483,28 +483,45 @@ class nt_parser_t:
             if type_eq and pseg[1] > seg[0]:
                 return True  # 前后两个段是交叉的同类型分段,合并
 
-            if not merge_types or not type_eq:
-                return False  # 不要求类型合并,或者前后段类型不一致,告知不用合并
+            if not merge_types:
+                return False  # 不要求类型合并
 
-            if idx + 1 < len(segs):
-                nseg = segs[idx + 1]  # 当前段不是末尾,那么获取后一段进行额外判断
+            if types.equ(pseg[2], seg[2]) and types.equ(types.NM, seg[2]) and pseg[1] == seg[0]:
+                return False  # 前后相邻的NM不要合并
+
+            # 允许分段相交合并的类型集合
+            can_cross_types = {types.NN, types.NS, types.NZ, types.NA, types.NF}
+            if not type_eq:  # 前后段类型不一致时,需要额外判断
+                if merge_types and can_cross_types.intersection(seg[2]) and can_cross_types.intersection(pseg[2]) and pseg[1] > seg[0] and mu.slen(seg) + mu.slen(pseg) <= 5:
+                    return True  # 在要求合并的情况下,两个分段如果在许可的类型范围内且交叉,也合并
+                return False  # 否则不合并
+
+            if idx + 1 < len(segs):  # 当前段不是末尾,则向后看一下,进行额外判断
+                nseg = segs[idx + 1]
                 if types.equ(seg[2], nseg[2]):
                     return True  # 后段与当前段类型相同,告知可以合并
                 if can_combi_NM(seg, nseg):
                     return False  # 后段与当前段类型不同且可组合,则告知当前段不可合并
-            else:
-                if types.equ(pseg[2], seg[2]) and types.equ(types.NM, seg[2]):
-                    return False  # 前后相连的NM不要合并
+
             return True
+
+        # def rec_tags_merge(pseg, seg):
+        #     """记录前后两个段落的合并结果"""
+        #     ac = types.cmp(pseg[2], seg[2])
+        #     if ac > 0:  # 如果前段级别大于后段,则进行合并
+        #         att = set(pseg[2])
+        #         att.update(seg[2])  # 合并标记集合
+        #     else:
+        #         att = seg[2]  # 否则直接使用后段级别
+        #     rst[-1] = (pseg[0], seg[1], att)  # 记录合并后的新段
 
         def rec_tags_merge(pseg, seg):
             """记录前后两个段落的合并结果"""
             ac = types.cmp(pseg[2], seg[2])
-            if ac > 0:  # 如果前段级别大于后段,则进行合并
-                att = set(pseg[2])
-                att.update(seg[2])  # 合并标记集合
+            if ac > 0:  # 如果前段级别大于后段,使用后段级别
+                att = seg[2]
             else:
-                att = seg[2]  # 否则直接使用后段级别
+                att = pseg[2]  # 否则使用前段级别
             rst[-1] = (pseg[0], seg[1], att)  # 记录合并后的新段
 
         def rec_tags_cross(pseg, seg):
@@ -645,6 +662,8 @@ class nt_parser_t:
             with_useg - 是否补全分段列表
             返回值:分段列表[(b,e,{types})]
         '''
+        # 更宽松:两个分段相互包含时,不记录匹配结果的分段类型集合
+        nrec_contain_types = {types.NZ, types.NF, types.NS}
 
         def cross_ex(rst, pos, node, root):
             """交叉保留,丢弃重叠包含的匹配"""
@@ -667,8 +686,11 @@ class nt_parser_t:
 
             def can_rec(n, o):
                 """判断新分段n和旧分段o的关系,决定是否记录新分段"""
-                if o[0] <= n[0] and n[1] <= o[1] and types.cmp(n[2], o[2]) == 0:
-                    return False  # 被包含的相同类型新分段,不记录
+                if o[0] <= n[0] and n[1] <= o[1]:
+                    if types.cmp(n[2], o[2]) == 0:
+                        return False  # 被包含的相同类型新分段,不记录
+                    if nrec_contain_types.intersection(n[2]) and nrec_contain_types.intersection(o[2]):
+                        return False  # 相包含的两个段是以上类别时,不记录
                 return True
 
             def rec(node):
