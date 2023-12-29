@@ -30,9 +30,13 @@ def get_thread_id():
 # 定义互斥锁功能封装
 class lock_t:
     def __init__(self, use=False, is_rlock=True):
+        """use - 是否开启同步锁功能;is_rlock - 是否为递归锁"""
         self.locker = None
         if use:
             self.init(is_rlock)
+
+    def __del__(self):
+        self.uninit()
 
     def init(self, is_rlock=True):
         if self.inited():
@@ -43,6 +47,7 @@ class lock_t:
             self.locker = Lock()
 
     def uninit(self):
+        del self.locker
         self.locker = None
 
     def lock(self, timeout=-1):
@@ -383,3 +388,82 @@ class fixed_pool_t:
             self.on_free(self.objs[idx])
         self.pool.put(idx)
         return ret, err
+
+
+class lines_exporter:
+    """带有线程锁保护的文本输出器"""
+
+    def __init__(self, fname=None, with_lock=True, mode='a+'):
+        self._fp = None
+        self._fname = None
+        self._locker = lock_t(with_lock)
+        if fname:
+            self.open(fname, mode=mode)
+
+    def __del__(self):
+        self.close()
+        del self._locker
+        self._locker = None
+
+    def open(self, fname, encoding='utf-8', mode='a+'):
+        with self._locker:
+            if self._fp is not None:
+                return True
+            self._fname = fname
+            try:
+                self._fp = open(fname, mode, encoding=encoding)
+                self._fp.writelines()
+                return True
+            except Exception as e:
+                return False
+
+    # 真正的单行输出方法,不进行锁保护,便于复用
+    def __put(self, line, with_lf):
+        try:
+            if with_lf and line[-1] != '\n':
+                self._fp.writelines((line, '\n'))
+            else:
+                self._fp.write(line)
+            return ''
+        except Exception as e:
+            return e
+
+    def put(self, line, with_lf=True):
+        """追加行内容到文件.返回值:None-文本为空;''-正常完成;其他-异常错误"""
+        with self._locker:
+            if line is None:
+                return None
+            return self.__put(line, with_lf)
+
+    def puts(self, lst, with_lf=True):
+        """追加列表到文件"""
+        with self._locker:
+            if isinstance(lst, str):
+                return self.__put(lst, with_lf)
+            for l in lst:
+                e = self.__put(l, with_lf)
+                if e:
+                    return e
+            return ''
+
+    def save(self):
+        """立即存盘,刷新缓存到文件."""
+        with self._locker:
+            if self._fp is None:
+                return None
+            try:
+                self._fp.flush()
+                return True
+            except Exception as e:
+                return False
+
+    def close(self):
+        with self._locker:
+            if self._fp is None:
+                return None
+            try:
+                self._fp.close()
+                self._fp = None
+                return True
+            except Exception as e:
+                return False
