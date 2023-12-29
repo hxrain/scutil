@@ -14,10 +14,9 @@ from collections.abc import Iterable
 import match_ac as mac
 import match_util as mu
 import china_area_id as cai
-import nlp_ner_hmm as nnh
 import nlp_ner_data as nnd
-import nlp_util as nu
 from nlp_ner_data import types
+import nlp_util as nu
 import util_base as ub
 import uni_blocks as uni
 import os
@@ -52,7 +51,7 @@ class nt_parser_t:
         for i in range(len(lst)):
             rseg = lst[i]
             if rseg[0] == seg[0] and rseg[1] == seg[1]:
-                if nnd.types.cmp(rseg[2], seg[2]) < 0:
+                if types.cmp(rseg[2], seg[2]) < 0:
                     lst[i] = seg  # 先进行一圈查找,如果存在与新分段重叠的段,则保留高优先级的分段.
                 return
         lst.append(seg)
@@ -393,7 +392,7 @@ class nt_parser_t:
                 last = rst[-1]
                 r = mu.related_segs(last, seg)[0]
                 if r in {'A@B', 'A=B'}:
-                    if nnd.types.cmp(last[2], seg[2]) >= 0:
+                    if types.cmp(last[2], seg[2]) >= 0:
                         return False  # 当前段被包含且优先级较低,不记录
                     else:
                         return True
@@ -429,7 +428,7 @@ class nt_parser_t:
                 return None  # 后段被中段包含
             if c[0] <= p[0] and c[1] >= n[1]:
                 return None  # 中段覆盖前后段
-            cn_cmp = nnd.types.cmp(c[2], n[2]) if bylvl else None  # 中段与后段的优先级关系
+            cn_cmp = types.cmp(c[2], n[2]) if bylvl else None  # 中段与后段的优先级关系
             if cn_cmp and cn_cmp > 0 and c[1] >= n[1]:
                 return 1  # 需要判断优先级,并且中段包含后段,则丢弃后段
             return 0  # 否则丢弃中段
@@ -443,7 +442,7 @@ class nt_parser_t:
 
             m = chk_over(i)
             if m is None:
-                if A[1] >= B[1] and (nnd.types.cmp(A[2], B[2]) >= 0 or nnd.types.joint(A[2], (nnd.types.NS,))):
+                if A[1] >= B[1] and (types.cmp(A[2], B[2]) >= 0 or types.joint(A[2], (types.NS,))):
                     segs.pop(i)  # A包含B且优先级较大,丢弃B
                 else:
                     i += 1  # AC未覆盖B,跳过
@@ -452,7 +451,7 @@ class nt_parser_t:
                 segs.pop(i + 1)
             else:  # ABC计划丢弃B,则需向后再看
                 m = chk_over(i + 1, True)  # 判断BCD需要丢弃谁
-                if m == 0 and nnd.types.cmp(C[2], B[2]) < 0:  # 如果后面判定想丢弃C并且C的优先级较小,丢弃C
+                if m == 0 and types.cmp(C[2], B[2]) < 0:  # 如果后面判定想丢弃C并且C的优先级较小,丢弃C
                     segs.pop(i + 1)
                 else:
                     segs.pop(i)  # 否则丢弃B
@@ -980,11 +979,11 @@ def make_segs_tags(line, segs, nx=False):
     for useg in segs:
         if useg[2] is None:
             if nx:
-                t = nnd.types.NX.name
+                t = types.NX.name
             else:
                 t = line[useg[0]:useg[1]]
         else:
-            t = nnd.types.type(useg[2]).name
+            t = types.type(useg[2]).name
         usegs.append(t)
     return usegs
 

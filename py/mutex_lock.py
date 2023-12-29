@@ -9,6 +9,7 @@ from threading import currentThread
 import time
 import traceback
 import copy
+import os
 
 """
 locker = lock_t()  # 定义互斥锁封装对象
@@ -406,6 +407,13 @@ class lines_exporter:
         self._locker = None
 
     def open(self, fname, encoding='utf-8', mode='a+'):
+        """打开指定路径下的文件,路径不存在则创建"""
+        try:
+            path = os.path.dirname(fname)
+            os.mkdir(path)
+        except Exception as e:
+            pass
+
         with self._locker:
             if self._fp is not None:
                 return True
@@ -430,9 +438,9 @@ class lines_exporter:
 
     def put(self, line, with_lf=True):
         """追加行内容到文件.返回值:None-文本为空;''-正常完成;其他-异常错误"""
+        if line is None:
+            return None
         with self._locker:
-            if line is None:
-                return None
             return self.__put(line, with_lf)
 
     def puts(self, lst, with_lf=True):
@@ -440,8 +448,8 @@ class lines_exporter:
         with self._locker:
             if isinstance(lst, str):
                 return self.__put(lst, with_lf)
-            for l in lst:
-                e = self.__put(l, with_lf)
+            for line in lst:
+                e = self.__put(line, with_lf)
                 if e:
                     return e
             return ''
