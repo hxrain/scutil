@@ -1503,3 +1503,7 @@ def take_dirs(path, dironly=False, toponly=False):
 def make_out_log(sfname, txt, row, col=0):
     """生成外部编辑器日志行结果"""
     return f'<{sfname}|{row:>8},{col:>2}>:{txt}'
+
+def slen(seg):
+    """计算seg段的长度"""
+    return seg[1] - seg[0]
