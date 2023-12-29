@@ -20,6 +20,7 @@ import nlp_util as nu
 from nlp_ner_data import types
 import util_base as ub
 import uni_blocks as uni
+import os
 
 
 class nt_parser_t:
@@ -122,7 +123,6 @@ class nt_parser_t:
 
     def __init__(self, light=False):
         self.matcher = mac.ac_match_t()  # 定义ac匹配树
-        self._loaded_base_nt = False  # 是否装载过内置NT数据
         self._bads = self.make_tails_bads()  # 尾缀坏词匹配器
         if light:
             self.load_nt(isend=False)
@@ -177,7 +177,7 @@ class nt_parser_t:
         ret = self.__load(fname, self.tags_NM, encode) if fname else ''
 
         # 初始化构建匹配词表
-        if not self._loaded_base_nt:
+        if len(self.matcher.do_loop(None, '有限公司')) != 4:
             for k in nnd.nt_tails:
                 data = nnd.nt_tails[k]
                 assert '.' in data and '+' in data and '-' in data, data
@@ -197,7 +197,6 @@ class nt_parser_t:
                     r = self.matcher.dict_add(e, tags, force=True)
                     if not r:
                         print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat!')
-            self._loaded_base_nt = True
 
         if isend:
             self.matcher.dict_end()
@@ -310,21 +309,22 @@ class nt_parser_t:
             self.matcher.dict_end()
         return ret
 
-    def loads(self, dicts_list):
+    def loads(self, dicts_list, path=None):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
         rst = []
         for i, d in enumerate(dicts_list):
             isend = i == len(dicts_list) - 1
+            fname = d[1] if path is None else os.path.join(path, d[1])
             if d[0] == 'NS':
-                r = self.load_ns(d[1], isend=isend)
+                r = self.load_ns(fname, isend=isend)
             elif d[0] == 'NT':
-                r = self.load_nt(d[1], isend=isend)
+                r = self.load_nt(fname, isend=isend)
             elif d[0] == 'NZ':
-                r = self.load_nz(d[1], isend=isend)
+                r = self.load_nz(fname, isend=isend)
             elif d[0] == 'NN':
-                r = self.load_nn(d[1], isend=isend)
+                r = self.load_nn(fname, isend=isend)
             elif d[0] == 'NA':
-                r = self.load_na(d[1], isend=isend)
+                r = self.load_na(fname, isend=isend)
             if r != '':
                 rst.append(r)
         return ''.join(rst)
@@ -490,7 +490,7 @@ class nt_parser_t:
                 return False  # 前后相邻的NM不要合并
 
             # 允许分段相交合并的类型集合
-            can_cross_types = {types.NN, types.NS, types.NZ, types.NA, types.NF}
+            can_cross_types = {types.NS, types.NZ, types.NA, types.NF}
             if not type_eq:  # 前后段类型不一致时,需要额外判断
                 if merge_types and can_cross_types.intersection(seg[2]) and can_cross_types.intersection(pseg[2]) and pseg[1] > seg[0] and mu.slen(seg) + mu.slen(pseg) <= 5:
                     return True  # 在要求合并的情况下,两个分段如果在许可的类型范围内且交叉,也合并
