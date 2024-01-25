@@ -124,6 +124,18 @@ def localip_by_dest(dstip='202.97.224.68'):
         return None, e
 
 
+def localip_by_dsturl(dsturl='http://172.17.100.1:8080'):
+    """根据目标url的访问路由,获取本地对应的ip
+        返回值:正常为访问dsturl时使用的(本机ip串,本机端口)
+              错误为(None,异常对象).
+    """
+    try:
+        ext = up.urlparse(dsturl)
+        return localip_by_dest(ext.hostname)
+    except Exception as e:
+        return None, e
+
+
 # 获取字典dct中的指定key对应的值,不存在时返回默认值
 def get_dict_value(dct, key, defval=None):
     if key in dct:

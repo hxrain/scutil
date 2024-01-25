@@ -746,10 +746,10 @@ class Tab(object):
             if self._is_bad():
                 return False
             if self.type != 'browser':
-                self.call_method('Page.enable', _timeout=1)
-                self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=1)
+                self.call_method('Page.enable', _timeout=10)
+                self.call_method('Network.enable', maxResourceBufferSize=_maxResourceBufferSize, maxTotalBufferSize=_maxTotalBufferSize, _timeout=30)
             if self.downpath:
-                self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=1)
+                self.call_method('Browser.setDownloadBehavior', behavior='allow', downloadPath=self.downpath, _timeout=30)
             return True
         except websocket.WebSocketBadStatusException as e:
             logger.warning(f'{self._srctag()} reopen fail => {self._websocket_url}')

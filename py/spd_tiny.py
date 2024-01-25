@@ -10,6 +10,9 @@ from mutex_lock import *
 from spd_base import *
 from spd_chrome import *
 from spd_mime import *
+
+_VER = 'TINYSPD/V1.0/20240125'
+
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
     1 基于sqlite数据库,部署简单
@@ -116,8 +119,11 @@ sql_tbl = ['''
            );
            ''']
 
-_logger = None  # 全局日志输出对象
 _proxy = None  # 全局代理地址信息
+_logger = None  # 全局日志输出对象
+_logsvr_session = None  # 外部监控日志服务器Session
+locker_log = lock_t()  # 日志输出保护锁
+
 lists_rate = 1  # 全局概览翻页倍率
 info_upd_mode = False  # 是否开启采集源全局更新模式(根据排重条件查询得到主键id,之后更新此信息)
 locker = lock_t()  # 全局多线程保护锁
@@ -211,16 +217,16 @@ class source_base:
         self.on_pages_repeats = []  # 细览排重检查所需的info字段列表
 
     def log_warn(self, msg):
-        _logger.warn('source <%s> :: %s' % (self.name, msg))
+        self.spider.log(msg, 'warn')
 
     def log_info(self, msg):
-        _logger.info('source <%s> :: %s' % (self.name, msg))
+        self.spider.log(msg, 'info')
 
     def log_error(self, msg):
-        _logger.error('source <%s> :: %s' % (self.name, msg))
+        self.spider.log(msg, 'error')
 
     def log_debug(self, msg):
-        _logger.debug('source <%s> :: %s' % (self.name, msg))
+        self.spider.log(msg, 'debug')
 
     def rec_stat(self, code):
         """记录采集源运行的状态码计数统计"""
@@ -754,7 +760,7 @@ class spider_base:
         self.source = source
         self.source.spider = self  # 给采集源对象绑定当前的爬虫对象实例
         self.http.timeout = self.source.http_timeout
-        self.begin_time = 0
+        self.begin_time = 0  # 最后一次运行的开始时间
         self.cnt_input_vcode = 0  # 记录手动输入验证码次数
 
     # 对采集源待调用方法进行统一包装,防范意外错误
@@ -763,8 +769,79 @@ class spider_base:
             call = getattr(self.source, method)  # 获取指定的方法
             return call(*args)  # 调用指定的方法
         except Exception as e:
-            self.source.log_error('call <%s> error <%s>' % (method, ei(e)))  # 统一记录错误
+            msg = f'call_src_method <{method}> error:\n{ei(e)}'
+            self.source.log_error(msg)  # 统一记录错误
+            self.rlog_warn(msg, iserr=True)  # 远端记录错误日志
             return None
+
+    @guard(locker_log)
+    def log(self, msg, type='info'):
+        """进行本地日志记录"""
+        txt = f"source <{self.source.name}> :: {msg}"
+        if type == 'error':
+            _logger.error(txt)
+        elif type == 'warn':
+            _logger.warn(txt)
+        elif type == 'debug':
+            _logger.debug(txt)
+        else:
+            _logger.info(txt)
+
+    @guard(locker_log)
+    def rlog(self, mode, inf: info_t = None, with_content=True):
+        """进行远端监控日志记录.mode=-1-结束; 1-概览;2-细揽;3-告警;4-错误;5-新信息."""
+        if not _logsvr_session:
+            return
+        li = {}
+        try:
+            li['spiderCode'] = f"<{_logsvr_session.locip}/{_logsvr_session.tags[0]}/{_logsvr_session.tags[1]}/{self.source.id}>"  # 本源的完整全局标识代码
+            li['startTime'] = utc_to_datetime(self.begin_time)  # 本源的本次启动时间
+            li['spiderName'] = self.source.name  # 本源的名称
+            li['type'] = 2 if mode == -1 else 1  # 当前信息是否为日志的结束
+            if inf:
+                ll = li['log'] = {}  # 有附加日志内容段
+                ll['recordTime'] = get_datetime()  # 日志记录时间
+                ll['logType'] = mode  # 日志模式
+                ll['log_sequence'] = md5(f"{li['spiderCode']}:{li['startTime']}:{li['spiderName']}")  # 本批次日志标识
+                ll['pageCount'] = int(inf.ext) if inf.ext is not None and mode == 1 else None  # 用info.ext告知概览翻页数量
+                ll['sourceUrl'] = inf.url  # 信息地址
+                ll['infoTitle'] = inf.title  # 信息标题
+                ll['message'] = inf.content if with_content else None  # 信息内容
+                _logsvr_session.post(_logsvr_session.svrurl, json=li)  # 发送
+        except Exception as e:
+            _logger.warn(f'Remote Log Server Send Fail: {e}')
+
+    def rlog_warn(self, msg, title=None, url=None, iserr=False):
+        """远端输出警告或错误信息"""
+        inf = info_t(None)
+        inf.title = title
+        inf.url = url
+        inf.content = msg
+        self.rlog(4 if iserr else 3, inf)
+
+    def rlog_list(self, count, pageno, infos=None):
+        """远端输出概览页抓取"""
+        inf = info_t(None)
+        inf.ext = count  # 概览页内细览信息数量
+        inf.title = f"page({pageno})"  # 概览页号
+        if isinstance(infos, str):
+            inf.content = infos
+        elif isinstance(infos, (dict, list, tuple)):
+            fields = [self.source.on_list_rulenames]
+            fields.extend(infos)
+            inf.content = dict2json(fields, conv=None)[0]
+        self.rlog(1, inf)
+
+    def rlog_page(self, inf: info_t, isnew=False):
+        """远端输出细览抓取信息"""
+        self.rlog(5 if isnew else 2, inf, False)
+
+    def rlog_end(self):
+        """远端输出运行结束的统计状态"""
+        inf = info_t(None)
+        inf.title = f"概览翻页(页号{self.source.list_url_idx}/页数{self.source.list_url_cnt}/限量{self.source.list_max_cnt})细览抓取(总数{self.pages}/最新{self.infos})网络交互(请求{self.reqs}/回应{self.rsps}/正常{self.succ})"
+        inf.content = dict2json(self.source.stat, conv=None)  # 状态码统计
+        self.rlog(-1, inf)
 
     # 统一生成默认请求参数
     def _make_req_param(self, source):
@@ -801,6 +878,8 @@ class spider_base:
             if not info_stat:
                 continue
             break
+        if not take_stat or not info_stat:  # 状态异常,给出远端日志输出
+            self.rlog_warn(f'细览页:抓取({take_stat})/抽取({info_stat})', info.title, page_url)
         return (take_stat, info_stat)
 
     def _do_page(self, item, list_url, dbs):
@@ -864,11 +943,13 @@ class spider_base:
             # 要求进行信息更新,则尝试使用细览排重得到的信息主键id
             if self.updid is None or rid is not None:
                 self.updid = rid
+            self.rlog_page(info)  # 远端输出日志,细览更新
             return info  # 更新模式,可以存盘
         else:
             if rid is None:
                 if take_page_url:
                     self.source.log_info('page_url new <%s>' % (take_page_url))
+                    self.rlog_page(info, True)  # 远端输出日志,新细览成功
                 return info  # 细览排重通过,可以存盘
             else:
                 self.source.log_debug("page_url <%s> is page REPEATED <%d>" % (info.url, rid))
@@ -878,7 +959,6 @@ class spider_base:
     def _do_page_loop(self, list_items, list_url, dbs):
         """执行细览抓取处理循环,返回值告知本次成功抓取并保存的信息数量"""
         infos = 0
-        # self.call_src_method('on_list_begin', self.infos)  # 概览页处理开始
 
         # 进行细览循环
         tol_items = len(list_items)
@@ -891,7 +971,6 @@ class spider_base:
                 infos += self.call_src_method('on_save_info', info, self.updid)  # 概览页处理完成
 
         self.infos += infos
-        # self.call_src_method('on_list_end', self.infos, infos)  # 概览页处理完成
 
         if self.list_info_bulking is not None:
             self.list_info_bulking += infos  # 处于增量抓取状态时,累计增量抓取的数量
@@ -925,7 +1004,8 @@ class spider_base:
                 spd_sleep(self.source.list_url_sleep)  # 根据需要进行概览采集休眠
 
             if not self.call_src_method('on_list_take', list_url, req_param):
-                self.source.log_warn('list_url http fail <%s> :: %d - %s' % (list_url, self.http.get_status_code(), self.http.get_error()))
+                msg = f'list_url http fail <{list_url}> :: {self.http.get_status_code()} - {self.http.get_error()}'
+                self.source.log_warn(msg)
                 self.source.rec_stat(self.http.get_status_code())
                 continue
 
@@ -934,10 +1014,12 @@ class spider_base:
                 self.source.rec_stat(self.http.get_status_code())
                 self.source.log_debug('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
                 if not rsp_body:
-                    self.source.log_warn('list_url http take empty <%s> :: %d' % (list_url, self.http.get_status_code()))
+                    msg = f'list_url http take empty <{list_url}> :: {self.http.get_status_code()}'
+                    self.source.log_warn(msg)
                     self.source.rec_stat(201)
             else:
-                self.source.log_warn('list_url http take <%s> :: %d' % (list_url, self.http.get_status_code()))
+                msg = f'list_url http take <{list_url}> :: {self.http.get_status_code()}'
+                self.source.log_warn(msg)
                 self.source.rec_stat(self.http.get_status_code())
                 if self.http.get_status_code() >= 400:
                     break
@@ -962,11 +1044,12 @@ class spider_base:
 
     def run(self, dbs):
         """对当前采集任务进行完整流程处理:概览循环与细览循环"""
-        self.source.stat.clear()
-        self.reqs = 0
-        self.rsps = 0
-        self.succ = 0
-        self.infos = 0
+        self.source.stat.clear()  # http状态码统计
+        self.reqs = 0  # 全部请求总数
+        self.rsps = 0  # 全部回应总数
+        self.succ = 0  # 全部完成总数
+        self.infos = 0  # 新抓取总数
+        self.pages = 0  # 细览总数
         self.updid = None  # 进行细览页循环与信息保存的时候,记录已存在信息的主键ID,决定是否需要对信息进行更新
         self.list_info_bulking = 0  # None没有进入增量模式.其他为本轮增量翻页的信息抓取数量.初值为0则对首轮进行累计
         self.begin_time = int(time.time())
@@ -997,9 +1080,13 @@ class spider_base:
             self.reqs += 1
             self.call_src_method('on_list_begin', self.infos)  # 概览页处理开始
             self.source._list_content, self.source._list_infos, msg = self._do_list_take(list_url, req_param)
+            if msg:
+                self.rlog_warn(msg, f'概览页:细览数({len(self.source._list_infos)})', list_url)
+            self.pages += len(self.source._list_infos)  # 全部细览总数
             page_news = None
             if self.source._list_content:  # 抓取成功
                 self.rsps += 1
+                self.rlog_list(len(self.source._list_infos), self.source.list_url_idx, self.source._list_infos)  # 远端输出概览抓取信息
                 reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
                 if msg == '':
                     ci, cn = self.source.on_list_plan()
@@ -1038,6 +1125,7 @@ class spider_base:
             list_url = self.call_src_method('on_list_url', req_param)
             dbs.update_act(self, list_url is not None)  # 进行中间状态更新
 
+        self.rlog_end()  # 远端输出抓取结束
         self.call_src_method('on_end')
         return True
 
@@ -1228,10 +1316,11 @@ class collect_manager:
         self.on_idle = self._on_idle
         self.threads = max(1, threads)
         if self.threads > 1:
+            locker_log.init()
             locker.init()
             locker_dg.init()
 
-        _logger.info('tiny spider collect manager is starting ...')
+        _logger.info(f'tiny spider <{_VER}> collect manager is starting ...')
 
     def _on_idle(self):
         """默认的空闲函数,返回值为True,则停止抓取流程"""
@@ -1409,6 +1498,9 @@ def run_collect_sys(srcs=None, params=None):
         parser.add_argument("--debug", type=int, default=0, help="enable debug info output.")
         parser.add_argument("--loop_count", type=int, default=1, help="enable long loop mode,loops count.")
         parser.add_argument("--loop_sleep", type=int, default=30, help="long loop mode,sleep second.")
+        parser.add_argument("--pos", type=str, default='', help="window position: ROWxCOL@row,col")
+        parser.add_argument("--title", type=str, default='', help="window title.")
+        parser.add_argument("--logsvr", type=str, default='', help="remote log server url.")
 
         args = parser.parse_args()
         if params:
@@ -1430,9 +1522,17 @@ def run_collect_sys(srcs=None, params=None):
     sys.path.append(curdir + f'/{rootpath}')
 
     # 获取运行文件名称作为标记
-    tag = args.tagname if args.tagname != '' else re.split('[\\\\/]', sys.argv[0])[-1].split('.')[0]
+    tag = args.tagname if args.tagname != '' else re.split('[\\\\/]', sys.argv[0])[-1].split('.')[0]  # 默认使用spd.exe中的spd作为区分标识
     dbname = args.dbname if args.dbname != '' else './%s.sqlite3' % tag
     logname = args.logname if args.logname != '' else './%s.log' % tag
+
+    # 远程日志会话
+    if args.logsvr:
+        global _logsvr_session
+        _logsvr_session = requests.Session()  # 生成http会话维持对象
+        _logsvr_session.svrurl = args.logsvr  # 记录目标日志服务器url
+        _logsvr_session.locip = localip_by_dsturl(args.logsvr)[0]  # 记录本机ip
+        _logsvr_session.tags = (tag, rootpath)  # 本定向采集实例的特征
 
     # 获取采集系统对象并打开数据库与日志
     cm = make_collect_mgr(logname, dbname, args.thread,
