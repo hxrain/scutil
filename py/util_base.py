@@ -394,13 +394,14 @@ class waited_t:
 
 # 文件行输出器
 class append_line_t:
-    def __init__(self, fname=None, encoding='utf-8'):
+    def __init__(self, fname=None, encoding='utf-8', append=True):
         if fname:
-            self.open(fname, encoding)
+            self.open(fname, encoding, append)
 
-    def open(self, fname, encoding='utf-8'):
+    def open(self, fname, encoding='utf-8', append=True):
         try:
-            self.fp = open(fname, 'a', encoding=encoding)
+            mode = 'a' if append else 'w'
+            self.fp = open(fname, mode, encoding=encoding)
             return ''
         except Exception as e:
             self.fp = None
@@ -933,9 +934,9 @@ def json2dict(jstr):
         return None, 'json2dict: ' + es(e)
 
 
-def dict2json(obj, indent=True):
+def dict2json(obj, indent=True, conv=json_default):
     try:
-        jstr = json.dumps(obj, ensure_ascii=False, indent=4 if indent else None, default=json_default)
+        jstr = json.dumps(obj, ensure_ascii=False, indent=4 if indent else None, default=conv)
         return jstr, ''
     except Exception as e:
         return None, 'dict2json: ' + es(e)
@@ -964,22 +965,22 @@ def zip_file(srcdir, outfile):
 
 
 # -----------------------------------------------------------------------------
-# 获取时间串,默认为当前时间
 def get_datetime(dt=None, fmt='%Y-%m-%d %H:%M:%S'):
+    """按指定格式,获取当前本地时间."""
     if dt is None:
         dt = time.localtime()
     return time.strftime(fmt, dt)
 
 
 def get_curr_date(fmt='%Y-%m-%d', now=None):
-    """得到当前日期,ISO串;可以取得微秒时间的格式为 '%Y-%m-%d %H:%M:%S.%f'"""
+    """按照指定格式得到当前本地日期(默认为ISO格式);可以取得微秒时间的格式为 '%Y-%m-%d %H:%M:%S.%f'"""
     if now is None:
         now = datetime.datetime.now()
     return now.strftime(fmt)
 
 
 def adj_date_day(datestr, day, outfmt='%Y-%m-%d'):
-    """对给定的日期串datestr进行天数day增减运算,得到新的日期,ISO串"""
+    """对给定的本地日期串datestr进行天数day增减运算,得到新的日期,ISO串"""
     if not datestr:
         datestr = get_curr_date()
     date = datetime.datetime.strptime(datestr, '%Y-%m-%d')
@@ -988,32 +989,30 @@ def adj_date_day(datestr, day, outfmt='%Y-%m-%d'):
 
 
 def date_to_utc(datestr):
-    """将日期串转换为UTC时间秒"""
+    """将本地日期串转换为UTC时间秒"""
     return int(datetime.datetime.strptime(datestr, '%Y-%m-%d').timestamp())
 
 
 def datetime_to_utc(datestr):
-    """将日期串转换为UTC时间秒"""
+    """将本地日期串转换为UTC时间秒"""
     return int(datetime.datetime.strptime(datestr, '%Y-%m-%d %H:%M:%S').timestamp())
 
 
 def utc_to_datetime(sec):
-    """把UTC秒转换为ISO标准时间串"""
+    """把UTC秒转换为ISO标准本地时间串"""
     date = datetime.datetime.fromtimestamp(sec)
     return date.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def utc_to_date(sec):
-    """把UTC秒转换为ISO标准日期串"""
+    """把UTC秒转换为ISO标准本地日期串"""
     date = datetime.datetime.fromtimestamp(sec)
     return date.strftime('%Y-%m-%d')
 
 
 def printf(fmt, *arg):
     """带有当前时间格式的打印输出"""
-    fmt = '[%s] ' + fmt
-    dt = get_datetime()
-    print(fmt % (dt, *arg))
+    print(f"[{get_datetime()}]", fmt % (*arg,))
 
 
 def find_dcts(lst, value, key='name'):
@@ -1503,6 +1502,7 @@ def take_dirs(path, dironly=False, toponly=False):
 def make_out_log(sfname, txt, row, col=0):
     """生成外部编辑器日志行结果"""
     return f'<{sfname}|{row:>8},{col:>2}>:{txt}'
+
 
 def slen(seg):
     """计算seg段的长度"""
