@@ -332,7 +332,7 @@ class ac_match_t:
 
 class spliter_t:
     """基于ac匹配树的多字符串列表分隔器.
-        以绑定的关键词集合进行分段切分,如果关键词以'!'结尾则不进行切分.
+        以绑定的关键词集合进行分段切分,如果关键词以'!'结尾则进行修复连接或不切分.
     """
 
     def __init__(self, strs=None):
@@ -341,6 +341,7 @@ class spliter_t:
             self.bind(strs)
 
     def bind(self, strs, isend=True):
+        """给分割器绑定匹配词表"""
         for i, line in enumerate(strs):
             if not line or line[0] == '#':
                 continue
@@ -352,16 +353,21 @@ class spliter_t:
             self.matcher.dict_end()
 
     def load(self, fname, encode='utf-8'):
-        with open(fname, 'r', encoding=encode) as f:
-            self.bind(f.readlines())
+        """从文件装载匹配词表"""
+        try:
+            with open(fname, 'r', encoding=encode) as f:
+                self.bind(f.readlines())
+            return ''
+        except Exception as e:
+            return e
 
     def match(self, txt):
-        """用txt匹配内部词表.返回值:[(begin,end,val)],val is None对应未匹配部分"""
+        """对txt进行内部词表的匹配.返回值:[(begin,end,val)],val is None对应未匹配部分"""
         segs = self.matcher.do_match(txt, mode=mode_t.max_match)
         return segs if segs else [(0, len(txt), None)]
 
     def split(self, txt):
-        """用strs串列表拆分txt.返回值:[分段字符串]"""
+        """基于绑定的词表对txt进行分段.返回值:[分段字符串]"""
         rst = []
         segs = self.match(txt)
         attach = False
@@ -384,12 +390,16 @@ class spliter_t:
 def split_by_strs(txt, strs, outstrs=False):
     """用strs串列表拆分txt.
         outstrs 为 True:
-            返回值:[(begin,end,val)],val is None对应未匹配部分
-        outstrs 为 False:
             返回值:[分段字符串]
+        outstrs 为 False:
+            返回值:[(begin,end,val)],val is None对应未匹配部分
     """
     match = spliter_t(strs)
     if outstrs:
         return match.split(txt)
     else:
         return match.match(txt)
+
+
+if __name__ == "__main__":
+    assert split_by_strs('0123456789', ['1', '34', '345!', '78'], True) == ['0', '23456', '9']
