@@ -11,7 +11,7 @@ from spd_base import *
 from spd_chrome import *
 from spd_mime import *
 
-_VER = 'TINYSPD/V1.0/20240125'
+_VER = 'TINYSPD/V1.1/20240125'
 
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
@@ -794,7 +794,8 @@ class spider_base:
             return
         li = {}
         try:
-            li['spiderCode'] = f"<{_logsvr_session.locip}/{_logsvr_session.tags[0]}/{_logsvr_session.tags[1]}/{self.source.id}>"  # 本源的完整全局标识代码
+            # 本源的完整全局标识代码
+            li['spiderCode'] = f"<{_logsvr_session.locip}/{_logsvr_session.tags[0]}/{_logsvr_session.tags[1]}/{_logsvr_session.tags[2]}/{self.source.id}>"
             li['startTime'] = utc_to_datetime(self.begin_time)  # 本源的本次启动时间
             li['spiderName'] = self.source.name  # 本源的名称
             li['type'] = 2 if mode == -1 else 1  # 当前信息是否为日志的结束
@@ -1512,6 +1513,7 @@ def run_collect_sys(srcs=None, params=None):
 
         return args
 
+    # 解析得到命令行参数
     args = get_params()
 
     # 获取当前文件所在路径,添加到python搜索路径中
@@ -1532,7 +1534,7 @@ def run_collect_sys(srcs=None, params=None):
         _logsvr_session = requests.Session()  # 生成http会话维持对象
         _logsvr_session.svrurl = args.logsvr  # 记录目标日志服务器url
         _logsvr_session.locip = localip_by_dsturl(args.logsvr)[0]  # 记录本机ip
-        _logsvr_session.tags = (tag, rootpath)  # 本定向采集实例的特征
+        _logsvr_session.tags = (tag, rootpath, args.prefix)  # 本定向采集实例的特征
 
     # 获取采集系统对象并打开数据库与日志
     cm = make_collect_mgr(logname, dbname, args.thread,

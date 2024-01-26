@@ -27,6 +27,22 @@ def win32_console_handle():
         return str(e)
 
 
+def win32_window_show(handle, show):
+    import ctypes
+    dll = ctypes.windll.user32
+    SetWindowPos = dll.SetWindowPos
+    SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+
+    try:
+        if show:
+            SetWindowPos(handle, 0, 0, 0, 0, 0, 0x43)
+        else:
+            SetWindowPos(handle, 0, 0, 0, 0, 0, 0x83)
+        return ''
+    except Exception as e:
+        return str(e)
+
+
 def win32_window_position(handle, x, y, w, h):
     import ctypes
     dll = ctypes.windll.user32
@@ -34,7 +50,7 @@ def win32_window_position(handle, x, y, w, h):
     SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 
     try:
-        SetWindowPos(handle, 0, x, y, w, h, 0)
+        SetWindowPos(handle, 0, x, y, w, h, 0x20)
         return ''
     except Exception as e:
         return str(e)
