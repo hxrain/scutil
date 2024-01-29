@@ -380,6 +380,7 @@ class nt_parser_t:
         proc(txt, '()', segs)
         proc(txt, '<>', segs)
         proc(txt, '""', segs)
+        proc(txt, "''", segs)
 
     @staticmethod
     def _drop_nesting(segs, txt):

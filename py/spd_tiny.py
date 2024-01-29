@@ -11,7 +11,7 @@ from spd_base import *
 from spd_chrome import *
 from spd_mime import *
 
-_VER = 'TINYSPD/V1.1/20240125'
+_VER = '20240129/v1.0/3'
 
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
@@ -500,11 +500,23 @@ class source_base:
             return None
         return MouseAct(tab)
 
+    def http_req(self, url, req):
+        """发起对url的http抓取动作
+            self.spider.http.rst['BODY']中保存了抓取结果;
+            self.spider.http.rst['status_code']记录http状态码;
+            self.spider.http.rst['error']记录错误原因.
+            返回值:(状态码,BODY),状态码为None时为抓取失败
+        """
+        ret = self.spider.http.take(list_url, req)
+        if not ret:
+            return None, None
+        return self.spider.http.rst['status_code'], self.spider.http.get_BODY()
+
     def on_list_take(self, list_url, req):
         """发起对list_url的http抓取动作
             self.spider.http.rst['BODY']中保存了抓取结果;
-            self.rst['status_code']记录http状态码;
-            self.rst['error']记录错误原因.
+            self.spider.http.rst['status_code']记录http状态码;
+            self.spider.http.rst['error']记录错误原因.
             返回值:是否抓取成功."""
         return self.spider.http.take(list_url, req)
 
@@ -841,7 +853,7 @@ class spider_base:
         """远端输出运行结束的统计状态"""
         inf = info_t(None)
         inf.title = f"概览翻页(页号{self.source.list_url_idx}/页数{self.source.list_url_cnt}/限量{self.source.list_max_cnt})细览抓取(总数{self.pages}/最新{self.infos})网络交互(请求{self.reqs}/回应{self.rsps}/正常{self.succ})"
-        inf.content = dict2json(self.source.stat, conv=None)  # 状态码统计
+        inf.content = dict2json(self.source.stat, conv=None)[0]  # 状态码统计
         self.rlog(-1, inf)
 
     # 统一生成默认请求参数
@@ -950,7 +962,7 @@ class spider_base:
             if rid is None:
                 if take_page_url:
                     self.source.log_info('page_url new <%s>' % (take_page_url))
-                    self.rlog_page(info, True)  # 远端输出日志,新细览成功
+                    self.rlog_page(info, True)  # 远端输出日志,新细览抓取
                 return info  # 细览排重通过,可以存盘
             else:
                 self.source.log_debug("page_url <%s> is page REPEATED <%d>" % (info.url, rid))
@@ -1056,13 +1068,13 @@ class spider_base:
         self.begin_time = int(time.time())
 
         # 进行入口请求的处理
-        req_param = self._make_req_param(self.source)
-        entry_url = self.call_src_method('on_ready', req_param)
+        self.req_param = self._make_req_param(self.source)
+        entry_url = self.call_src_method('on_ready', self.req_param)
         if isinstance(entry_url, bool) and not entry_url:
             return False
         if entry_url is not None:
             self.reqs += 1
-            if self.http.take(entry_url, req_param):
+            if self.http.take(entry_url, self.req_param):
                 self.source.log_debug('on_ready entry_url take <%s>:: %d' % (entry_url, self.http.get_status_code()))
                 self.source.rec_stat(self.http.get_status_code())
                 self.rsps += 1
@@ -1075,12 +1087,12 @@ class spider_base:
                 return False
 
         # 进行概览抓取循环
-        list_url = self.call_src_method('on_list_url', req_param)
+        list_url = self.call_src_method('on_list_url', self.req_param)
         list_emptys = 0
         while list_url is not None:
             self.reqs += 1
             self.call_src_method('on_list_begin', self.infos)  # 概览页处理开始
-            self.source._list_content, self.source._list_infos, msg = self._do_list_take(list_url, req_param)
+            self.source._list_content, self.source._list_infos, msg = self._do_list_take(list_url, self.req_param)
             if msg:
                 self.rlog_warn(msg, f'概览页:细览数({len(self.source._list_infos)})', list_url)
             self.pages += len(self.source._list_infos)  # 全部细览总数
@@ -1088,7 +1100,7 @@ class spider_base:
             if self.source._list_content:  # 抓取成功
                 self.rsps += 1
                 self.rlog_list(len(self.source._list_infos), self.source.list_url_idx, self.source._list_infos)  # 远端输出概览抓取信息
-                reqbody = req_param['BODY'] if 'METHOD' in req_param and req_param['METHOD'] == 'post' and 'BODY' in req_param else ''
+                reqbody = self.req_param['BODY'] if 'METHOD' in self.req_param and self.req_param['METHOD'] == 'post' and 'BODY' in self.req_param else ''
                 if msg == '':
                     ci, cn = self.source.on_list_plan()
                     plan = '' if ci is None else 'plan<%d/%d>' % (ci, cn)
@@ -1123,7 +1135,7 @@ class spider_base:
                 break  # 要求采集源停止运行
 
             self._do_list_bulking()  # 尝试进行概览翻页递增
-            list_url = self.call_src_method('on_list_url', req_param)
+            list_url = self.call_src_method('on_list_url', self.req_param)
             dbs.update_act(self, list_url is not None)  # 进行中间状态更新
 
         self.rlog_end()  # 远端输出抓取结束
