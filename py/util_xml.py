@@ -130,11 +130,11 @@ def format_xml(xml_str, desc='', chs='utf-8', pretty_print=True, with_comments=T
         return xml_str
 
 
-def xml_value_strip(xml_str,with_node=True):
+def xml_value_strip(xml_str, with_node=True):
     """修正xml节点值左右的空白与\n\t"""
-    rst= re.sub(r'>[\s\n\t]*(.*?)[\s\n\t]*</', r'>\1</', xml_str)
+    rst = re.sub(r'>[\s\n\t]*(.*?)[\s\n\t]*</', r'>\1</', xml_str)
     if with_node:
-        rst=re.sub(r'>[\s\n\t]+<','><',rst)
+        rst = re.sub(r'>[\s\n\t]+<', '><', rst)
     return rst
 
 
@@ -194,6 +194,10 @@ class xpath:
         return self.rootNode and self.mode
 
     def parse(self, cntstr, try_format=True, fixNode='-'):
+        """预处理并解析给定的文本串,得到xml树.
+            try_format 是否尝试进行html的格式化后再进行解析.
+            fixNode 非空则对自闭合节点与空节点进行修正.
+        """
         cnt_str = fix_xml_node(cntstr, fixNode)
         self.cnt_str = None
         self.rootNode = None
@@ -243,28 +247,66 @@ class xpath:
 
         return False, ';'.join(errs)
 
-    def query(self, cc_xpath, base=None):
-        """查询cc_xpath表达式对应的结果(串或元素).可明确指定查询的基础节点base
+    @staticmethod
+    def axis(base_xpath, axis=None, dest_xpath=None):
+        """生成带有轴的完整xpath路径
+                base_xpath为基准定位表达式
+                axis可以为轴或简称,轴的简称参见axis_types的定义.
+                dest_xpath为轴之后的目标定位表达式.
+            返回值:完整xpath路径.
+        """
+        if axis and dest_xpath:
+            axis_types = {
+                # '自身'/'父节点'/'子节点'
+                'sf': 'self::',  # .            : 检索自身
+                'ch': 'child::',  # .           : 检索子节点
+                'pa': 'parent::',  # .          : 检索父节点
+                # '上' - 同级与前辈
+                'up': 'preceding::',  # .       : 检索自身之上同级与所有节点
+                'us': 'preceding-sibling::',  # : 检索自身之上同级节点
+                # '下' - 同级与后辈
+                'dn': 'following::',  # .       : 检索自身之下同级与所有节点
+                'ds': 'following-sibling::',  # : 检索自身之下同级节点
+                # '左' - 父祖前代
+                'lt': 'ancestor::',  # .        : 检索父祖前代
+                'ls': 'ancestor-or-self::',  # .: 检索父祖前代或自身
+                # '右' - 子孙后代
+                'rt': 'descendant::',  # .      : 检索子孙后代
+                'rs': 'descendant-or-self::',  #: 检索子孙后代或自身
+            }
+            if base_xpath[-1] != '/':
+                base_xpath += '/'
+            return f"{base_xpath}{axis_types.get(axis, axis)}{dest_xpath.strip('/')}"
+        else:
+            return base_xpath
+
+    def query(self, base_xpath, root=None, axis=None, dest_xpath=None):
+        """查询xpath表达式对应的结果(串或元素).
+                root 可明确指定查询的基础节点.
+                base_xpath为基准定位表达式
+                axis可以为轴或简称,轴的简称参见axis_types的定义.
+                dest_xpath为轴之后的目标定位表达式.
             返回值:([文本或元素列表],'错误说明')
-            如果'错误说明'不为空则代表发生了错误
+                如果'错误说明'不为空则代表发生了错误
         """
         try:
-            if base is None:
-                base = self.rootNode
-            return base.xpath(cc_xpath), ''
+            cc_xpath = self.axis(base_xpath, axis, dest_xpath)
+            if root is None:
+                root = self.rootNode
+            return root.xpath(cc_xpath), ''
         except etree.XPathEvalError as e:
             return [], es(e)
         except Exception as e:
             return [], es(e)
 
-    def take(self, cc_xpath, idx=None, rstmode='xml'):
+    def take(self, cc_xpath, idx=None, rstmode='xml', axis=None, dest_xpath=None):
         """查询cc_xpath表达式对应的结果文本或文本列表.返回值中错误串为空则正常.
             idx=None,获取全部结果
                 返回值:([结果串],'错误')
             idx=数字,得到指定的idx结果
                 返回值:(结果串,'错误')
         """
-        rst, msg = self.query(cc_xpath)
+        rst, msg = self.query(cc_xpath, None, axis, dest_xpath)
         if msg or len(rst) == 0:
             if idx is None:
                 return [], msg
@@ -950,3 +992,257 @@ def format_lxml_tree(root: etree._Element, closing={}, tab='\t', text_limit=60, 
         return '\n'.join(lines), nodes
     except Exception as e:
         return None, es(e)
+
+
+tmp = """
+<?xml version="1.0" encoding="UTF-8"?>
+<config retry-count="4" connection-timeout="20000" so-timeout="40000" time-stamp="1-3" cookie-policy="rfc2109">
+    <var-def name="spiderInfoCode">
+        T20240130161012337
+    </var-def>
+    <var-def name="spiderInfoType">AUTO</var-def>
+    <var-def name="channelCode">0201</var-def>
+    <var-def name="sheetName">
+        EX_BID_SHEET
+    </var-def>
+    <var-def name="imageExts">g</var-def>
+    <var-def name="fileExts">
+        doc,docx,xls,xlxs,pdf,rar,zip,jpg,png,bmp,jpeg,txt,wps,7z,dwg,tif,gif,docs,xlsx,xml,gzzf
+    </var-def>
+    <var-def name="attSoTimeout">
+        300000
+    </var-def>
+    <var-def name="attTry">
+        1
+    </var-def>
+    <var-def name="snapStatus">
+        0
+    </var-def>
+    <var-def name="fieldNames">
+        PROV_NAME,TITLE,PUBDATE,SOURCE_URL,CONTENT,
+    </var-def>
+    <var-def name="firstUrls">
+        <![CDATA[http://lsygcg.com/xxgs/013001/sec.html]]>
+    </var-def>
+    <var-def name="pageCount">
+        <template>
+            ${firstUrls.size()+0}
+        </template>
+    </var-def>
+    <while condition="${i.toInt() &lt; pageCount.toInt()}" index="i">
+        <action class="com.joinspider.jobserver.action.SpiderLog2Action">
+            <var-def name="listContent">
+                <case>
+                    <if condition="${i.toInt() &lt; firstUrls.size()}">
+                        <empty>
+                            <var-def name = "listUrl">
+                                <template>
+                                    <template>
+                                        ${firstUrls.get(i.toInt())}
+                                    </template>
+                                </template>
+                            </var-def>
+                        </empty>
+                        <http url="${listUrl}"  >
+                        </http>
+                    </if>
+                    <else>
+                        <empty>
+                            <var-def name = "listUrl">
+                                <template>
+                                    <![CDATA[]]>
+                                </template>
+                            </var-def>
+                        </empty>
+                        <http url="${listUrl}"   >
+                        </http>
+                    </else>
+                </case>
+            </var-def>
+            <var-def name="TITLES">
+                <xpath expression="/html/body/div[2]/div[2]/div[2]/div[2]/ul/li/div/a/@title">
+                    <case>
+                        <if condition="${sys.isJson(listContent)}">
+                            <json-to-xml>
+                                <var name="listContent"/>
+                            </json-to-xml>
+                        </if>
+                        <else>
+                            <html-to-xml namespaces-aware="false">
+                                <var name="listContent"/>
+                            </html-to-xml>
+                        </else>
+                    </case>
+                </xpath>
+            </var-def>
+            <var-def name="size">
+                <template>
+                    ${TITLES.toList().size()}
+                </template>
+            </var-def>
+            <var-def name="PUBDATES">
+                <xpath expression="/html/body/div[2]/div[2]/div[2]/div[2]/ul/li/span">
+                    <case>
+                        <if condition="${sys.isJson(listContent)}">
+                            <json-to-xml>
+                                <var name="listContent"/>
+                            </json-to-xml>
+                        </if>
+                        <else>
+                            <html-to-xml namespaces-aware="false">
+                                <var name="listContent"/>
+                            </html-to-xml>
+                        </else>
+                    </case>
+                </xpath>
+            </var-def>
+            <script>
+                assert.assertTrue(PUBDATES.toList().size() == size.toInt());
+            </script>
+            <var-def name="SOURCE_URLS">
+                <xpath expression="/html/body/div[2]/div[2]/div[2]/div[2]/ul/li/div/a/@href">
+                    <case>
+                        <if condition="${sys.isJson(listContent)}">
+                            <json-to-xml>
+                                <var name="listContent"/>
+                            </json-to-xml>
+                        </if>
+                        <else>
+                            <html-to-xml namespaces-aware="false">
+                                <var name="listContent"/>
+                            </html-to-xml>
+                        </else>
+                    </case>
+                </xpath>
+            </var-def>
+            <script>
+                assert.assertTrue(SOURCE_URLS.toList().size() == size.toInt());
+            </script>
+            <loop index="j">
+                <list>
+                    <var name="SOURCE_URLS"/>
+                </list>
+                <body>
+                    <action class="com.joinspider.jobserver.action.SpiderLogAction">
+                        <var-def name="ID">
+                            <template>
+                                ${sys.uuid()}
+                            </template>
+                        </var-def>
+                        <var-def name="detailRule">
+                            <![CDATA[{"afterValue":null,"beforeValue":null,"containEnd":0,"containStart":0,"endStr":null,"endToBorder":0,"filterAtts":null,"filterFlag":0,"filterTags":null,"plainFlag":1,"regValue2":null,"regValue2Result":null,"replaces":[{"replaceFlag":1,"replaceValue":"","searchFlag":1,"searchValue":"\\s"}],"sbcFlag":0,"startStr":null,"startToBorder":0,"stripFlag":1,"unicodeFlag":1}]]>
+                        </var-def>
+                        <var-def name="TITLE">
+                            <action class="com.joinspider.jobserver.action.DetailAction">
+                                <template>
+                                    ${TITLES.get(j.toInt())}
+                                </template>
+                            </action>
+                        </var-def>
+                        <var-def name="detailRule">
+                            <![CDATA[{"afterValue":null,"beforeValue":null,"containEnd":0,"containStart":0,"endStr":null,"endToBorder":0,"filterAtts":null,"filterFlag":0,"filterTags":null,"plainFlag":0,"regValue2":"\\d{2,4}/\\d{1,2}/\\d{1,2}","regValue2Result":null,"replaces":[{"replaceFlag":1,"replaceValue":"-","searchFlag":0,"searchValue":"/"}],"sbcFlag":0,"startStr":null,"startToBorder":0,"stripFlag":0,"unicodeFlag":0}]]>
+                        </var-def>
+                        <var-def name="PUBDATE">
+                            <action class="com.joinspider.jobserver.action.DetailAction">
+                                <template>
+                                    ${PUBDATES.get(j.toInt())}
+                                </template>
+                            </action>
+                        </var-def>
+                        <var-def name="detailRule">
+                            <![CDATA[{"afterValue":null,"beforeValue":null,"containEnd":0,"containStart":0,"endStr":null,"endToBorder":0,"filterAtts":null,"filterFlag":0,"filterTags":null,"plainFlag":0,"regValue2":null,"regValue2Result":null,"replaces":[],"sbcFlag":0,"startStr":null,"startToBorder":0,"stripFlag":0,"unicodeFlag":0}]]>
+                        </var-def>
+                        <var-def name="SOURCE_URL">
+                            <action class="com.joinspider.jobserver.action.DetailAction">
+                                <template>
+                                    ${SOURCE_URLS.get(j.toInt())}
+                                </template>
+                            </action>
+                        </var-def>
+                        <var-def name="SOURCE_URL">
+                            <template>
+                                ${sys.fullUrl(listUrl,SOURCE_URL)}
+                            </template>
+                        </var-def>
+                        <action class="com.joinspider.jobserver.action.RepeatAction">
+                            <![CDATA[[{"freshFlag":0,"repeatFlag":0,"repeatPosType":"LIST","sourceFieldNames":["TITLE","PUBDATE"]},
+                            {"freshFlag":0,"repeatFlag":0,"repeatPosType":"LIST","sourceFieldNames":["SOURCE_URL"]}]]]>
+                        </action>
+                        <var-def name="detailUrl">
+                            <var name="SOURCE_URL"/>
+                        </var-def>
+                        <var-def name="detailUrl">
+                            <template>
+                                ${sys.fullUrl(listUrl,detailUrl)}
+                            </template>
+                        </var-def>
+                        <var-def name="detailContent">
+                            <http url="${detailUrl}"   >
+                            </http>
+                        </var-def>
+                        <var-def name="detailRule">
+                            <![CDATA[{"afterValue":null,"beforeValue":null,"containEnd":0,"containStart":0,"endStr":null,"endToBorder":0,"filterAtts":null,"filterFlag":0,"filterTags":null,"plainFlag":0,"regValue2":null,"regValue2Result":null,"replaces":[],"sbcFlag":0,"startStr":null,"startToBorder":0,"stripFlag":0,"unicodeFlag":0}]]>
+                        </var-def>
+                        <var-def name="preContent">
+                            <template>
+                                <![CDATA[浙江省]]>
+                            </template>
+                        </var-def>
+                        <var-def name="PROV_NAME">
+                            <action class="com.joinspider.jobserver.action.DetailAction">
+                                <var name="preContent"/>
+                            </action>
+                        </var-def>
+                        <var-def name="detailRule">
+                            <![CDATA[{"afterValue":null,"beforeValue":null,"containEnd":0,"containStart":1,"endStr":null,"endToBorder":0,"filterAtts":"class,name,style","filterFlag":0,"filterTags":"span,font,u,b,strong,h1,h2,h3,h4,h5,h6","plainFlag":0,"regValue2":null,"regValue2Result":null,"replaces":[{"replaceFlag":1,"replaceValue":"","searchFlag":1,"searchValue":"<script type=\"text\\/javascript.+?<\\/script>"}],"sbcFlag":0,"startStr":null,"startToBorder":0,"stripFlag":0,"unicodeFlag":0}]]>
+                        </var-def>
+                        <var-def name="preContent">
+                            <xpath expression="/html/body/div[2]/div/div/div/div[1]">
+                                <case>
+                                    <if condition="${sys.isJson(detailContent)}">
+                                        <json-to-xml>
+                                            <var name="detailContent"/>
+                                        </json-to-xml>
+                                    </if>
+                                    <else>
+                                        <html-to-xml namespaces-aware="false">
+                                            <var name="detailContent"/>
+                                        </html-to-xml>
+                                    </else>
+                                </case>
+                            </xpath>
+                        </var-def>
+                        <var-def name="CONTENT">
+                            <action class="com.joinspider.jobserver.action.DetailAction">
+                                <var name="preContent"/>
+                            </action>
+                        </var-def>
+                        <action class="com.joinspider.jobserver.action.RepeatAction">
+                            <![CDATA[[]]]>
+                        </action>
+                        <var-def name="changeCode">
+                            <action class="com.joinspider.jobserver.action.ChangeAction">
+                                <![CDATA[[{"channelCode":"0201","fieldName":"TITLE","text":"竞标"},{"channelCode":"0201","fieldName":"TITLE","text":"征询"},{"channelCode":"0201","fieldName":"TITLE","text":"邀标"},{"channelCode":"0201","fieldName":"TITLE","text":"谈判"},{"channelCode":"0201","fieldName":"TITLE","text":"竞价"},{"channelCode":"0201","fieldName":"TITLE","text":"议标"},{"channelCode":"0201","fieldName":"TITLE","text":"邀请函"},{"channelCode":"0201","fieldName":"TITLE","text":"洽谈"},{"channelCode":"0201","fieldName":"TITLE","text":"招选"},{"channelCode":"0201","fieldName":"TITLE","text":"购置"},{"channelCode":"0201","fieldName":"TITLE","text":"议价"},{"channelCode":"0201","fieldName":"TITLE","text":"征求意见"},{"channelCode":"0201","fieldName":"TITLE","text":"招投标"},{"channelCode":"0201","fieldName":"TITLE","text":"投标"},{"channelCode":"0201","fieldName":"TITLE","text":"资格预审"},{"channelCode":"0201","fieldName":"TITLE","text":"比选"},{"channelCode":"0201","fieldName":"TITLE","text":"招标"},{"channelCode":"0201","fieldName":"TITLE","text":"询价"},{"channelCode":"0201","fieldName":"TITLE","text":"采购"},{"channelCode":"0201","fieldName":"TITLE","text":"竞争性"},{"channelCode":"0201","fieldName":"TITLE","text":"磋商"},{"channelCode":"0201","fieldName":"TITLE","text":"遴选"},{"channelCode":"0201","fieldName":"TITLE","text":"比价"},{"channelCode":"0201","fieldName":"TITLE","text":"单一来源"},{"channelCode":"0201","fieldName":"TITLE","text":"竞价"},{"channelCode":"0201","fieldName":"TITLE","text":"竞谈"},{"channelCode":"0201","fieldName":"TITLE","text":"竞选"},{"channelCode":"0201","fieldName":"TITLE","text":"评选"},{"channelCode":"0201","fieldName":"TITLE","text":"需求"},{"channelCode":"0201","fieldName":"TITLE","text":"选定"},{"channelCode":"0201","fieldName":"TITLE","text":"选聘"},{"channelCode":"0201","fieldName":"TITLE","text":"邀请"},{"channelCode":"0201","fieldName":"TITLE","text":"议价"},{"channelCode":"0201","fieldName":"TITLE","text":"咨询"},{"channelCode":"0201","fieldName":"TITLE","text":"聘请"},{"channelCode":"0201","fieldName":"TITLE","text":"发包"},{"channelCode":"0201","fieldName":"TITLE","text":"购买"},{"channelCode":"0201","fieldName":"TITLE","text":"征集"},{"channelCode":"0201","fieldName":"TITLE","text":"拟入库"},{"channelCode":"0201","fieldName":"TITLE","text":"调研"},{"channelCode":"0201","fieldName":"TITLE","text":"检测公告"},{"channelCode":"0201","fieldName":"TITLE","text":"委托协议"},{"channelCode":"0201","fieldName":"TITLE","text":"挂网"},{"channelCode":"0201","fieldName":"TITLE","text":"处置"},{"channelCode":"0201","fieldName":"TITLE","text":"需求公示"},{"channelCode":"0201","fieldName":"TITLE","text":"需求公告"},{"channelCode":"0202","fieldName":"TITLE","text":"预告"},{"channelCode":"0202","fieldName":"TITLE","text":"采购意向"},{"channelCode":"0202","fieldName":"TITLE","text":"意向公告"},{"channelCode":"0206","fieldName":"TITLE","text":"招商"},{"channelCode":"0206","fieldName":"TITLE","text":"开标"},{"channelCode":"0206","fieldName":"TITLE","text":"招租"},{"channelCode":"0206","fieldName":"TITLE","text":"验收"},{"channelCode":"0206","fieldName":"TITLE","text":"合同公告"},{"channelCode":"0206","fieldName":"TITLE","text":"合同公示"},{"channelCode":"0206","fieldName":"TITLE","text":"遴选合同"},{"channelCode":"0209","fieldName":"TITLE","text":"招拍挂"},{"channelCode":"0213","fieldName":"TITLE","text":"出让"},{"channelCode":"0213","fieldName":"TITLE","text":"转让"},{"channelCode":"0213","fieldName":"TITLE","text":"拍卖"},{"channelCode":"0204","fieldName":"TITLE","text":"成交"},{"channelCode":"0204","fieldName":"TITLE","text":"中选"},{"channelCode":"0204","fieldName":"TITLE","text":"结果"},{"channelCode":"0204","fieldName":"TITLE","text":"中标"},{"channelCode":"0204","fieldName":"TITLE","text":"候选人公示"},{"channelCode":"0204","fieldName":"TITLE","text":"候选人公告"},{"channelCode":"0204","fieldName":"TITLE","text":"定标公告"},{"channelCode":"0203","fieldName":"TITLE","text":"更正"},{"channelCode":"0203","fieldName":"TITLE","text":"更改"},{"channelCode":"0203","fieldName":"TITLE","text":"废标"},{"channelCode":"0203","fieldName":"TITLE","text":"答疑"},{"channelCode":"0203","fieldName":"TITLE","text":"澄清"},{"channelCode":"0203","fieldName":"TITLE","text":"补遗"},{"channelCode":"0203","fieldName":"TITLE","text":"延期"},{"channelCode":"0203","fieldName":"TITLE","text":"终止"},{"channelCode":"0203","fieldName":"TITLE","text":"中止"},{"channelCode":"0203","fieldName":"TITLE","text":"停止"},{"channelCode":"0203","fieldName":"TITLE","text":"作废"},{"channelCode":"0203","fieldName":"TITLE","text":"撤回"},{"channelCode":"0203","fieldName":"TITLE","text":"暂停"},{"channelCode":"0203","fieldName":"TITLE","text":"修正"},{"channelCode":"0203","fieldName":"TITLE","text":"延长"},{"channelCode":"0203","fieldName":"TITLE","text":"无效"},{"channelCode":"0203","fieldName":"TITLE","text":"最高限价"},{"channelCode":"0203","fieldName":"TITLE","text":"技术参数公示"},{"channelCode":"0203","fieldName":"TITLE","text":"技术要求公示"},{"channelCode":"0203","fieldName":"TITLE","text":"拦标价"},{"channelCode":"0203","fieldName":"TITLE","text":"流标公告"},{"channelCode":"0203","fieldName":"TITLE","text":"流标公示"},{"channelCode":"0203","fieldName":"TITLE","text":"撤项公示"},{"channelCode":"0203","fieldName":"TITLE","text":"撤项公告"},{"channelCode":"0203","fieldName":"TITLE","text":"失败公示"},{"channelCode":"0203","fieldName":"TITLE","text":"失败公告"},{"channelCode":"0203","fieldName":"TITLE","text":"采购失败"},{"channelCode":"0203","fieldName":"TITLE","text":"失败说明"},{"channelCode":"0203","fieldName":"TITLE","text":"终止公告"},{"channelCode":"0203","fieldName":"TITLE","text":"终止公示"},{"channelCode":"0203","fieldName":"TITLE","text":"终止采购"},{"channelCode":"0203","fieldName":"TITLE","text":"终止招标"},{"channelCode":"0203","fieldName":"TITLE","text":"终止询价"},{"channelCode":"0203","fieldName":"TITLE","text":"已终止"},{"channelCode":"0203","fieldName":"TITLE","text":"延期公告"},{"channelCode":"0203","fieldName":"TITLE","text":"延期公示"},{"channelCode":"0203","fieldName":"TITLE","text":"延期采购"},{"channelCode":"0203","fieldName":"TITLE","text":"延期招标"},{"channelCode":"0203","fieldName":"TITLE","text":"延期询价"},{"channelCode":"0203","fieldName":"TITLE","text":"延期的公告"},{"channelCode":"0203","fieldName":"TITLE","text":"延期开标"},{"channelCode":"0203","fieldName":"TITLE","text":"延期评标"},{"channelCode":"0203","fieldName":"TITLE","text":"延期说明"},{"channelCode":"0203","fieldName":"TITLE","text":"取消公告"},{"channelCode":"0203","fieldName":"TITLE","text":"取消公示"},{"channelCode":"0203","fieldName":"TITLE","text":"限价公告"},{"channelCode":"0203","fieldName":"TITLE","text":"限价公示"},{"channelCode":"0203","fieldName":"TITLE","text":"招标控制价"},{"channelCode":"0203","fieldName":"TITLE","text":"控制价公示"},{"channelCode":"0203","fieldName":"TITLE","text":"控制价公告"},{"channelCode":"0203","fieldName":"TITLE","text":"第1次变更"},{"channelCode":"0203","fieldName":"TITLE","text":"第2次变更"},{"channelCode":"0203","fieldName":"TITLE","text":"第3次变更"},{"channelCode":"0203","fieldName":"TITLE","text":"变更公示"},{"channelCode":"0203","fieldName":"TITLE","text":"变更公告"},{"channelCode":"0203","fieldName":"TITLE","text":"补充文件"},{"channelCode":"0203","fieldName":"TITLE","text":"补充公示"},{"channelCode":"0203","fieldName":"TITLE","text":"补充公告"},{"channelCode":"0203","fieldName":"TITLE","text":"补充说明"},{"channelCode":"0203","fieldName":"TITLE","text":"补充通知"},{"channelCode":"0203","fieldName":"TITLE","text":"补充招标文件"},{"channelCode":"0203","fieldName":"TITLE","text":"异常公告"},{"channelCode":"0203","fieldName":"TITLE","text":"异常公示"},{"channelCode":"0203","fieldName":"TITLE","text":"招标异常"},{"channelCode":"11","fieldName":"PUBDATE","text":"2021"},{"channelCode":"11","fieldName":"PUBDATE","text":"2020"},{"channelCode":"11","fieldName":"PUBDATE","text":"2019"},{"channelCode":"11","fieldName":"PUBDATE","text":"2018"},{"channelCode":"11","fieldName":"PUBDATE","text":"2017"},{"channelCode":"11","fieldName":"PUBDATE","text":"2016"},{"channelCode":"11","fieldName":"PUBDATE","text":"2015"},{"channelCode":"11","fieldName":"PUBDATE","text":"2014"},{"channelCode":"11","fieldName":"PUBDATE","text":"2013"},{"channelCode":"11","fieldName":"PUBDATE","text":"2012"},{"channelCode":"11","fieldName":"PUBDATE","text":"2011"},{"channelCode":"11","fieldName":"PUBDATE","text":"2010"},{"channelCode":"11","fieldName":"PUBDATE","text":"2009"},{"channelCode":"11","fieldName":"PUBDATE","text":"2008"},{"channelCode":"11","fieldName":"PUBDATE","text":"2007"},{"channelCode":"11","fieldName":"PUBDATE","text":"2006"},{"channelCode":"11","fieldName":"PUBDATE","text":"2005"}]]]>
+                            </action>
+                        </var-def>
+                        <action class="com.joinspider.jobserver.action.FilterAction">
+                            <![CDATA[[]]]>
+                        </action>
+                        <action class="com.joinspider.jobserver.action.AttachmentAction">
+                            <![CDATA[[{"attPatterns":[{"extName":"docx","urlPattern":".docx"},{"extName":"xls","urlPattern":".xls"},{"extName":"xlxs","urlPattern":".xlxs"},{"extName":"pdf","urlPattern":".pdf"},{"extName":"rar","urlPattern":".rar"},{"extName":"zip","urlPattern":".zip"},{"extName":"doc","urlPattern":".doc"},{"extName":"jpg","urlPattern":".jpg"},{"extName":"png","urlPattern":".png"},{"extName":"bmp","urlPattern":".bmp"},{"extName":"jpeg","urlPattern":".jpeg"},{"extName":"txt","urlPattern":".txt"},{"extName":"wps","urlPattern":".wps"},{"extName":"7z","urlPattern":".7z"},{"extName":"dwg","urlPattern":".dwg"},{"extName":"tif","urlPattern":".tif"},{"extName":"gif","urlPattern":".gif"},{"extName":"docs","urlPattern":".docs"},{"extName":"xlsx","urlPattern":".xlsx"},{"extName":"xml","urlPattern":".xml"},{"extName":"gzzf","urlPattern":".gzzf"},{"extName":"et","urlPattern":".et"},{"extName":"xlt","urlPattern":".xlt"},{"extName":"xlsm","urlPattern":".xlsm"},{"extName":"gzbs","urlPattern":".GZBS"},{"extName":"zjzf","urlPattern":".ZJZF"},{"extName":"gzzf","urlPattern":".GZZF"},{"extName":"qxncf","urlPattern":".QXNCF"},{"extName":"nxzf","urlPattern":".NXZF"},{"extName":"lyzf","urlPattern":".LYZF"},{"extName":"bbzf","urlPattern":".bbzf"},{"extName":"smzf","urlPattern":".SMZF"},{"extName":"sxszf","urlPattern":".SXSZF"},{"extName":"zbs","urlPattern":".ZBS"},{"extName":"trcf","urlPattern":".TRCF"},{"extName":"aqzf","urlPattern":".AQZF"},{"extName":"lazf","urlPattern":".LAZF"},{"extName":"zycf","urlPattern":".ZYCF"},{"extName":"tlzf","urlPattern":".tlzf"},{"extName":"btzf","urlPattern":".BTZF"},{"extName":"edc","urlPattern":".edc"},{"extName":"jsbf","urlPattern":".JSBF"},{"extName":"cqzf","urlPattern":".CQZF"},{"extName":"CQZF","urlPattern":".CQZF"},{"extName":"csgczf","urlPattern":".CSGCZF"},{"extName":"zbd","urlPattern":".zbd"},{"extName":"zb","urlPattern":".zb"},{"extName":"HFCF","urlPattern":".HFCF"},{"extName":"ZZZF","urlPattern":".ZZZF"},{"extName":"JLSZ","urlPattern":".JLSZ"},{"extName":"NXZF","urlPattern":".NXZF"},{"extName":"ESCF","urlPattern":".ESCF"},{"extName":"fyq","urlPattern":".fyq"},{"extName":"pptx","urlPattern":".pptx"},{"extName":"tmp","urlPattern":".tmp"},{"extName":"HLBECF","urlPattern":".HLBECF"},{"extName":"GZZB","urlPattern":".GZZB"},{"extName":"TBZ","urlPattern":".TBZ"},{"extName":"TBYJ","urlPattern":".TBYJ"},{"extName":"ZFZBJ","urlPattern":".ZFZBJ"},{"extName":"dot","urlPattern":".dot"},{"extName":"HzZbs","urlPattern":".HzZbs"},{"extName":"LCCF","urlPattern":".LCCF"},{"extName":"ZBJ","urlPattern":".ZBJ"},{"extName":"gef","urlPattern":".gef"},{"extName":"PTZF","urlPattern":".PTZF"},{"extName":"PTBF","urlPattern":".PTBF"},{"extName":"hzzb","urlPattern":".hzzb"},{"extName":"CQCF","urlPattern":".CQCF"},{"extName":"TRZF","urlPattern":".TRZF"},{"extName":"et","urlPattern":".et"},{"extName":"MYSLZB","urlPattern":".MYSLZB"},{"extName":"MYCF","urlPattern":".MYCF"},{"extName":"HNCF","urlPattern":".HNCF"},{"extName":"SMCF","urlPattern":".SMCF"},{"extName":"zbid","urlPattern":".zbid"},{"extName":"CDZ","urlPattern":".CDZ"},{"extName":"HTBZ","urlPattern":".HTBZ"},{"extName":"ZYCF","urlPattern":".ZYCF"},{"extName":"COS","urlPattern":".COS"},{"extName":"PJCF","urlPattern":".PJCF"},{"extName":"ZJCNCF","urlPattern":".ZJCNCF"},{"extName":"XCCF","urlPattern":".XCCF"}],"fieldName":"CONTENT","spiderPosType":"DETAIL"}]]]>
+                        </action>
+                        <action class="com.joinspider.jobserver.action.DbAction" />
+                    </action>
+                </body>
+            </loop>
+        </action>
+    </while>
+</config>
+
+"""
+
+xp = xpath(tmp)
+
+
+
+print(take_list_repeat_by_source(xp))
