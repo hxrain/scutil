@@ -682,18 +682,27 @@ class Tab(object):
         """根据请求id获取对应的回应信息,要求回应阶段满足stat的数量要求,返回值:None回应不存在;其他为回应对象."""
 
         def _get():
-            if reqid not in self._data_requestIDs:
-                return None
-            r = self._data_requestIDs[reqid]
-            if len(r) != stat:
+            r = self._data_requestIDs.get(reqid)
+            if not r or len(r) != stat:
                 return None
             return r
 
         rst = _get()
-        if not rst or len(rst) == 0:
-            self.recv_loop()
-            rst = _get()
-        return rst
+        if rst:
+            return rst
+        self.recv_loop()  # 重试接收一次
+        return _get()
+
+    def wait_response_info(self, reqid, timeout, stat=3):
+        """最多等待timeout回应完成.返回值:None超时;否则为回应信息"""
+        wait = spd_base.waited_t(timeout)
+        while True:
+            r = self.get_response_info(reqid, stat)
+            if r:
+                return r
+            if wait.timeout():
+                break
+        return None
 
     def get_response_body(self, reqid, proto_timeout=10):
         """根据请求id获取回应body内容.需要先确保回应已经完成,否则出错.
@@ -1477,24 +1486,16 @@ class spd_chrome:
         except Exception as e:
             return py_util.get_trace_stack()
 
-    def wait_response_body(self, tab, url, url_is_re=False, timeout=30, get_body=True):
+    def wait_response_body(self, tab, url, url_is_re=False, timeout=30, mode=None):
         """获取指定url的回应内容
             工作流程:1 等待页面装载完成,内部记录发送的请求信息; 2 根据url查找发送的请求id; 3 使用请求id获取对应的回应内容.
+            mode = None or 'body' - 提取对应的回应内容; 'req' - 请求头; 'rsp' - 回应头
             返回值: (body,msg)
                     msg为''则正常;body为回应内容
         """
         t = self._tab(tab)
-
-        def wait_response(reqid, timeout):
-            """等待回应完成.返回值:None超时;否则为回应信息"""
-            wait = spd_base.waited_t(timeout)
-            while True:
-                r = t.get_response_info(reqid)
-                if r:
-                    return r
-                if wait.timeout():
-                    break
-            return None
+        if not mode:
+            mode = 'body'
 
         def get_downtmp(rrinfo, downpath):
             """在回应获取失败的时候,尝试查找下载文件"""
@@ -1522,15 +1523,23 @@ class spd_chrome:
             return None, msg
         if not req_lst:
             return None, 'requestWaiting.'
+        if mode == 'req':
+            rr = req_lst[-1][0]
+            rst = {'url': rr['url'], 'method': rr['method'], 'headers': rr['headers'], }
+            return spd_base.dict2json(rst)
 
         # 再等待请求的回应内容到达
         _, reqid = req_lst[-1]
-        rrinfo = wait_response(reqid, timeout)
+        rrinfo = t.wait_response_info(reqid, timeout)
         if not rrinfo:
             return None, 'responseWaiting.'
+        if mode == 'rsp':
+            rr = rrinfo[1]
+            rst = {'url': rr['url'], 'status': rr['status'], 'statusText': rr['statusText'], 'headers': rr['headers'], }
+            return spd_base.dict2json(rst)
 
         # 不要求回应body的时候,等待回应完成就直接返回
-        if not get_body:
+        if mode != 'body':
             return None, ''
 
         # 之后再提取回应body
