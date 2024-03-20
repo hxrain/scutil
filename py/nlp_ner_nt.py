@@ -96,17 +96,28 @@ class nt_parser_t:
     # 数字序号常见模式
     num_norm = [
         (f'([第笫]*{num_re}[号]*)([分]*[校院馆局会库矿场团])(?![件河乡镇业])', 1, __nu_nm.__func__),
-        (f'([第笫]*{num_re}[号]*)([分]*[厂店台处站园亭部营连排厅社所组队船]|工区)(?![件河乡镇业])', 1, __nu_nb.__func__),
+        (f'([第笫]*{num_re}[号]*)([分]*[厂店台处站园亭部营连排厅社所组队船]|工区|分号)(?![件河乡镇业])', 1, __nu_nb.__func__),
         (f'([经纬农第笫ABCDGKSXYZ]*{num_re}[号级大支#]*)(公里|马路|部队|[路弄街院里亩线楼室栋段桥井闸门渠河沟江坝村区师机]+)', 1, __nu_ns.__func__),
         (f'([第笫]*{num_re})([职中小高]+)(?![学])', 1, __nu_ns.__func__),
-        (f'([第笫ABCDGKSXYZ]*{num_re}[号级大支只届年期次个度#]*)', 1, __nu_default.__func__),
+        (f'([第笫ABCDGKSXYZ]*{num_re}[号级大支只届年期次个度批委分#]*)', 1, __nu_default.__func__),
     ]
 
     # 行前缀章节号模式
     line_pre_patts = [r'^([\s\n\._①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇]+)']
 
+    # 为了更好的利用地名组份信息,更好的区分主干部分的类型,引入了"!尾缀标注"模式,规则如下:
+    # 1 未标注!的行,整体地名(S)进行使用,并在移除尾缀词后,主干部分作为名称(N)使用,等同于标注了!N
+    # 2 标注!的且没有字母的,不拆分,将整体作为:地名(S)
+    # 3 标注!后有其他字母的,主干部分按标注类型使用: A-弱化名称/S-地名/M-实体/U-序号/N-名称/Z-专业名词/H-特殊词/B-分支
+    tag_labels = {'A': tags_NA, 'S': tags_NS, 'M': tags_NM, 'U': tags_NU,
+                  'N': tags_NN, 'Z': tags_NZ, 'H': tags_NH, 'B': tags_NB}
+
+    # 可进行特殊短语包裹的括号对
+    brackets_map = {'<': '>', '(': ')', '"': '"', "'": "'"}
+    brackets_rmap = {'>': '<', ')': '(', '"': '"', "'": "'"}
+
     @staticmethod
-    def query_nu(txt, segs, nulst=None):
+    def query_nu(txt, nulst=None):
         """查询txt中的数字相关特征模式,nulst可给出外部数字模式匹配列表.返回值:[b,e,{types}]"""
         rst = []
         if not nulst:
@@ -137,13 +148,13 @@ class nt_parser_t:
                 trie.add(en)
         return trie
 
-    def __load(self, fname, tags, encode='utf-8', vals_cb=None, chk_cb=None):
+    def __load(self, isend, fname, tags, encode='utf-8', vals_cb=None, chk_cb=None):
         """装载词典文件fname并绑定数据标记tags,返回值:''正常,否则为错误信息."""
 
         def add(word, tag, row, txt):
-            ret = self.matcher.dict_add(word, tag, force=True)
+            ret, old = self.matcher.dict_add(word, tag, force=True)
             if chk_cb is not None and not ret:
-                chk_cb(fname, row, txt, word, tag)
+                chk_cb(fname, row, txt, word, old)
 
         try:
             row = -1
@@ -158,8 +169,12 @@ class nt_parser_t:
                         for val in vals:
                             add(val[0], val[1], row, txt)
                     else:
-                        tag = tags(txt) if isfunction(tags) else tags
-                        add(txt, tag, row, txt)
+                        name, tag = nt_parser_t._split_label(txt)  # 内置标注解析处理
+                        if not tag:
+                            tag = tags
+                        add(name, tag, row, txt)
+            if isend:
+                self.matcher.dict_end()
             return ''
         except Exception as e:
             return e
@@ -173,7 +188,6 @@ class nt_parser_t:
 
     def load_nt(self, fname=None, encode='utf-8', isend=True, with_NO=True, keys=None, debars=None):
         """装载NT尾缀词典,返回值:''正常,否则为错误信息."""
-        ret = self.__load(fname, self.tags_NM, encode) if fname else ''
 
         # 初始化构建匹配词表
         if len(self.matcher.do_loop(None, '有限公司')) != 4:
@@ -187,25 +201,47 @@ class nt_parser_t:
                 nobs = data['-']
                 if len(k) > 1 or (len(k) == 1 and with_NO):
                     if not debars or k not in debars:
-                        r = self.matcher.dict_add(k, tags, force=True)
+                        r, ot = self.matcher.dict_add(k, tags, force=True)
                         if not r:
-                            print(f'nt_parser_t.nt_tails: {k} is repeat!')
+                            print(f'nt_parser_t.nt_tails: {k} is repeat! {ot}')
                 for e in exts:
                     if debars and e in debars:
                         continue
-                    r = self.matcher.dict_add(e, tags, force=True)
+                    r, ot = self.matcher.dict_add(e, tags, force=True)
                     if not r:
-                        print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat!')
+                        print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat! {ot}')
 
-        if isend:
-            self.matcher.dict_end()
-        return ret
+        return self.__load(isend, fname, self.tags_NM, encode, chk_cb=self._chk_cb) if fname else ''
+
+    def _chk_cb(self, fname, row, txt, word, tag):
+        """默认的检查词典冲突的输出回调事件处理器"""
+        if txt == word:
+            print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat!<{tag}>')
+        else:
+            print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat {word}<{tag}>')
+
+    @staticmethod
+    def _split_label(line):
+        """拆分字典行,得到名称与标注,返回值:(name,lbl)
+            name - 为实际名称
+            lbl - 标注对应类型:None无标注;''禁止拆分;其他为标注对应self.tag_labels类型
+        """
+        segs = line.split('!')  # 尝试拆分标注记号
+        lbl = segs[1] if len(segs) == 2 else None  # 得到标注字符
+        if lbl and lbl not in nt_parser_t.tag_labels:
+            print('ERROR:DICT LINE UNKNOWN LABEL CHAR!', line)
+            lbl = ''
+        name = segs[0]  # 得到原名称
+        if lbl:
+            lbl = nt_parser_t.tag_labels[lbl]  # 江标注字符转换为对应类型
+        return name, lbl
 
     def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars=None):
         """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
         lvls = {0: self.tags_NS, 1: self.tags_NS1, 2: self.tags_NS2, 3: self.tags_NS3, 4: self.tags_NS4, 5: self.tags_NS5}
+        # 装入内置的行政区划名称
         if len(self.matcher.do_loop(None, '牡丹江市')) != 4:
-            for id in cai.map_id_areas:  # 装入内置的行政区划名称
+            for id in cai.map_id_areas:
                 alst = cai.map_id_areas[id]
                 lvl = cai.query_aera_level(alst[0])  # 根据正式地名得到行政区划级别
                 if lvl > lv_limit:
@@ -217,96 +253,82 @@ class nt_parser_t:
                     if name != aname and aname not in nnd.nt_tail_datas:
                         self.matcher.dict_add(aname, tags, force=True)  # 特定尾缀地区名称,放入简称
 
-        if worlds and len(self.matcher.do_loop(None, '环太平洋')) != 4:
-            for state in cai.map_worlds:  # 装入内置的世界主要国家与首都
-                city = cai.map_worlds[state]
-                r = self.matcher.dict_add(state, self.tags_NS, force=True)
+        # 装入内置的区域名称
+        if len(self.matcher.do_loop(None, '嘎查村')) != 3:
+            for k in nnd.nt_tails:
+                data = nnd.nt_tails[k]
+                assert '.' in data and '+' in data and '-' in data, data
+                tags = data['.']
+                if not nnd.types.equ(tags, nnd.types.NS):
+                    continue
+                exts = data['+']
+                nobs = data['-']
+                r, ot = self.matcher.dict_add(k, tags, force=True)
                 if not r:
-                    print(f"nlp_ner_nt.load_ns state is repeat: {state}")
+                    print(f'nt_parser_t.nt_tails: {k} is repeat! {ot}')
+                for e in exts:
+                    r, ot = self.matcher.dict_add(e, tags, force=True)
+                    if not r:
+                        print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat! {ot}')
+
+        # 装入内置的世界主要国家与首都
+        if worlds and len(self.matcher.do_loop(None, '环太平洋')) != 4:
+            for state in cai.map_worlds:
+                city = cai.map_worlds[state]
+                r, ot = self.matcher.dict_add(state, self.tags_NS, force=True)
+                if not r:
+                    print(f"nlp_ner_nt.load_ns state is repeat: {state} {ot}")
 
                 if city:
-                    r = self.matcher.dict_add(city, self.tags_NS1, force=True)
+                    r, ot = self.matcher.dict_add(city, self.tags_NS1, force=True)
                     if not r:
-                        print(f"nlp_ner_nt.load_ns city is repeat: {city}")
+                        print(f"nlp_ner_nt.load_ns city is repeat: {city} {ot}")
 
             areas = ['亚太', '东北亚', '东亚', '北美', '环太平洋', '欧洲', '亚洲', '美洲', '非洲', '印度洋', '太平洋', '大西洋', '北欧', '东欧', '西欧', '中亚', '南亚', '东南亚']
             for area in areas:
-                r = self.matcher.dict_add(area, self.tags_NS, force=True)
+                r, ot = self.matcher.dict_add(area, self.tags_NS, force=True)
                 if not r:
-                    print(f"nlp_ner_nt.load_ns area is repeat: {area}")
+                    print(f"nlp_ner_nt.load_ns area is repeat: {area} {ot}")
 
         def ns_tags(line):
             """根据地名进行行政级别查询,返回对应的标记"""
-            if line[-2:] in {'林场', '农场', '牧场', '渔场'}:
-                return self.tags_NSNM
+            if line[-2:] in {'林场', '农场', '牧场', '渔场', '管理区'}:
+                return nt_parser_t.tags_NSNM
             lvl = cai.query_aera_level(line)
             return lvls[lvl]
 
         # 地名的构成很复杂.最简单的模式为'名字+省/市/区/县/乡',还有'主干+街道/社区/村/镇/屯',此时的主干组份的模式就很多,如'xx街/xx路/xx站/xx厂'等.
-        # 为了更好的利用地名组份信息,更好的区分主干部分的类型,引入了"!尾缀标注"模式,规则如下:
-        # 1 未标注!的行,整体地名(S)进行使用,并在移除尾缀词后,主干部分作为名称(N)使用,等同于标注了!N
-        # 2 标注!的且没有字母的,不拆分,将整体作为:地名(S)
-        # 3 标注!后有其他字母的,主干部分按标注类型使用: A-弱化名称/S-地名/M-实体/U-序号/N-名称/Z-专业名词/H-特殊词/B-分支
-        labels = {'A': self.tags_NA, 'S': self.tags_NS, 'M': self.tags_NM, 'U': self.tags_NU,
-                  'N': self.tags_NN, 'Z': self.tags_NZ, 'H': self.tags_NH, 'B': self.tags_NB}
 
         def vals_cb(line):
-            segs = line.split('!')  # 尝试拆分标注记号
-            name = segs[0]  # 得到原始地名
-            if name[-1] in {'东', '南', '西', '北'}:
-                if cai.query_ids_by_area(name[:-1]):
-                    print(f'<{fname}>:{line} spare <{name[-1]}>')
-            lbl = segs[1] if len(segs) == 2 else None  # 得到标注类型
-            if lbl and lbl not in labels:
-                print('ERROR:NS/FILE/LABEL:', line)
-                lbl = ''
-
-            if lbl == '':  # 不要求进行解析处理
+            name, tag = nt_parser_t._split_label(line)  # 得到原始地名与对应的标注类型
+            if tag == '':  # 不要求进行解析处理
                 return [(name, ns_tags(name))]
             # 解析得到主干部分
             aname = cai.drop_area_tail(name, drops_tailchars)
             if name != aname and aname not in nnd.nt_tail_datas:
                 if len(aname) <= 1:
                     print(f'<{fname}>:{line} split <{aname}>')
-                if lbl is None:  # 没有明确标注主干类型时
+                if tag is None:  # 没有明确标注主干类型时
                     if aname[-1] in cai.ns_tails:
-                        lbl = 'S'  # 如果主干部分的尾字符合地名尾缀特征,则按地名标注
+                        tag = nt_parser_t.tags_NS  # 如果主干部分的尾字符合地名尾缀特征,则按地名标注
                     else:
-                        lbl = 'N' if len(aname) == 2 else 'S'  # 否则根据主干部分的长度认定主干部分的类型,<=2的为名字N,>2的为地名S
-                return [(name, ns_tags(name)), (aname, labels[lbl])]
-            return [(name, self.tags_NS)]
+                        tag = nt_parser_t.tags_NN if len(aname) == 2 else nt_parser_t.tags_NS  # 否则根据主干部分的长度认定主干部分的类型,<=2的为名字N,>2的为地名S
+                return [(name, ns_tags(name)), (aname, tag)]
+            return [(name, nt_parser_t.tags_NS)]
 
-        def chk_cb(fname, row, txt, word, tag):
-            if txt == word:
-                print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat!<{tag}>')
-            else:
-                print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat {word}<{tag}>')
-
-        ret = self.__load(fname, self.tags_NS, encode, vals_cb, chk_cb) if fname else ''
-        if isend:
-            self.matcher.dict_end()
-        return ret
+        return self.__load(isend, fname, self.tags_NS, encode, vals_cb, self._chk_cb) if fname else ''
 
     def load_nz(self, fname, encode='utf-8', isend=True):
         """装载NZ组份词典,返回值:''正常,否则为错误信息."""
-        ret = self.__load(fname, self.tags_NZ, encode)
-        if isend:
-            self.matcher.dict_end()
-        return ret
+        return self.__load(isend, fname, self.tags_NZ, encode, chk_cb=self._chk_cb)
 
     def load_nn(self, fname, encode='utf-8', isend=True):
         """装载NN尾缀词典,返回值:''正常,否则为错误信息."""
-        ret = self.__load(fname, self.tags_NN, encode)
-        if isend:
-            self.matcher.dict_end()
-        return ret
+        return self.__load(isend, fname, self.tags_NN, encode, chk_cb=self._chk_cb)
 
     def load_na(self, fname, encode='utf-8', isend=True):
         """装载NA尾缀词典,返回值:''正常,否则为错误信息."""
-        ret = self.__load(fname, self.tags_NA, encode)
-        if isend:
-            self.matcher.dict_end()
-        return ret
+        return self.__load(isend, fname, self.tags_NA, encode, chk_cb=self._chk_cb)
 
     def loads(self, dicts_list, path=None):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
@@ -332,8 +354,14 @@ class nt_parser_t:
     def _merge_bracket(segs, txt):
         """合并segs段落列表中被左右括号包裹的部分,返回值:结果列表"""
 
-        def check_brackets_segs(b, e, segs):
-            """查找segs中(b,e)范围内的seg,并判断是否可以合并.返回值:(bi,ei,bool)"""
+        def _merge_brackets_segs(bi, ei, segs):
+            """合并(bi,ei)分段以及其左右的括号,变为一个大分段"""
+            segs[bi] = (segs[bi][0] - 1, segs[ei][1] + 1, segs[ei][2])  # 更新bi处的分段信息
+            for i in range(ei - bi):  # 丢弃到ei的分段
+                segs.pop(bi + 1)
+
+        def _find_brackets_segs(b, e, segs):
+            """查找segs中(b,e)范围内的seg,返回值:(bi,ei,bool)"""
             bi = None
             ei = None
             # 按括号范围查找包裹的分段范围
@@ -342,45 +370,55 @@ class nt_parser_t:
                     bi = i
                 if ei is None and seg[1] == e:
                     ei = i
+                if seg[1] > e:
                     break
 
             if bi is None or ei is None:
                 return bi, ei, False
-
-            # 检查分段范围是否类型相同并接续
-            st = (types.NZ, types.NS, types.NU, types.NM, types.NN, types.NA, types.NB, types.NO, types.NF)
             for i in range(bi + 1, ei + 1):
                 pseg = segs[i - 1]
                 seg = segs[i]
-                if not types.joint(st, pseg[2]) or not types.joint(st, seg[2]):
-                    return bi, ei, False  # 分段类型不允许
                 if pseg[1] < seg[0]:
                     return bi, ei, False  # 前后分段位置相离
-
             return bi, ei, True
 
-        def _merge_brackets_segs(bi, ei, segs):
-            """合并(bi,ei)分段以及其左右的括号,变为一个大分段"""
-            segs[bi] = (segs[bi][0] - 1, segs[ei][1] + 1, segs[ei][2])  # 更新bi处的分段信息
-            for i in range(ei - bi):  # 丢弃到ei的分段
-                segs.pop(bi + 1)
+        # 进行有深度感知的括号配对,得到每个层级的配对位置
+        stack = []  # 记录当前深度待配对的信息
+        result = []  # 记录完整的配对结果
 
-        def proc(txt, chrs, segs):
-            """整体处理一次匹配括号对"""
-            offset = 0
-            while offset < len(txt):
-                b, e, d = uni.find_brackets(txt, chrs, offset)
-                if d is None or d > 0:
-                    break
-                bi, ei, can = check_brackets_segs(b, e, segs)
-                if can:
-                    _merge_brackets_segs(bi, ei, segs)
-                offset = e + 1
+        def can_push(char):
+            """判断当前左括号是否可以push积累"""
+            if char not in nt_parser_t.brackets_map:
+                return False  # 不是左括号
+            rchar = nt_parser_t.brackets_map[char]
+            if char == rchar and stack:  # 左右括号是同一种字符的时候
+                if stack[-1][1] == char:
+                    return False  # 如果stack的最后已经存在当前字符,则不能push累积
+            return True
 
-        proc(txt, '()', segs)
-        proc(txt, '<>', segs)
-        proc(txt, '""', segs)
-        proc(txt, "''", segs)
+        for pos in range(len(txt)):
+            char = txt[pos]  # 对文本串进行逐一遍历
+            if can_push(char):
+                stack.append((pos, char))  # 如果遇到了左括号则记录到stack中
+            elif char in nt_parser_t.brackets_rmap:
+                pchar = nt_parser_t.brackets_rmap[char]
+                if stack and stack[-1][1] == pchar:  # 如果遇到了右括号,并且真的与stack中最后的配对相吻合
+                    result.append((stack[-1][0], pos))  # 则记录最内侧的括号范围
+                    stack.pop(-1)  # 并剔除stack中已经用过的待配对信息
+                else:
+                    break  # 出现错层现象了,放弃当前配对分析
+
+        if stack:  # 括号配对失败
+            return stack  # 返回待配对层级信息list
+
+        for res in result:
+            bi, ei, ok = _find_brackets_segs(res[0], res[1], segs)
+            if not ok:
+                if bi is None and ei is None:
+                    continue  # 规避'<新疆艺术(汉文)>杂志社'里面的'(汉文)'
+                return res  # 括号范围内有未知成分,停止处理,返回tuple(b,e)
+            _merge_brackets_segs(bi, ei, segs)  # 合并括号范围
+        return None  # 正常完成
 
     @staticmethod
     def _drop_nesting(segs, txt):
@@ -468,12 +506,13 @@ class nt_parser_t:
             """判断特殊序列是否可以合并"""
             if types.joint(pseg[2], (types.NZ, types.NS)) and types.equ(seg[2], types.NM):
                 if pseg[1] > seg[0] or (merge_types and mu.slen(seg) < 3):
-                    return True  # 交叉NS & NM,或相连的NM较短,则强制合并前后段
-            if pseg[2] is not None and types.equ(seg[2], types.NO) and pseg[1] == seg[0] and mu.slen(seg) == 1:
-                return True  # 紧邻NO,则强制合并前后段
-            if pseg[2] is not None and types.equ(seg[2], types.NO) and pseg[1] > seg[0] and pseg[1] <= seg[1]:
-                return True  # 交叉NO,则强制合并前后段
-            if types.joint(pseg[2], (types.NU,)) and types.equ(seg[2], types.NB) and pseg[1] == seg[0]:
+                    return True  # 交叉(NZ,NS)&NM,或相连的NM较短,则强制合并前后段
+            if pseg[2] is not None and types.equ(seg[2], types.NO):
+                if pseg[1] == seg[0] and mu.slen(seg) == 1:
+                    return True  # 紧邻NO,则强制合并前后段
+                if pseg[1] > seg[0] and pseg[1] <= seg[1]:
+                    return True  # 交叉NO,则强制合并前后段
+            if pseg[1] == seg[0] and types.joint(pseg[2], (types.NU,)) and types.equ(seg[2], types.NB):
                 return True  # 紧邻(NU,NM)+NB,则合并前后段
             return False
 
@@ -504,16 +543,6 @@ class nt_parser_t:
                     return False  # 后段与当前段类型不同且可组合,则告知当前段不可合并
 
             return True
-
-        # def rec_tags_merge(pseg, seg):
-        #     """记录前后两个段落的合并结果"""
-        #     ac = types.cmp(pseg[2], seg[2])
-        #     if ac > 0:  # 如果前段级别大于后段,则进行合并
-        #         att = set(pseg[2])
-        #         att.update(seg[2])  # 合并标记集合
-        #     else:
-        #         att = seg[2]  # 否则直接使用后段级别
-        #     rst[-1] = (pseg[0], seg[1], att)  # 记录合并后的新段
 
         def rec_tags_merge(pseg, seg):
             """记录前后两个段落的合并结果"""
@@ -557,20 +586,20 @@ class nt_parser_t:
                 if can_tags_merge(pseg, seg, idx):
                     rec_tags_merge(pseg, seg)  # 合并当前段
                 else:
-                    rec_tags_cross(pseg, seg)  # 正常记录:前后交叉
+                    rec_tags_cross(pseg, seg)  # 记录,前后交叉
             elif rl == 'A+B':  # 前后紧邻,需要判断是否应该合并
                 if can_tags_merge(pseg, seg, idx):
                     rec_tags_merge(pseg, seg)  # 合并当前段
                 else:
-                    rec_tags_cross(pseg, seg)  # 正常记录:前后交叉
+                    rec_tags_cross(pseg, seg)  # 记录,前后紧邻
             elif rl == 'A@B':  # 前段包含后段,需要记录NA@NO的情况
-                if types.equ(seg[2], types.NM) or (types.equ(pseg[2], types.NA) and types.equ(seg[2], types.NO)):
-                    rec_tags_cross(pseg, seg)  # 正常记录:前后交叉
+                if types.equ(seg[2], types.NM) or (types.equ(pseg[2], types.NA) and types.equ(seg[2], types.NO) and can_combi_NM(pseg, seg)):
+                    rec_tags_cross(pseg, seg)  # 记录,前包含后
             elif rl == 'B@A':  # 后段包含前段
                 if can_tags_merge(pseg, seg, idx):
                     rec_tags_merge(pseg, seg)  # 合并当前段
                 else:
-                    rec_tags_cont(pseg, seg)  # 正常记录:后段包含
+                    rec_tags_cont(pseg, seg)  # 记录,后包含前
             else:
                 rst.append(seg)  # 其他情况,直接记录当前分段
 
@@ -708,9 +737,35 @@ class nt_parser_t:
             if node.first != node.fail and node.fail.end:
                 rec(node.fail)  # 尝试多记录一下可能有用的次级匹配结果,解决(佛山海关/山海关/海关)的问题
 
+        def intercept_break(segs, txt):
+            """截取segs中未匹配的前半部分(丢弃已知的后半部分).返回值:截止点,0代表完全匹配"""
+            slen = len(txt)
+            ep = slen  # 最后的结束点
+            for i in range(len(segs) - 1, -1, -1):
+                seg = segs[i]
+                if seg[1] < ep:
+                    break  # 当前分段的结束点小于最后的结束点
+                ep = seg[0]
+
+            stops = {'件', '河', '乡', '镇', '业', '学'}
+            c = 0
+            while ep < slen and c <= 2:  # 再向后延伸一下下,涵盖所有的数字部分
+                if re.findall(self.num_re, txt[ep]):
+                    ep = min(ep + 1, slen)
+                    c += 1
+                elif txt[ep] not in stops:
+                    if ep + 1 < slen and txt[ep + 1] in stops:
+                        break
+                    ep = min(ep + 1, slen)
+                    c += 1
+                else:
+                    break
+            return ep
+
         segs = self.matcher.do_check(txt, mode=cross_ex)  # 按词典进行完全匹配
-        if not mu.is_full_segs(segs, len(txt)):
-            nums = self.query_nu(txt, segs, nulst)  # 进行数字序号匹配
+        ep = intercept_break(segs, txt)
+        if ep:
+            nums = self.query_nu(txt[:ep], nulst)  # 进行数字序号匹配
             self._merge_nums(segs, nums)
 
         self._adj_last_tag(segs, txt)  # 尝试校正最后应该匹配的NO单字
