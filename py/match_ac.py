@@ -47,7 +47,7 @@ class mode_t(Enum):
 
         rec(node.first)
 
-    max_match = last.__func__  # 后项最大化优先匹配(交叉碰触被丢弃,仅保留最后出现的最大匹配段)
+    max_match = last.__func__  # 后项最大化优先匹配(交叉碰触丢弃前项,仅保留最后出现的最大匹配段)
     is_all = all.__func__  # 全匹配模式(不丢弃任何匹配,全部记录)
     keep_cross = cross.__func__  # 交叉保持模式(仅丢弃完全被包含的部分)
 
@@ -106,9 +106,9 @@ class ac_match_t:
             strip - 是否对关键词进行净空处理(可能会导致空格被丢弃)
             force - 是否强制扩容替换匹配值
         返回值:
-            None - 关键词已存在,不处理
-            False - 关键词已存在,扩容替换
-            True - 关键词不存在,正常添加
+            None,Old - 关键词已存在,不处理
+            False,Old - 关键词已存在,扩容替换
+            True,None - 关键词不存在,正常添加
         """
 
         def add(keyword, val, strip, force):
@@ -131,30 +131,35 @@ class ac_match_t:
             if not force:
                 # 不是强制替换,则保持旧值
                 if node.end is not None:
-                    return None  # 已存在不处理
+                    return None, node.end  # 已存在不处理
                 node.end = val
-                return True  # 新值
+                return True, None  # 新值
 
             # 不可迭代,新值或替换
             if not isinstance(val, Iterable):
-                ret = True if node.end is None else False  # 新值或替换
-                node.end = val
-                return ret
+                if node.end is None:
+                    node.end = val
+                    return True, None
+                else:
+                    old = node.end
+                    node.end = val
+                    return False, old
 
             # 新值或迭代扩容
             if node.end is None:
                 node.end = val
-                return True  # 新值
+                return True, None  # 新值
             else:
+                old = deepcopy(node.end)
                 node.end = deepcopy(node.end)
                 node.end.update(val)
-                return False  # 扩容值
+                return False, old  # 扩容值
 
         if isinstance(keyword, (tuple, list)):
             ret = True
             for word in keyword:
-                ret = ret and add(word, val, strip, force)
-            return ret
+                ret = ret and add(word, val, strip, force)[0]
+            return ret, None
         else:
             return add(keyword, val, strip, force)
 
@@ -224,7 +229,7 @@ class ac_match_t:
 
     def do_loop(self, cb, message, msg_len=None, offset=0):
         """底层方法:对给定长度为msg_len的消息文本message从offset处进行循环匹配,将匹配结果回调反馈给cb(pos,node).
-            返回值:[(char,pos)],记录message中哪些字符被命中过
+            返回值:[(char,pos,node)],记录message中哪些字符被哪个节点命中过
         """
         rc = []  # 记录一共命中过哪些字符
         pos = offset
