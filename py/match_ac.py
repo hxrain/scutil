@@ -34,7 +34,7 @@ class mode_t(Enum):
                 rst.append((pos - fail.words, pos, fail.end))
 
     @staticmethod
-    def cross(rst, pos, node, root):
+    def cross_keep(rst, pos, node, root):
         """交叉保留,丢弃重叠包含的匹配"""
 
         def rec(node):
@@ -47,9 +47,28 @@ class mode_t(Enum):
 
         rec(node.first)
 
+    @staticmethod
+    def cross_merge(rst, pos, node, root):
+        """交叉合并"""
+
+        def rec(node):
+            if node == root:
+                return
+            last = None
+            b, e, v = pos - node.words, pos, node.end
+            while rst and b <= rst[-1][1]:  # 新结果的起点小于已有结果的终点
+                last = rst.pop(-1)  # 记录最后的结果
+            if last:
+                rst.append((last[0], e, v))
+            else:
+                rst.append((b, e, v))
+
+        rec(node.first)
+
     max_match = last.__func__  # 后项最大化优先匹配(交叉碰触丢弃前项,仅保留最后出现的最大匹配段)
     is_all = all.__func__  # 全匹配模式(不丢弃任何匹配,全部记录)
-    keep_cross = cross.__func__  # 交叉保持模式(仅丢弃完全被包含的部分)
+    keep_cross = cross_keep.__func__  # 交叉保持模式(仅丢弃完全重叠包含的部分)
+    merge_cross = cross_merge.__func__  # 交叉合并模式
 
 
 class ac_match_t:
@@ -333,78 +352,3 @@ class ac_match_t:
                 do_rep(m[0], m[1], m[2])
 
         return ''.join(rst)
-
-
-class spliter_t:
-    """基于ac匹配树的多字符串列表分隔器.
-        以绑定的关键词集合进行分段切分,如果关键词以'!'结尾则进行修复连接或不切分.
-    """
-
-    def __init__(self, strs=None):
-        self.matcher = ac_match_t()
-        if strs:
-            self.bind(strs)
-
-    def bind(self, strs, isend=True):
-        """给分割器绑定匹配词表"""
-        for i, line in enumerate(strs):
-            if not line or line[0] == '#':
-                continue
-            if line[-1] in {'!'}:
-                self.matcher.dict_add(line[:-1], line[-1])  # 特殊匹配模式
-            else:
-                self.matcher.dict_add(line, i + 1)  # 分段匹配模式
-        if isend:
-            self.matcher.dict_end()
-
-    def load(self, fname, encode='utf-8'):
-        """从文件装载匹配词表"""
-        try:
-            with open(fname, 'r', encoding=encode) as f:
-                self.bind(f.readlines())
-            return ''
-        except Exception as e:
-            return e
-
-    def match(self, txt):
-        """对txt进行内部词表的匹配.返回值:[(begin,end,val)],val is None对应未匹配部分"""
-        segs = self.matcher.do_match(txt, mode=mode_t.max_match)
-        return segs if segs else [(0, len(txt), None)]
-
-    def split(self, txt):
-        """基于绑定的词表对txt进行分段.返回值:[分段字符串]"""
-        rst = []
-        segs = self.match(txt)
-        attach = False
-        for seg in segs:
-            if seg[2] == '!':  # 如果遇到特殊匹配
-                line = rst.pop(-1) + txt[seg[0]:seg[1]]  # 则进行当前与前一段的拼装
-                rst.append(line)
-                attach = True  # 设置附加状态
-            elif attach:  # 如果要求附加连接
-                if seg[2] in {None, '!'}:  # 且当前不是分段匹配
-                    line = rst.pop(-1) + txt[seg[0]:seg[1]]  # 则进行当前与前一段的拼装
-                    rst.append(line)
-                attach = seg[2] == '!'  # 更新附加状态,可能继续附加
-            elif seg[2] is None:  # 当前就是普通分段
-                rst.append(txt[seg[0]:seg[1]])
-
-        return rst
-
-
-def split_by_strs(txt, strs, outstrs=False):
-    """用strs串列表拆分txt.
-        outstrs 为 True:
-            返回值:[分段字符串]
-        outstrs 为 False:
-            返回值:[(begin,end,val)],val is None对应未匹配部分
-    """
-    match = spliter_t(strs)
-    if outstrs:
-        return match.split(txt)
-    else:
-        return match.match(txt)
-
-
-if __name__ == "__main__":
-    assert split_by_strs('0123456789', ['1', '34', '345!', '78'], True) == ['0', '23456', '9']
