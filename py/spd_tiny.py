@@ -11,7 +11,7 @@ from spd_base import *
 from spd_chrome import *
 from spd_mime import *
 
-_VER = '20240129/v1.0/3'
+_VER = '20240415/v1.0/4'
 
 """说明:
     这里基于spd_base封装一个功能更加全面的微型概细览采集系统.需求目标有:
@@ -537,7 +537,7 @@ class source_base:
         return self.spider.http.take(page_url, req)
 
     def on_page_info(self, info, list_url, page):
-        """从page中提取必要的细览页信息放入info中.返回值告知是否处理成功"""
+        """从page中提取必要的细览页信息放入info中.返回值:True/False告知是否处理成功;None告知放弃当前信息"""
         return True
 
     def on_save_info(self, info, updid):
@@ -832,11 +832,12 @@ class spider_base:
         inf.content = msg
         self.rlog(4 if iserr else 3, inf)
 
-    def rlog_list(self, count, pageno, infos=None):
+    def rlog_list(self, count, pageno, list_url, infos=None):
         """远端输出概览页抓取"""
         inf = info_t(None)
         inf.ext = count  # 概览页内细览信息数量
-        inf.title = f"page({pageno})"  # 概览页号
+        inf.title = f"概览页:第[{pageno}]页"  # 概览页号
+        inf.url = list_url
         if isinstance(infos, str):
             inf.content = infos
         elif isinstance(infos, (dict, list, tuple)):
@@ -888,10 +889,15 @@ class spider_base:
             if xstr == '__EMPTY__':
                 break
             info_stat = self.call_src_method('on_page_info', info, list_url, xstr)
+            if info_stat is None:
+                break  # 主动放弃当前信息
+
             if not info_stat:
                 continue
-            break
-        if not take_stat or not info_stat:  # 状态异常,给出远端日志输出
+            else:
+                break
+
+        if not take_stat or info_stat is False:  # 状态异常,给出远端日志输出
             self.rlog_warn(f'细览页:抓取({take_stat})/抽取({info_stat})', info.title, page_url)
         return (take_stat, info_stat)
 
@@ -1099,7 +1105,7 @@ class spider_base:
             page_news = None
             if self.source._list_content:  # 抓取成功
                 self.rsps += 1
-                self.rlog_list(len(self.source._list_infos), self.source.list_url_idx, self.source._list_infos)  # 远端输出概览抓取信息
+                self.rlog_list(len(self.source._list_infos), self.source.list_url_idx, list_url, self.source._list_infos)  # 远端输出概览抓取信息
                 reqbody = self.req_param['BODY'] if 'METHOD' in self.req_param and self.req_param['METHOD'] == 'post' and 'BODY' in self.req_param else ''
                 if msg == '':
                     ci, cn = self.source.on_list_plan()
