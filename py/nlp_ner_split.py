@@ -1,20 +1,35 @@
 import match_ac as mac
 
+"""
+    轻量级停用词处理引擎,可基于停用词规则列表进行文本短句的切分,便于进行NER识别或校验.
+"""
+
 
 def parse(line, tostr=None):
     """解析分段规则,返回用于匹配器使用的结果.
-        解析'{A|B@C|D@E|F}',返回:['ACE', 'ACF', 'ADE', 'ADF', 'BCE', 'BCF', 'BDE', 'BDF']
-        解析'{A|B*C|D}',返回:[('A','C'),('A','D'),('B','C'),('B','D')]
+        组合拼接,解析'{A|B@C|D@E|F}',返回:['ACE', 'ACF', 'ADE', 'ADF', 'BCE', 'BCF', 'BDE', 'BDF']
+        组合跨越,解析'{A|B*C|D}',返回:[('A','C'),('A','D'),('B','C'),('B','D')]
         格式不符返回:None
+        当组合拼接的最后有叹号的时候'{..@..}!',会给每个组合结果都带上最后的叹号.
         tostr is None 默认模式,只有@分组才会返回字符串;
         tostr is True 强制模式,两类规则均会返回字符串.
         tostr is False禁止转换,两类规则均会返回原始tuple组合结果列表
     """
-    if not line or len(line) < 5 or line[0] != '{' or line[-1] != '}':
+    if not line or len(line) < 5:
         return None
+    if line[0] != '{' or (line[-1] != '}' and line[-2:] != '}!'):
+        return None
+
+    exclmark = None
+    if line[-2:] == '}!':
+        exclmark = '!'
+        line = line[:-1]
+
     mpos = line.find('@')
     if mpos == -1:
         mpos = line.find('*')
+        if exclmark and mpos > 0:
+            return None  # 星号规则不允许有叹号尾缀
     if mpos == -1:
         return None
 
@@ -30,7 +45,8 @@ def parse(line, tostr=None):
         res.append(node)  # 利用当前组合结果list当作stack,其长度代表递归深度.
         deep = len(res)  # 得到递归深度
         if deep >= len(grps):
-            rst.append(tuple(res))  # 当前是最深层了,记录本轮组合结果
+            comb = tuple(res) if exclmark is None else tuple(res + ['!'])
+            rst.append(comb)  # 当前是最深层了,记录本轮组合结果
             res.pop(-1)
             return
         # 继续深度递归下一层
@@ -73,7 +89,7 @@ class word_spliter_t:
         segs = self.matcher.do_match(txt, mode=mac.mode_t.merge_cross)
         return segs if segs else [(0, len(txt), None)]
 
-    def split(self, txt):
+    def split(self, txt, with_space=False):
         """基于绑定的词表对txt进行分段.返回值:[分段字符串]"""
         rst = []
         segs = self.match(txt)
@@ -90,7 +106,8 @@ class word_spliter_t:
                 attach = seg[2] == '!'  # 更新附加状态,可能继续附加
             elif seg[2] is None:  # 当前就是普通分段
                 rst.append(txt[seg[0]:seg[1]])
-
+            elif with_space:
+                rst.append('!' * (seg[1] - seg[0]))  # 占位的无用分段.
         return rst
 
 
@@ -170,22 +187,23 @@ class wild_spliter_t:
 
         # 需要重新合并之前部分匹配后又被撤销的分段.
         i = 1
-        while i < len(segs) - 1:
-            if segs[i - 1][2] is None and segs[i][2] is None and segs[i + 1][2] is None:
-                segs[i - 1] = (segs[i - 1][0], segs[i + 1][1], None)
-                segs.pop(i + 1)
+        while i < len(segs):
+            if segs[i - 1][2] is None and segs[i][2] is None:
+                segs[i - 1] = (segs[i - 1][0], segs[i][1], None)
                 segs.pop(i)
             else:
                 i += 1
         return segs
 
-    def split(self, txt):
+    def split(self, txt, with_space=False):
         """基于绑定的词表对txt进行分段.返回值:[分段字符串,...]"""
         rst = []
         segs = self.match(txt)
         for seg in segs:
             if seg[2] is None:
                 rst.append(txt[seg[0]:seg[1]])
+            elif with_space:
+                rst.append(' ' * (seg[1] - seg[0]))
         return rst
 
 
@@ -232,7 +250,7 @@ class spliter_t:
                     if not txt or txt[0] == '#':
                         continue
 
-                    if txt[0] == '{' and txt[-1] == '}':
+                    if txt[0] == '{':
                         words = parse(txt)  # 特殊规则格式,进行解析后再添加
                         if words is None:
                             print(f'spliter RULE is bad: {txt}')
@@ -256,12 +274,12 @@ class spliter_t:
             self.word_spliter.dict_end()
         return ''
 
-    def split(self, txt):
+    def split(self, txt, with_space=False):
         """对txt进行分段.返回值:[分段字符串,...]"""
         rst = []
-        strs = self.wild_spliter.split(txt)
+        strs = self.wild_spliter.split(txt, with_space)
         for s in strs:
-            rst.extend(self.word_spliter.split(s))
+            rst.extend(self.word_spliter.split(s, with_space))
         return rst
 
 

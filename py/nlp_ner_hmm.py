@@ -1,5 +1,4 @@
 from enum import Enum, unique
-import tqdm
 import os
 import re
 import uni_blocks as ub

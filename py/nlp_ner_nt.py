@@ -1,24 +1,21 @@
 '''
-    基于HMM进行完整NER/NT功能实现,并提供一些相关工具.
-    1 定义NT行业类型
-    2 定义常见NT尾缀,并标注行业类型/常见扩展/排除词表
-    3 提供NT名称校验功能,用于剔除无效名称
-    4 提供NT组分处理功能,用于NER识别
-    5 提供最终的NER/NT识别工具
+    NT组份解析器:进行NER/NT构成组份的分析,并可基于构成组份进行NT校验.
+    1 提供NT组分解析功能,可用构建组份词典
+    2 基于NT组份词典,提供NT名称校验功能
+    3 基于NT组份词典,提供NT名称补全功能
 '''
 import re
 from inspect import isfunction
 from copy import deepcopy
 from collections.abc import Iterable
 
+import util_base as ub
+import uni_blocks as uni
 import match_ac as mac
 import match_util as mu
 import china_area_id as cai
 import nlp_ner_data as nnd
 from nlp_ner_data import types
-import nlp_util as nu
-import util_base as ub
-import uni_blocks as uni
 import os
 
 
@@ -141,7 +138,7 @@ class nt_parser_t:
     @staticmethod
     def make_tails_bads():
         """利用内置NT组份表构造坏词匹配器"""
-        trie = nu.words_trie_t(True)  # 反向匹配器
+        trie = mu.words_trie_t(True)  # 反向匹配器
         for tn in nnd.nt_tails:
             bads = nnd.nt_tails[tn]['-']
             for en in bads:  # 记录排斥词汇
@@ -330,11 +327,11 @@ class nt_parser_t:
         """装载NA尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, self.tags_NA, encode, chk_cb=self._chk_cb)
 
-    def loads(self, dicts_list, path=None):
+    def loads(self, dicts_list, path=None, with_end=True):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
         rst = []
         for i, d in enumerate(dicts_list):
-            isend = i == len(dicts_list) - 1
+            isend = (i == len(dicts_list) - 1) and with_end
             fname = d[1] if path is None else os.path.join(path, d[1])
             if d[0] == 'NS':
                 r = self.load_ns(fname, isend=isend)
@@ -912,7 +909,7 @@ class nt_parser_t:
                 rec(i, seg, bpos, epos, types.NM)  # 当前段是普通NT结尾
             elif types.equ(stype, types.NL):
                 rec(i, seg, bpos, epos, types.NM)  # 当前段是NL结尾
-                if rec_NL:  # 是否额外记录尾缀分段信息
+                if rec_NL:  # 在校验输出列表中,是否额外记录尾缀分段信息
                     outs.append((seg[0], seg[1], types.NL))
             elif types.equ(stype, types.NB):
                 rec(i, seg, bpos, epos, types.NB)  # 当前段是分支NT结尾
@@ -1020,99 +1017,3 @@ class nt_parser_t:
                 rst.append(nr)
 
         return rst
-
-
-def make_segs_chars(txt, segs, offset=0, nx=False):
-    """将txt文本的segs分段列表,转换为字符列表与对应的分段属性列表.
-        nx - 控制是否使用NX标记代替未知短语
-        返回值:([字符列表],[字符对应的分段属性(b,e,att)])
-    """
-    chars = []
-    ranges = []
-    for seg in segs:
-        if seg[2] is None:
-            if nx:
-                chars.append(chr(types.NX[1]))
-                ranges.append((offset + seg[0], offset + seg[1], types.NX[0]))
-            else:
-                for i in range(seg[0], seg[1]):
-                    chars.append(txt[i])
-                    ranges.append((offset + i, offset + i + 1, None))
-        else:
-            t = types.type(seg[2])
-            chars.append(chr(t[1]))
-            ranges.append((offset + seg[0], offset + seg[1], t[0]))
-    return chars, ranges
-
-
-def make_segs_tags(line, segs, nx=False):
-    """根据组份分段列表segs和文本串line,生成标记表达格式串
-        nx - 控制是否使用NX标记代替未知短语
-        返回值:[标记或未知短语]
-    """
-    usegs = []
-    for useg in segs:
-        if useg[2] is None:
-            if nx:
-                t = types.NX.name
-            else:
-                t = line[useg[0]:useg[1]]
-        else:
-            t = types.type(useg[2]).name
-        usegs.append(t)
-    return usegs
-
-
-def calc_range_map(bidx, eidx, ranges):
-    """获取make_segs_chars返回的分段映射对应的实际范围"""
-    return ranges[bidx][0], ranges[eidx][1]
-
-
-def conv_names_list(fn_name, out_name, dicts, tag=False, nx=False):
-    """转换nt样例文件fn_names中的每行值为组份要素构成,输出到out_name文件中.
-        fn_names = 命名实体样例文件名称
-        out_name = 输出文件名称
-        dicts = 解析组份需要的词典数据列表
-        tag = 是否输出带有类型标记的可阅读文本串,或输出不可阅读的类型字符文本串
-        nx = 是否未知短语也被NX类型替代.(最大化压缩)
-    """
-    mchk = nt_parser_t(False)
-    mchk.loads(dicts)
-
-    stats = {}
-    rc = 0
-    with open(fn_name, 'r', encoding='utf-8') as fn:
-        line = fn.readline().strip()
-        while line:
-            mres = mchk.parse(line, with_useg=True)[0]
-            if tag:
-                chars = make_segs_tags(line, mres, nx)
-                out = '|'.join(chars)
-            else:
-                chars, segs = make_segs_chars(line, mres, nx)
-                out = ''.join(chars)
-            ub.inc(stats, out)
-            line = fn.readline().strip()
-            rc += 1
-            if rc % 1000 == 0:
-                print(rc)
-
-    keys = sorted(stats.keys(), key=lambda x: (stats[x], x))
-    with open(out_name, 'w+', encoding='utf-8') as out:
-        for key in keys:
-            out.write(f'{key}:{stats[key]}\n')
-
-
-def load_tags_tree(fn_name, ac=None, end=True):
-    """装载nt样本组份文件fn_name到ac匹配树.返回值:ac匹配树对象"""
-    if ac is None:
-        ac = mac.ac_match_t()
-    with open(fn_name, 'r', encoding='utf-8') as fn:
-        line = fn.readline()
-        while line:
-            seg, frq = line.split(':')
-            ac.dict_add(seg, int(frq))
-            line = fn.readline()
-    if end:
-        ac.dict_end()
-    return ac
