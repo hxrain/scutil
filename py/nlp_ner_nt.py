@@ -33,6 +33,7 @@ class nt_parser_t:
     tags_NB = {types.NB}  # 分支机构
     tags_NUNM = {types.NU, types.NM}  # 序号机构
     tags_NUNB = {types.NU, types.NB}  # 序号分支
+    tags_NLNM = {types.NL, types.NM}  # 尾缀转义
     tags_NS = {types.NS}  # 地域名称
     tags_NS1 = {types.NS, types.NS1}
     tags_NS2 = {types.NS, types.NS2}
@@ -92,7 +93,7 @@ class nt_parser_t:
     num_re = r'[○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾佰百千仟廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]{1,6}'
     # 数字序号常见模式
     num_norm = [
-        (f'([经纬农第笫ABCDGKSXYZ]*{num_re}[号级大支#]*)(公里|马路|社区|[路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机]+)', 1, __nu_ns.__func__),
+        (f'([经纬农第笫ABCDGKSXYZ]*{num_re}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机]+)', 1, __nu_ns.__func__),
         (f'([第笫]*{num_re}[号]?)([分]?部队|[团校院馆局会库矿场])', 1, __nu_nm.__func__),
         (f'([第笫]*{num_re}[号]?)([分]?[厂店台处站园亭部营连排厅社所组队船]|工区|分号)', 1, __nu_nb.__func__),
         (f'([第笫]*{num_re})([职中小高]+)(?![学])', 1, __nu_ns.__func__),
@@ -494,6 +495,50 @@ class nt_parser_t:
             # i += 1
 
     @staticmethod
+    def _drop_crossing_typs(segs, typs=(types.NM, types.NB, types.NL)):
+        """以typs类型的分段为中心,尝试丢弃与之交叉重叠的部分"""
+
+        def can_drop(idx, bp, ep, isleft):
+            """判断是否可以丢弃idx处的分段,避免出现空洞"""
+            if isleft:
+                for i in range(idx - 1, -1, -1):
+                    pseg = segs[i]
+                    if pseg[0] <= bp and ep <= pseg[1]:
+                        return True
+                    if pseg[1] < bp:
+                        break
+            return False
+
+        def chk_drop(idx):
+            C = segs[idx]  # 中段 C
+            if not types.joint(C[2], typs):
+                return 1
+
+            A = segs[idx - 2]  # 前段 A
+            B = segs[idx - 1]  # 前段 B
+            if A[1] == C[0] and A[0] < B[0] and B[1] < C[1]:
+                segs.pop(idx - 1)  # AC相连,干掉B
+                return -1
+            if B[1] == C[0] and B[0] < A[1] < C[0]:  # BC相连,AB相交
+                if can_drop(idx - 2, A[0], B[0], True):
+                    segs.pop(idx - 2)  # 干掉A
+                    return -1
+
+            if idx < len(segs) - 2:
+                D = segs[idx + 1]  # 后段 D
+                E = segs[idx + 2]  # 后段 E
+                if E[0] == C[1] and C[0] < D[0] and D[1] < E[1]:  # CE相连
+                    segs.pop(idx + 1)  # 干掉D
+                    return 0
+
+            return 1
+
+        # 以ABCDE相邻交叉覆盖的情况为例
+        i = 2
+        while i < len(segs):
+            i += chk_drop(i)
+
+    @staticmethod
     def _merge_segs(segs, merge_types=True, combi=False):
         '''处理segs段落列表中交叉/包含/相同组份合并(merge_types)的情况,返回值:(结果列表,前后段关系列表)'''
         rst = []
@@ -585,7 +630,10 @@ class nt_parser_t:
                 else:
                     rec_tags_cross(pseg, seg)  # 记录,前后交叉
             elif rl == 'A+B':  # 前后紧邻,需要判断是否应该合并
-                if can_tags_merge(pseg, seg, idx):
+                if not types.joint(pseg[2], (types.NB, types.NO, types.NM)) and types.equ(seg[2], types.NL):
+                    seg = segs[idx] = (seg[0], seg[1], nt_parser_t.tags_NLNM)  # 孤立出现的尾缀NL要当作NM,如:深圳市投控东海一期基金(有限合伙)
+                    rst.append(seg)
+                elif can_tags_merge(pseg, seg, idx):
                     rec_tags_merge(pseg, seg)  # 合并当前段
                 else:
                     rec_tags_cross(pseg, seg)  # 记录,前后紧邻
@@ -610,12 +658,23 @@ class nt_parser_t:
 
         def rec(segs, oseg, pos, nseg):
             """oseg是原pos处的分段,nseg是pos处的新分段"""
-            if oseg and oseg[0] <= nseg[0] and oseg[1] >= nseg[1]:
-                return  # 当前数字分段处于目标分段的内部,放弃
+            if oseg:
+                if oseg[0] <= nseg[0] and nseg[1] <= oseg[1]:
+                    return  # 当前数字分段处于目标分段的内部或重叠,放弃
+                if pos + 1 < len(segs):
+                    fseg = segs[pos + 1]
+                    if oseg[1] == fseg[0] and oseg[0] <= nseg[0] and nseg[1] <= fseg[1]:
+                        return  # 当前数字分段处于前后紧邻的两个分段内部,放弃
             if pos:
                 pseg = segs[pos - 1]
-                if pseg[0] == nseg[0] and pseg[1] == nseg[1]:
-                    return  # 当前数字分段与前一个分段完全重叠,放弃
+                if pseg[0] <= nseg[0] and nseg[1] <= pseg[1]:
+                    return  # 当前数字分段与前一个分段重叠,放弃
+
+            if pos + 1 < len(segs):
+                fseg = segs[pos + 1]
+                if fseg[0] <= nseg[0] and nseg[1] <= fseg[1]:
+                    return  # 当前数字分段与后一个分段重叠,放弃
+
             segs.insert(pos, nseg)
 
         for nseg in nusegs:  # 对数字分段进行逐一处理
@@ -700,11 +759,11 @@ class nt_parser_t:
                     return False  # 新旧分段不相邻,不用踢掉旧分段
                 if n[0] < o[0]:
                     return True  # 新分段与旧分段相交或包含,踢掉旧分段.
-                if n[0] == o[0]:
-                    if n[1] > o[1] and not types.equ(n[2], types.NM) and not types.equ(o[2], types.NM):
-                        return True  # 如果两个分段都不是NM,且新分段长于旧分段,则踢掉旧分段
-                    if types.joint(n[2], (types.NS, types.NZ)) or types.cmp(n[2], o[2]) > 0:
-                        return True  # 新旧分段起点相同,新分段为NS或NZ,或新分段优先级更高,则踢掉旧分段
+                # if n[0] == o[0]:
+                #     if n[1] > o[1] and not types.equ(n[2], types.NM) and not types.equ(o[2], types.NM):
+                #         return True  # 如果两个分段都不是NM,且新分段长于旧分段,则踢掉旧分段,用于适应: 小学/小学校/校园
+                #     if types.joint(n[2], (types.NS, types.NZ)) or types.cmp(n[2], o[2]) > 0:
+                #         return True  # 新旧分段起点相同,新分段为NS或NZ,或新分段优先级更高,则踢掉旧分段
                 if o[1] == n[0] + 1 and len(rst) >= 2 and types.equ(o[2], types.NM) and types.equ(n[2], types.NZ):
                     p = rst[-2]  # '洙河小学校园' => 小学NM/小学校NM/校园NZ,踢掉中间的分段
                     if n[0] == p[1] and types.equ(p[2], types.NM):
@@ -736,14 +795,16 @@ class nt_parser_t:
                 rec(node.fail)  # 尝试多记录一下可能有用的次级匹配结果,解决(佛山海关/山海关/海关)的问题
 
         def intercept_break(segs, txt):
-            """截取segs中未匹配的前半部分(丢弃已知的后半部分).返回值:截止点,0代表完全匹配"""
+            """截取segs中未匹配分段的前半部分(丢弃已知的后半部分).返回值:截止点,0代表完全匹配"""
             slen = len(txt)
             ep = slen  # 最后的结束点
             for i in range(len(segs) - 1, -1, -1):
                 seg = segs[i]
                 if seg[1] < ep:
-                    break  # 当前分段的结束点小于最后的结束点
+                    break  # 当前分段的结束点小于最后的开始点
                 ep = seg[0]
+            if ep == 0:
+                return 0
 
             stops = {'件', '河', '乡', '镇', '业', '学', '区'}
             c = 0
@@ -767,7 +828,8 @@ class nt_parser_t:
             self._merge_nums(segs, nums)
 
         self._adj_last_tag(segs, txt)  # 尝试校正最后应该匹配的NO单字
-        self._drop_crossing(segs, True)  # 删除接续交叉重叠
+        self._drop_crossing_typs(segs)
+        # self._drop_crossing(segs, True)  # 删除接续交叉重叠
         nres = self._drop_nesting(segs, txt)  # 删除嵌套包含的部分
         self._drop_crossing(nres)  # 删除接续交叉重叠
         self._merge_bracket(nres, txt)  # 合并附加括号
@@ -867,7 +929,7 @@ class nt_parser_t:
 
         def chk_errs(i, seg):
             """检查当前段是否为错误切分.如'师范学院路'->师范学院/学院路->师范/学院路,此时的'师范'仍是NM,但明显是错误的."""
-            if types.equ(seg[2], types.NM) and mu.slen(seg) >= 2 and not types.joint(seg[2], (types.NU,)):
+            if types.equ(seg[2], types.NM) and mu.slen(seg) >= 2 and not types.joint(seg[2], (types.NU, types.NL,)):
                 if is_brackets(seg):
                     txt = name[seg[0] + 1:seg[1] - 1]
                 else:
@@ -890,7 +952,7 @@ class nt_parser_t:
             if epos - bpos < 3:  # 太短的实体名称不记录.
                 return
 
-            if is_brackets(seg) and types.equ(seg[2], types.NM):
+            if is_brackets(seg) and types.equ(seg[2], types.NM) and not types.joint(seg[2], (types.NL,)):
                 newr = (seg[0], seg[1], stype)  # 被括号嵌入的NT
             else:
                 newr = (bpos, epos, stype)  # 正常的NT分段接续
@@ -905,11 +967,9 @@ class nt_parser_t:
             stype = seg[2]
             epos = seg[1]
             islast = i == len(segs) - 1
-            if types.equ(stype, types.NM):
-                rec(i, seg, bpos, epos, types.NM)  # 当前段是普通NT结尾
-            elif types.equ(stype, types.NL):
-                rec(i, seg, bpos, epos, types.NM)  # 当前段是NL结尾
-                if rec_NL:  # 在校验输出列表中,是否额外记录尾缀分段信息
+            if types.joint(stype, (types.NM, types.NL)):  # NT/NL/NTNL
+                rec(i, seg, bpos, epos, types.NM)
+                if rec_NL and types.joint(stype, (types.NL,)):  # 在校验输出列表中,是否额外记录尾缀分段信息
                     outs.append((seg[0], seg[1], types.NL))
             elif types.equ(stype, types.NB):
                 rec(i, seg, bpos, epos, types.NB)  # 当前段是分支NT结尾

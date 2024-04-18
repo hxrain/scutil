@@ -381,6 +381,19 @@ def complete_segs(mres, slen, isfull=False, segs=None, ext=None):
     return rst, rc
 
 
+def find_none(segs, isnone=True):
+    """在segs分段列表中,查找第一个遇到的None未知分段(或已知分段).返回值:分段索引,或未找到返回None"""
+    if isnone:
+        for i, seg in enumerate(segs):
+            if seg[2] is None:
+                return i
+    else:
+        for i, seg in enumerate(segs):
+            if seg[2] is not None:
+                return i
+    return None
+
+
 def take_unsegs(segs):
     """获取分段列表segs中的未知分段.返回值:[未知分段索引]"""
     rst = []
