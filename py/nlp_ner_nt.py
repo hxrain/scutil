@@ -95,7 +95,7 @@ class nt_parser_t:
     num_re = r'[○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾佰百千仟廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]{1,6}'
     # 数字序号常见模式
     num_norm = [
-        (f'([经纬农第笫ABCDGKSXYZ]*{num_re}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机]+)', 1, __nu_ns.__func__),
+        (f'([经纬农第笫ABCDGKSXYZ]*{num_re}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机工]+)', 1, __nu_ns.__func__),
         (f'([第笫]*{num_re}[号]?)([分]?部队|[团校院馆局会库矿场])', 1, __nu_nm.__func__),
         (f'([第笫]*{num_re}[号]?)([分]?[厂店台处站园亭部营连排厅社所组队船]|工区|分号)', 1, __nu_nb.__func__),
         (f'([第笫]*{num_re})([职中小高]+)(?![学])', 1, __nu_ns.__func__),
@@ -709,7 +709,7 @@ class nt_parser_t:
                 pseg = segs[i]
                 if pseg[1] > nseg[0]:
                     pos = i  # 在当前段之后插入
-                    if pseg[0] != nseg[0] or pseg[1] > nseg[1]:
+                    if pseg[0] > nseg[0] or pseg[1] > nseg[1]:
                         break
 
             if pos == len(segs) - 1 and pseg[0] <= nseg[0]:
