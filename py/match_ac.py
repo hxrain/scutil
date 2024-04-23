@@ -255,8 +255,8 @@ class ac_match_t:
         if msg_len is None:
             msg_len = len(message)
 
-        node = self.root  # 尝试从根节点进行初始匹配
-        while pos < msg_len:  # 在循环中,node就是状态机的当前状态
+        node = self.root  # 从根节点开始匹配,node就是状态机的当前状态
+        while pos < msg_len:
             char = message[pos]
             pos += 1
             # 如果当前字符与当前状态节点不匹配,则跳转至状态节点的fail节点
@@ -267,10 +267,10 @@ class ac_match_t:
                 node = self.root
                 continue
 
-            node = node.childs[char]  # 得到当前字符匹配的子节点
+            node = node.childs[char]  # 状态转移到当前字符匹配的子节点
             rc.append((char, pos - 1, node))  # 记录完整的匹配信息
             if node.first:
-                # 如果当前节点fail路径是存在的,则可能需要处理匹配结果
+                # 如果当前节点fail路径是存在的,则处理可能的匹配结果
                 cb(pos, node)
 
         return rc

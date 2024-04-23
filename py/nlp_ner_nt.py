@@ -24,26 +24,6 @@ class nt_parser_t:
         与分词器类似,基于字典进行匹配;
         分词器需给出尽量准确的分词结果,而本解析器则尝试进行组合覆盖,给出覆盖后的分段特征结果.
     '''
-    tags_NM = {types.NM}  # 组织机构/后缀
-    tags_NZ = {types.NZ}  # 专业名词
-    tags_NN = {types.NN}  # 名称字号
-    tags_NU = {types.NU}  # 数字序号
-    tags_NA = {types.NA}  # 弱化名字
-    tags_NO = {types.NO}  # 单独尾字
-    tags_NB = {types.NB}  # 分支机构
-    tags_NL = {types.NL}  # 尾缀
-    tags_NUNM = {types.NU, types.NM}  # 序号机构
-    tags_NUNB = {types.NU, types.NB}  # 序号分支
-    tags_NLNM = {types.NL, types.NM}  # 尾缀转义
-
-    tags_NS = {types.NS}  # 地域名称
-    tags_NS1 = {types.NS, types.NS1}
-    tags_NS2 = {types.NS, types.NS2}
-    tags_NS3 = {types.NS, types.NS3}
-    tags_NS4 = {types.NS, types.NS4}
-    tags_NS5 = {types.NS, types.NS5}
-    tags_NSNM = {types.NS, types.NM}
-    tags_NH = {types.NH}  # 特殊名称
 
     @staticmethod
     def __nu_rec(lst, seg):
@@ -62,9 +42,9 @@ class nt_parser_t:
         for m in mres:
             grp2 = m.group(2)
             if grp2[0] in {'分'}:
-                tag = nt_parser_t.tags_NUNB
+                tag = types.tags_NUNB
             else:
-                tag = nt_parser_t.tags_NUNM
+                tag = types.tags_NUNM
 
             # 先将数字部分放入结果列表
             span = m.span()
@@ -75,21 +55,21 @@ class nt_parser_t:
         """构造数字分支匹配结果"""
         for m in mres:
             span = m.span()
-            nt_parser_t.__nu_rec(lst, (span[0], span[1], nt_parser_t.tags_NUNB))
+            nt_parser_t.__nu_rec(lst, (span[0], span[1], types.tags_NUNB))
 
     @staticmethod
     def __nu_ns(lst, mres):
         """构造数字地名匹配结果"""
         for m in mres:
             rge = m.span()
-            nt_parser_t.__nu_rec(lst, (rge[0], rge[1], nt_parser_t.tags_NS))
+            nt_parser_t.__nu_rec(lst, (rge[0], rge[1], types.tags_NS))
 
     @staticmethod
     def __nu_default(lst, mres, offset=0):
         """构造数字和序号的匹配结果"""
         for m in mres:
             rge = m.span()
-            nt_parser_t.__nu_rec(lst, (rge[0] + offset, rge[1] + offset, nt_parser_t.tags_NU))
+            nt_parser_t.__nu_rec(lst, (rge[0] + offset, rge[1] + offset, types.tags_NU))
 
     # 数字序号基础模式
     num_re = r'[○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾佰百千仟廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]{1,6}'
@@ -109,8 +89,8 @@ class nt_parser_t:
     # 1 未标注!的行,整体地名(S)进行使用,并在移除尾缀词后,主干部分作为名称(N)使用,等同于标注了!N
     # 2 标注!的且没有字母的,不拆分,将整体作为:地名(S)
     # 3 标注!后有其他字母的,主干部分按标注类型使用: A-弱化名称/S-地名/M-实体/U-序号/N-名称/Z-专业名词/H-特殊词/B-分支
-    tag_labels = {'A': tags_NA, 'S': tags_NS, 'M': tags_NM, 'U': tags_NU,
-                  'N': tags_NN, 'Z': tags_NZ, 'H': tags_NH, 'B': tags_NB}
+    tag_labels = {'A': types.tags_NA, 'S': types.tags_NS, 'M': types.tags_NM, 'U': types.tags_NU,
+                  'N': types.tags_NN, 'Z': types.tags_NZ, 'H': types.tags_NH, 'B': types.tags_NB}
 
     # 可进行特殊短语包裹的括号对
     brackets_map = {'<': '>', '(': ')', '[': ']', '"': '"', "'": "'"}
@@ -211,7 +191,7 @@ class nt_parser_t:
                     if not r:
                         print(f'nt_parser_t.nt_tails+: {k}/{e} is repeat! {ot}')
 
-        return self.__load(isend, fname, self.tags_NM, encode, chk_cb=self._chk_cb) if fname else ''
+        return self.__load(isend, fname, types.tags_NM, encode, chk_cb=self._chk_cb) if fname else ''
 
     def _chk_cb(self, fname, row, txt, word, tag):
         """默认的检查词典冲突的输出回调事件处理器"""
@@ -238,7 +218,7 @@ class nt_parser_t:
 
     def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars=None):
         """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
-        lvls = {0: self.tags_NS, 1: self.tags_NS1, 2: self.tags_NS2, 3: self.tags_NS3, 4: self.tags_NS4, 5: self.tags_NS5}
+        lvls = {0: types.tags_NS, 1: types.tags_NS1, 2: types.tags_NS2, 3: types.tags_NS3, 4: types.tags_NS4, 5: types.tags_NS5}
         # 装入内置的行政区划名称
         if len(self.matcher.do_loop(None, '牡丹江市')) != 4:
             for id in cai.map_id_areas:
@@ -259,7 +239,7 @@ class nt_parser_t:
                 data = nnd.nt_tails[k]
                 assert '.' in data and '+' in data and '-' in data, data
                 tags = data['.']
-                if not nnd.types.equ(tags, nnd.types.NS):
+                if not types.equ(tags, types.tags_NS):
                     continue
                 exts = data['+']
                 nobs = data['-']
@@ -275,25 +255,25 @@ class nt_parser_t:
         if worlds and len(self.matcher.do_loop(None, '环太平洋')) != 4:
             for state in cai.map_worlds:
                 city = cai.map_worlds[state]
-                r, ot = self.matcher.dict_add(state, self.tags_NS, force=True)
+                r, ot = self.matcher.dict_add(state, types.tags_NS, force=True)
                 if not r:
                     print(f"nlp_ner_nt.load_ns state is repeat: {state} {ot}")
 
                 if city:
-                    r, ot = self.matcher.dict_add(city, self.tags_NS1, force=True)
+                    r, ot = self.matcher.dict_add(city, types.tags_NS1, force=True)
                     if not r:
                         print(f"nlp_ner_nt.load_ns city is repeat: {city} {ot}")
 
             areas = ['亚太', '东北亚', '东亚', '北美', '环太平洋', '欧洲', '亚洲', '美洲', '非洲', '印度洋', '太平洋', '大西洋', '北欧', '东欧', '西欧', '中亚', '南亚', '东南亚']
             for area in areas:
-                r, ot = self.matcher.dict_add(area, self.tags_NS, force=True)
+                r, ot = self.matcher.dict_add(area, types.tags_NS, force=True)
                 if not r:
                     print(f"nlp_ner_nt.load_ns area is repeat: {area} {ot}")
 
         def ns_tags(line):
             """根据地名进行行政级别查询,返回对应的标记"""
             if line[-2:] in {'林场', '农场', '牧场', '渔场', '管理区'}:
-                return nt_parser_t.tags_NSNM
+                return types.tags_NSNM
             lvl = cai.query_aera_level(line)
             return lvls[lvl]
 
@@ -310,25 +290,25 @@ class nt_parser_t:
                     print(f'<{fname}>:{line} split <{aname}>')
                 if tag is None:  # 没有明确标注主干类型时
                     if aname[-1] in cai.ns_tails:
-                        tag = nt_parser_t.tags_NS  # 如果主干部分的尾字符合地名尾缀特征,则按地名标注
+                        tag = types.tags_NS  # 如果主干部分的尾字符合地名尾缀特征,则按地名标注
                     else:
-                        tag = nt_parser_t.tags_NN if len(aname) == 2 else nt_parser_t.tags_NS  # 否则根据主干部分的长度认定主干部分的类型,<=2的为名字N,>2的为地名S
+                        tag = types.tags_NN if len(aname) == 2 else types.tags_NS  # 否则根据主干部分的长度认定主干部分的类型,<=2的为名字N,>2的为地名S
                 return [(name, ns_tags(name)), (aname, tag)]
-            return [(name, nt_parser_t.tags_NS)]
+            return [(name, types.tags_NS)]
 
-        return self.__load(isend, fname, self.tags_NS, encode, vals_cb, self._chk_cb) if fname else ''
+        return self.__load(isend, fname, types.tags_NS, encode, vals_cb, self._chk_cb) if fname else ''
 
     def load_nz(self, fname, encode='utf-8', isend=True):
         """装载NZ组份词典,返回值:''正常,否则为错误信息."""
-        return self.__load(isend, fname, self.tags_NZ, encode, chk_cb=self._chk_cb)
+        return self.__load(isend, fname, types.tags_NZ, encode, chk_cb=self._chk_cb)
 
     def load_nn(self, fname, encode='utf-8', isend=True):
         """装载NN尾缀词典,返回值:''正常,否则为错误信息."""
-        return self.__load(isend, fname, self.tags_NN, encode, chk_cb=self._chk_cb)
+        return self.__load(isend, fname, types.tags_NN, encode, chk_cb=self._chk_cb)
 
     def load_na(self, fname, encode='utf-8', isend=True):
         """装载NA尾缀词典,返回值:''正常,否则为错误信息."""
-        return self.__load(isend, fname, self.tags_NA, encode, chk_cb=self._chk_cb)
+        return self.__load(isend, fname, types.tags_NA, encode, chk_cb=self._chk_cb)
 
     def loads(self, dicts_list, path=None, with_end=True):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
@@ -481,7 +461,7 @@ class nt_parser_t:
 
             m = chk_over(i)
             if m is None:
-                if A[1] >= B[1] and (types.cmp(A[2], B[2]) >= 0 or types.joint(A[2], nt_parser_t.tags_NS)):
+                if A[1] >= B[1] and (types.tags_NS.issubset(A[2]) or types.cmp(A[2], B[2]) >= 0):
                     segs.pop(i)  # A包含B且优先级较大,丢弃B
                 else:
                     i += 1  # AC未覆盖B,跳过
@@ -512,7 +492,7 @@ class nt_parser_t:
 
         def chk_drop(idx):
             C = segs[idx]  # 中段 C
-            if not types.joint(C[2], typs):
+            if typs.isdisjoint(C[2]):
                 return 1
 
             if idx >= 2:
@@ -541,22 +521,22 @@ class nt_parser_t:
             i += chk_drop(i)
 
     @staticmethod
-    def _merge_segs(segs, merge_types=True, combi=False):
+    def _merge_segs(segs, merge_types=True, combi=False, comboc=False):
         '''处理segs段落列表中交叉/包含/相同组份合并(merge_types)的情况,返回值:(结果列表,前后段关系列表)'''
         rst = []
         clst = []
 
         def can_combi_NM(pseg, seg):
             """判断特殊序列是否可以合并"""
-            if types.joint(pseg[2], {types.NZ, types.NS}) and types.equ(seg[2], types.NM):
+            if pseg[2] & {types.NZ, types.NS} and types.equ(seg[2], types.tags_NM):
                 if pseg[1] > seg[0] or (merge_types and mu.slen(pseg) <= 6 and mu.slen(seg) < 3):
                     return True  # 交叉(NZ,NS)&NM,或相连的NM较短,则强制合并前后段
-            if pseg[2] is not None and types.equ(seg[2], types.NO):
+            if types.equ(seg[2], types.tags_NO):
                 if pseg[1] == seg[0] and mu.slen(seg) == 1:
                     return True  # 紧邻NO,则强制合并前后段
                 if pseg[1] > seg[0] and pseg[1] <= seg[1]:
                     return True  # 交叉NO,则强制合并前后段
-            if pseg[1] == seg[0] and types.joint(pseg[2], nt_parser_t.tags_NU) and types.equ(seg[2], types.NB):
+            if pseg[1] == seg[0] and types.tags_NU.issubset(pseg[2]) and types.equ(seg[2], types.tags_NB):
                 return True  # 紧邻(NU,NM)+NB,则合并前后段
             return False
 
@@ -569,13 +549,13 @@ class nt_parser_t:
             if not merge_types:
                 return False  # 不要求类型合并
 
-            if types.equ(pseg[2], seg[2]) and types.equ(types.NM, seg[2]) and pseg[1] == seg[0]:
+            if pseg[1] == seg[0] and types.equ(pseg[2], seg[2]) and types.equ(types.tags_NM, seg[2]):
                 return False  # 前后相邻的NM不要合并
 
             # 允许分段相交合并的类型集合
             can_cross_types = {types.NS, types.NZ, types.NA, types.NF}
             if not type_eq:  # 前后段类型不一致时,需要额外判断
-                if merge_types and can_cross_types.intersection(seg[2]) and can_cross_types.intersection(pseg[2]) and pseg[1] > seg[0] and mu.slen(seg) + mu.slen(pseg) <= 5:
+                if merge_types and pseg[1] > seg[0] and mu.slen(seg) + mu.slen(pseg) <= 5 and can_cross_types.intersection(seg[2]) and can_cross_types.intersection(pseg[2]):
                     return True  # 在要求合并的情况下,两个分段如果在许可的类型范围内且交叉,也合并
                 return False  # 否则不合并
 
@@ -609,9 +589,9 @@ class nt_parser_t:
                 else:
                     seg = (pseg[1], seg[1], seg[2])  # 前段重要,调整后段范围
 
-            if len(rst) > 2 and mu.slen(rst[-1]) == 1 and mu.slen(rst[-2]) == 1:
+            if comboc and len(rst) >= 2 and mu.slen(rst[-1]) == 1 and mu.slen(rst[-2]) == 1:
                 """尝试合并之前遗留的连续单字"""
-                rst[-2] = (rst[-2][0], rst[-1][1], nt_parser_t.tags_NA)
+                rst[-2] = (rst[-2][0], rst[-1][1], types.tags_NA)
                 rst.pop(-1)
 
             rst.append(seg)  # 记录后段信息
@@ -638,15 +618,15 @@ class nt_parser_t:
                 else:
                     rec_tags_cross(pseg, seg)  # 记录,前后交叉
             elif rl == 'A+B':  # 前后紧邻,需要判断是否应该合并
-                if not types.joint(pseg[2], {types.NB, types.NO, types.NM}) and types.equ(seg[2], types.NL):
-                    seg = segs[idx] = (seg[0], seg[1], nt_parser_t.tags_NLNM)  # 孤立出现的尾缀NL要当作NM,如:深圳市投控东海一期基金(有限合伙)
+                if {types.NB, types.NO, types.NM}.isdisjoint(pseg[2]) and types.equ(seg[2], types.tags_NL):
+                    seg = segs[idx] = (seg[0], seg[1], types.tags_NLNM)  # 孤立出现的尾缀NL要当作NM,如:深圳市投控东海一期基金(有限合伙)
                     rst.append(seg)
                 elif can_tags_merge(pseg, seg, idx):
                     rec_tags_merge(pseg, seg)  # 合并当前段
                 else:
                     rec_tags_cross(pseg, seg)  # 记录,前后紧邻
             elif rl == 'A@B':  # 前段包含后段,需要记录NA@NO的情况
-                if types.equ(seg[2], types.NM) or (types.equ(pseg[2], types.NA) and types.equ(seg[2], types.NO) and can_combi_NM(pseg, seg)):
+                if types.equ(seg[2], types.tags_NM) or (types.equ(pseg[2], types.tags_NA) and types.equ(seg[2], types.tags_NO) and can_combi_NM(pseg, seg)):
                     rec_tags_cross(pseg, seg)  # 记录,前包含后
             elif rl == 'B@A':  # 后段包含前段
                 if can_tags_merge(pseg, seg, idx):
@@ -724,17 +704,18 @@ class nt_parser_t:
             return
         lseg = segs[-1]
         fseg = segs[-2]
-        if types.equ(lseg[2], types.NO) and types.equ(fseg[2], types.NA) and lseg[1] == fseg[1] and lseg[0] > fseg[0]:
+        if lseg[1] == fseg[1] and lseg[0] > fseg[0] and types.equ(lseg[2], types.tags_NO) and types.equ(fseg[2], types.tags_NA):
             # 直接合并NA/NO
             segs.pop(-1)
             lseg = segs[-1]
-            segs[-1] = (lseg[0], lseg[1], nt_parser_t.tags_NO)
+            segs[-1] = (lseg[0], lseg[1], types.tags_NO)
             return
 
-        if not types.equ(segs[-1][2], types.NA):
+        if not types.equ(segs[-1][2], types.tags_NA):
             return
+
         while len(segs) >= 2:  # 先尝试删除最后边被重叠包含的NA
-            if not types.equ(segs[-1][2], types.NA):
+            if not types.equ(segs[-1][2], types.tags_NA):
                 break
             lseg = segs[-1]
             fseg = segs[-2]
@@ -742,12 +723,13 @@ class nt_parser_t:
                 segs.pop(-1)
                 continue
             break
+
         # 再进行最后NA/NO的校正
         lseg = segs[-1]
         lpos = lseg[1] - 1
-        if not types.equ(lseg[2], types.NA) or not nnd.query_tail_data(txt[lpos]):
+        if not nnd.query_tail_data(txt[lpos]) or not types.equ(lseg[2], types.tags_NA):
             return
-        segs[-1] = (lseg[0], lseg[1], nt_parser_t.tags_NO)
+        segs[-1] = (lseg[0], lseg[1], types.tags_NO)
 
     def split(self, txt, nulst=None, with_useg=False):
         '''在txt中拆分可能的组份段落
@@ -774,9 +756,9 @@ class nt_parser_t:
                     ln = mu.slen(n)
                     if ln - lo >= 2:  # 新段比旧段多两个字的,丢弃旧段
                         return True
-                if o[1] == n[0] + 1 and len(rst) >= 2 and types.equ(o[2], types.NM) and types.equ(n[2], types.NZ):
+                if o[1] == n[0] + 1 and len(rst) >= 2 and types.equ(o[2], types.tags_NM) and types.equ(n[2], types.tags_NZ):
                     p = rst[-2]  # '洙河小学校园' => 小学NM/小学校NM/校园NZ,踢掉中间的分段
-                    if n[0] == p[1] and types.equ(p[2], types.NM):
+                    if n[0] == p[1] and types.equ(p[2], types.tags_NM):
                         return True
                 return False
 
@@ -785,16 +767,16 @@ class nt_parser_t:
                 if o[0] <= n[0] and n[1] <= o[1]:
                     if types.cmp(n[2], o[2]) == 0:
                         return False  # 被包含的相同类型新分段,不记录
-                    if nrec_contain_types.intersection(n[2]) and nrec_contain_types.intersection(o[2]):
+                    if nrec_contain_types & n[2] and nrec_contain_types & o[2]:
                         return False  # 相包含的两个段是以上类别时,不记录
                 if o[0] < n[0] < o[1] and o[1] < n[1]:
-                    if types.joint(o[2], nt_parser_t.tags_NM) and types.equ(n[2], types.NA):
+                    if types.tags_NM.issubset(o[2]) and types.tags_NA.issubset(n[2]):
                         return False  # NM/NA前后交叉的时候,不记录NA
                 return True
 
             def rec(node):
                 """记录当前节点对应的匹配分段到结果列表"""
-                if node == root:
+                if node is root:
                     return
                 # 当前待记录的新匹配分段
                 seg = pos - node.words, pos, node.end
@@ -842,7 +824,6 @@ class nt_parser_t:
 
         self._adj_last_tag(segs, txt)  # 尝试校正最后应该匹配的NO单字
         self._drop_crossing_typs(segs)  # 基于NM分段删除左右交叉重叠的部分
-        # self._drop_crossing(segs, True)  # 删除接续交叉重叠
         nres = self._drop_nesting(segs, txt)  # 删除嵌套包含的部分
         self._drop_crossing(nres)  # 删除接续交叉重叠
         self._merge_bracket(nres, txt)  # 合并附加括号
@@ -852,15 +833,16 @@ class nt_parser_t:
         else:
             return nres
 
-    def parse(self, txt, merge=True, nulst=None, with_useg=False):
+    def parse(self, txt, merge=True, nulst=None, with_useg=False, comboc=True):
         '''在txt中解析可能的组份段落
             merge - 告知是否合并同类分段
             nulst - 可给出外部数字模式匹配列表
             with_useg - 是否补全分段列表
+            comboc - 是否合并已知的单字
             返回值:(分段列表[(b,e,{types})],分段关系列表[(pseg,rl,nseg,cr)])
         '''
         segs = self.split(txt, nulst)  # 先拆分得到可能的列表
-        rlst, clst = self._merge_segs(segs, merge, True)  # 进行完整合并
+        rlst, clst = self._merge_segs(segs, merge, True, comboc)  # 进行完整合并
         if with_useg:
             rlst = mu.complete_segs(rlst, len(txt), True)[0]  # 补全中间的空洞分段
         return rlst, clst
@@ -942,7 +924,7 @@ class nt_parser_t:
 
         def chk_errs(i, seg):
             """检查当前段是否为错误切分.如'师范学院路'->师范学院/学院路->师范/学院路,此时的'师范'仍是NM,但明显是错误的."""
-            if types.equ(seg[2], types.NM) and mu.slen(seg) >= 2 and not types.joint(seg[2], {types.NU, types.NL, }):
+            if mu.slen(seg) >= 2 and {types.NU, types.NL}.isdisjoint(seg[2]) and types.equ(seg[2], types.tags_NM):
                 if is_brackets(seg):
                     txt = name[seg[0] + 1:seg[1] - 1]
                 else:
@@ -950,7 +932,7 @@ class nt_parser_t:
                     txt = name[p:seg[1]]
                 mres = self.matcher.do_check(txt)  # 按词典进行全部匹配
                 for mr in mres:
-                    if mr[1] == len(txt) and types.equ(mr[2], types.NM):
+                    if mr[1] == len(txt) and types.equ(mr[2], types.tags_NM):
                         return False
                 return True  # 外面给出的NM经过检查后发现并不是NM,切分错误,不分段
             return False
@@ -965,12 +947,12 @@ class nt_parser_t:
             if epos - bpos < 3:  # 太短的实体名称不记录.
                 return
 
-            if is_brackets(seg) and types.equ(seg[2], types.NM) and not types.joint(seg[2], nt_parser_t.tags_NL):
+            if is_brackets(seg) and types.tags_NL.isdisjoint(seg[2]) and types.equ(seg[2], types.tags_NM):
                 newr = (seg[0], seg[1], stype)  # 被括号嵌入的NT
             else:
                 newr = (bpos, epos, stype)  # 正常的NT分段接续
 
-            if outs and types.joint(seg[2], {types.NO, types.NM}):
+            if outs and seg[2] & {types.NO, types.NM}:
                 oldr = outs[-1]  # 处理特殊情况:火车站/火车站店,保留'火车站店',剔除'火车站'
                 if oldr[0] == newr[0] and oldr[1] == newr[1] - 1:
                     outs.pop(-1)  # 后一段结果比前一段结果多一个字,则丢弃前段结果
@@ -982,16 +964,16 @@ class nt_parser_t:
             islast = i == len(segs) - 1
             if stype is None:
                 continue
-            if types.joint(stype, nt_parser_t.tags_NLNM):  # NT/NL/NTNL
+            if stype & types.tags_NLNM:  # NT/NL/NTNL
                 rec(i, seg, bpos, epos, types.NM)
-                if rec_NL and types.joint(stype, nt_parser_t.tags_NL):  # 在校验输出列表中,是否额外记录尾缀分段信息
+                if rec_NL and types.tags_NL.issubset(stype):  # 在校验输出列表中,是否额外记录尾缀分段信息
                     outs.append((seg[0], seg[1], types.NL))
             elif types.equ(stype, types.NB):
                 rec(i, seg, bpos, epos, types.NB)  # 当前段是分支NT结尾
             elif types.equ(stype, types.NO) and islast:
                 # 当前段是单字NT结尾,需要判断特例
                 pseg = segs[i - 1]
-                if types.joint(pseg[2], {types.NM, types.NO, types.NA}) and mu.slen(seg) == 1:
+                if mu.slen(seg) == 1 and pseg[2] & {types.NM, types.NO, types.NA}:
                     if name[pseg[1] - 1] != name[seg[0]] or name[seg[0]] in {'店', '站'}:
                         rec(i, seg, bpos, epos, types.NM)  # `NM|NO` 不可以为'图书馆馆'/'经销处处',可以是'马店店'/'哈站站',可以作为NT机构
                 elif mu.slen(seg) > 1 or pseg[2] is not None:
@@ -1077,7 +1059,7 @@ class nt_parser_t:
                 idx += 1
             head = segs[idx]  # 选取最接近原首段的新匹配段
 
-            if types.joint(head[2], {types.NS, types.NZ, types.NN}):
+            if head[2] & {types.NS, types.NZ, types.NN}:
                 nb = head[0] + loffset  # 使用新的首段作为左侧延展位置
             else:
                 nb = b
