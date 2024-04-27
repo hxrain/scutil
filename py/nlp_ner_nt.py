@@ -72,7 +72,7 @@ class nt_parser_t:
             nt_parser_t.__nu_rec(lst, (rge[0] + offset, rge[1] + offset, types.tags_NU))
 
     # 数字序号基础模式
-    num_re = r'[○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾佰百千仟廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]{1,6}'
+    num_re = r'[×\-+○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾佰百千仟廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]{1,6}'
     # 数字序号常见模式
     num_norm = [
         (f'([经纬农第笫ABCDGKSXYZ]*{num_re}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机工]+)', 1, __nu_ns.__func__),
@@ -107,6 +107,9 @@ class nt_parser_t:
             if not mres:
                 continue
             pat[2](rst, mres)
+
+        if not rst:
+            return rst
 
         ret = sorted(rst, key=lambda x: x[0])
         return nt_parser_t._merge_segs(ret, False, False)[0]
@@ -216,7 +219,7 @@ class nt_parser_t:
             lbl = nt_parser_t.tag_labels[lbl]  # 江标注字符转换为对应类型
         return name, lbl
 
-    def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, lv_limit=5, drops_tailchars=None):
+    def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, ns_lvl_limit=5, drops_tailchars=None):
         """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
         lvls = {0: types.tags_NS, 1: types.tags_NS1, 2: types.tags_NS2, 3: types.tags_NS3, 4: types.tags_NS4, 5: types.tags_NS5}
         # 装入内置的行政区划名称
@@ -224,8 +227,8 @@ class nt_parser_t:
             for id in cai.map_id_areas:
                 alst = cai.map_id_areas[id]
                 lvl = cai.query_aera_level(alst[0])  # 根据正式地名得到行政区划级别
-                if lvl > lv_limit:
-                    continue
+                if lvl > ns_lvl_limit:
+                    continue  # 可进行层级限制,不装载低层级的区划名称.
                 tags = lvls[lvl]
                 for name in alst:
                     self.matcher.dict_add(name, tags, force=True)
@@ -272,7 +275,9 @@ class nt_parser_t:
 
         def ns_tags(line):
             """根据地名进行行政级别查询,返回对应的标记"""
-            if line[-2:] in {'林场', '农场', '牧场', '渔场', '管理区'}:
+            if line[-2:] in {'林场', '农场', '牧场', '渔场'}:
+                return types.tags_NSNM
+            if line[-3:] in {'管理区'}:
                 return types.tags_NSNM
             lvl = cai.query_aera_level(line)
             return lvls[lvl]
@@ -285,16 +290,17 @@ class nt_parser_t:
                 return [(name, ns_tags(name))]
             # 解析得到主干部分
             aname = cai.drop_area_tail(name, drops_tailchars)
-            if name != aname and aname not in nnd.nt_tail_datas:
-                if len(aname) <= 1:
-                    print(f'<{fname}>:{line} split <{aname}>')
-                if tag is None:  # 没有明确标注主干类型时
-                    if aname[-1] in cai.ns_tails:
-                        tag = types.tags_NS  # 如果主干部分的尾字符合地名尾缀特征,则按地名标注
-                    else:
-                        tag = types.tags_NN if len(aname) == 2 else types.tags_NS  # 否则根据主干部分的长度认定主干部分的类型,<=2的为名字N,>2的为地名S
-                return [(name, ns_tags(name)), (aname, tag)]
-            return [(name, types.tags_NS)]
+            if name == aname or aname in nnd.nt_tail_datas:
+                return [(name, types.tags_NS)]
+
+            if len(aname) <= 1:
+                print(f'<{fname}>:{line} split <{aname}>')
+            if tag is None:  # 没有明确标注主干类型时
+                if aname[-1] in cai.ns_tails:
+                    tag = types.tags_NS  # 如果主干部分的尾字符合地名尾缀特征,则按地名标注
+                else:
+                    tag = types.tags_NN if len(aname) == 2 else types.tags_NS  # 否则根据主干部分的长度认定主干部分的类型,<=2的为名字N,>2的为地名S
+            return [(name, ns_tags(name)), (aname, tag)]
 
         return self.__load(isend, fname, types.tags_NS, encode, vals_cb, self._chk_cb) if fname else ''
 
@@ -476,7 +482,7 @@ class nt_parser_t:
                     segs.pop(i)  # 否则丢弃B
 
     @staticmethod
-    def _drop_crossing_typs(segs, typs={types.NM, types.NB, types.NL}):
+    def _drop_crossing_typs(segs):
         """以typs类型的分段为中心,尝试丢弃与之交叉重叠的部分"""
 
         def can_drop(idx, bp, ep, isleft):
@@ -490,28 +496,37 @@ class nt_parser_t:
                         break
             return False
 
+        def is_trunk(seg, idx):
+            """判断idx处的分段seg可否成为定位主干"""
+            if seg[2] & {types.NM, types.NB, types.NL}:
+                return True  # 当前分段是尾缀特征分段,可以作为定位主干
+            elif types.NZ in seg[2]:
+                pseg = segs[idx - 1] if idx else (seg[0], seg[0], None)
+                nseg = segs[idx + 1] if idx < len(segs) - 1 else (seg[1], seg[1], None)
+                return pseg[1] < nseg[0]  # 当前的Z分段没有被前后分段覆盖,则可以作为定位主干
+
+            return False
+
         def chk_drop(idx):
             C = segs[idx]  # 中段 C
-            if typs.isdisjoint(C[2]):
-                return 1
-
-            if idx >= 2:
-                A = segs[idx - 2]  # 前段 A
-                B = segs[idx - 1]  # 前段 B
-                if A[1] == C[0] and A[0] < B[0] and B[1] < C[1]:
-                    segs.pop(idx - 1)  # AC相连,干掉B
-                    return -1
-                if B[1] == C[0] and B[0] < A[1] < C[0]:  # BC相连,AB相交
-                    if can_drop(idx - 2, A[0], B[0], True):
-                        segs.pop(idx - 2)  # 干掉A
+            if is_trunk(C, idx):
+                if idx >= 2:
+                    A = segs[idx - 2]  # 前段 A
+                    B = segs[idx - 1]  # 前段 B
+                    if A[1] == C[0] and A[0] < B[0] and B[1] < C[1]:
+                        segs.pop(idx - 1)  # AC相连,干掉B
                         return -1
+                    if B[1] == C[0] and B[0] < A[1] < C[0]:  # BC相连,AB相交
+                        if can_drop(idx - 2, A[0], B[0], True):
+                            segs.pop(idx - 2)  # 干掉A
+                            return -1
 
-            if idx < len(segs) - 2:
-                D = segs[idx + 1]  # 后段 D
-                E = segs[idx + 2]  # 后段 E
-                if E[0] == C[1] and C[0] < D[0] and D[1] < E[1]:  # CE相连
-                    segs.pop(idx + 1)  # 干掉D
-                    return 0
+                if idx < len(segs) - 2:
+                    D = segs[idx + 1]  # 后段 D
+                    E = segs[idx + 2]  # 后段 E
+                    if E[0] == C[1] and C[0] < D[0] and D[1] < E[1]:  # CE相连
+                        segs.pop(idx + 1)  # 干掉D
+                        return 0
 
             return 1
 
@@ -525,6 +540,8 @@ class nt_parser_t:
         '''处理segs段落列表中交叉/包含/相同组份合并(merge_types)的情况,返回值:(结果列表,前后段关系列表)'''
         rst = []
         clst = []
+        if not segs:
+            return rst, clst
 
         def can_combi_NM(pseg, seg):
             """判断特殊序列是否可以合并"""
@@ -603,10 +620,9 @@ class nt_parser_t:
             else:
                 rst[-1] = (pseg[0], seg[1], pseg[2])  # 前段重要,调整前段范围
 
-        for idx, seg in enumerate(segs):
-            if not rst:
-                rst.append(seg)
-                continue
+        rst.append(segs[0])
+        for idx in range(1, len(segs)):
+            seg = segs[idx]
             pseg = rst[-1]
             rl, cr = mu.related_segs(pseg, seg)
             clst.append((pseg, rl, seg, cr))  # 记录关联情况
@@ -973,7 +989,7 @@ class nt_parser_t:
             elif types.equ(stype, types.NO) and islast:
                 # 当前段是单字NT结尾,需要判断特例
                 pseg = segs[i - 1]
-                if mu.slen(seg) == 1 and pseg[2] & {types.NM, types.NO, types.NA}:
+                if mu.slen(seg) == 1 and pseg[2] and pseg[2] & {types.NM, types.NO, types.NA}:
                     if name[pseg[1] - 1] != name[seg[0]] or name[seg[0]] in {'店', '站'}:
                         rec(i, seg, bpos, epos, types.NM)  # `NM|NO` 不可以为'图书馆馆'/'经销处处',可以是'马店店'/'哈站站',可以作为NT机构
                 elif mu.slen(seg) > 1 or pseg[2] is not None:
