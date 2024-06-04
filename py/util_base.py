@@ -1343,7 +1343,7 @@ def dict_reduce(main, data):
         main[k] = main.get(k, 0) + data[k]
 
 
-def text_file_sort(fname, mode=1, encoding='utf-8'):
+def text_file_sort(fname, mode=1, encoding='utf-8', cb=None):
     """对fname文件的内容排序,输出覆盖原文件.
         排序模式mode:
             1 - 字符串/升序
@@ -1377,6 +1377,9 @@ def text_file_sort(fname, mode=1, encoding='utf-8'):
             lines[-1] = lines[-1] + '\n'
         res = sorted(lines, key=kf[0], reverse=kf[1])
         fp = open(fname, 'w', encoding=encoding)
+        if cb:
+            for idx, line in enumerate(res):
+                cb(line, idx)
         fp.writelines(res)
         fp.close()
         return ''
