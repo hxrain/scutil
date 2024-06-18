@@ -1,6 +1,5 @@
 # AC自动机 用于多模式匹配的应用
 from collections import deque
-from typing import List
 from enum import Enum, unique
 from collections.abc import Iterable
 from match_util import rep_rec_t
