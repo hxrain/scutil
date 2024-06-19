@@ -99,7 +99,7 @@ class nt_parser_t:
         (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?[厂店台站园亭部处营连排厅社所船室坊]|工区|分号)', 1, __nu_nb.__func__),
         (f'([铁农建第笫大小老]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', 1, __nu_nb.__func__),
         (f'([铁农建第笫东南西北]*{num_re}{{1,7}})([职中小高冶路街委米])(?![学])', 1, __nu_ns.__func__),
-        (f'([铁农建经纬山钢莲光司达大中小江安老海]+{num_re}{{1,7}})', 1, __nu_default.__func__),
+        (f'([铁农建经纬山钢莲光司达大中小老江海安星]+{num_re}{{1,7}})', 1, __nu_default.__func__),
         (f'([东南西北]+{num_re}{{1,7}}|{num_re}{{1,7}}[东南西北新]+|[东南西北][分])', 1, __nu_na.__func__),
         (f'([第笫上下新ABCDGKSXYZ]*{num_re}{{1,7}}[號号级大支只届年期次个度批委天时分公度经纬家郎哥幼条代纺化种克针建轻橡棉邦水齿#]?)', 1, __nu_default.__func__),
     ]
@@ -389,6 +389,10 @@ class nt_parser_t:
                         if aname in aname_convs:
                             tags = aname_convs[aname]  # 对内置地名的简称进行类型调整
                         self.matcher.dict_add(aname, tags, force=True)  # 特定尾缀地区名称,放入简称和初始类型
+
+                cnames = cai.make_comb_parent_name(id)
+                for name in cnames:
+                    self.matcher.dict_add(name, lvls[lvl], force=True)  # 装入市区/市县的组合地名
 
         # 装入内置的区域特征
         if len(self.matcher.do_loop(None, '嘎查村')) != 3:
