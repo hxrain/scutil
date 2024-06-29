@@ -4,26 +4,6 @@ import re
 import uni_blocks as ub
 import util_hmm as uh
 
-# 用于分句的符号
-SEP_CHARS = {'\n', '！', '？', '#', '￥', '%', '，', '。', '、', '|', '!', '?', '#', '$', '%', ',', '\\', '`', '~', ':', '丶', '、', ' ', '：', ';', '；', '*', '\u200b', '\uf0d8', '\ufeff'}
-SEP_CHARSTR = '[' + ''.join(SEP_CHARS) + ']'
-
-# 名字分隔符归一化
-SEP_NAMES = {'·': '.', '°': '.', '—': '.','━':'.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.',
-             '\\': '.', '"': "'", '●': '.', '[': '(', ']': ')', '{': '(', '}': ')', '&': '.', '―': '.','─':'.'}
-
-
-def ner_text_clean(txt):
-    """对文本进行必要的处理转换,但不应改变文本长度和位置"""
-    txt = ub.sbccase_to_ascii_str2(txt, True, True)
-    txt = ub.char_replace(txt, SEP_NAMES).upper()
-    return txt
-
-
-def ner_text_split(txt):
-    """对txt进行简单分行处理,返回值:[line]"""
-    return re.split(SEP_CHARSTR, txt)
-
 
 @unique
 class tags(Enum):

@@ -1,11 +1,35 @@
 import match_ac as mac
+import uni_blocks as ub
+import html_strip as hs
 
 """
     轻量级停用词处理引擎,可基于停用词规则列表进行文本短句的切分,便于进行NER识别或校验.
 """
 
+# 名字分隔符归一化
+SEP_NAMES = {'·': '.', '°': '.', '—': '.', '━': '.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.',
+             '\\': '.', '"': "'", '●': '.', '[': '(', ']': ')', '{': '(', '}': ')', '―': '.', '─': '.'}
 
-def parse(line, tostr=None):
+
+def ner_text_clean(txt, with_sbc=True):
+    """对文本进行必要的处理转换,但不应改变文本长度和位置"""
+    if with_sbc:
+        txt = ub.sbccase_to_ascii_str2(txt, True, True)
+    txt = ub.char_replace(txt, SEP_NAMES).upper()
+    return txt
+
+
+# 用于NER分句的符号,不应含有"#、&"
+SEP_CHARS = {'\n', '！', '？', '￥', '%', '，', '。', '|', '!', '?', '$', '%', ',', '\\', '`', '~', ':', '丶', ' ', '：', ';', '；', '*', '\u200b', '\uf0d8', '\ufeff'}
+SEP_CHARSTR = '[' + ''.join(SEP_CHARS) + ']'
+
+
+def ner_text_split(txt):
+    """对txt进行简单分行处理,返回值:[line]"""
+    return re.split(SEP_CHARSTR, txt)
+
+
+def wild_parse(line, tostr=None):
     """解析分段规则,返回用于匹配器使用的结果.
         组合拼接,解析'{A|B@C|D@E|F}',返回:['ACE', 'ACF', 'ADE', 'ADF', 'BCE', 'BCF', 'BDE', 'BDF']
         组合跨越,解析'{A|B*C|D}',返回:[('A','C'),('A','D'),('B','C'),('B','D')]
@@ -66,7 +90,7 @@ def parse(line, tostr=None):
 
 
 class word_spliter_t:
-    """基于ac匹配树的多字符串列表分隔器.
+    """基于ac匹配树的文本分隔器.
         以绑定的关键词集合进行分段切分,如果关键词以'!'结尾则进行修复连接或不切分.
     """
 
@@ -76,10 +100,10 @@ class word_spliter_t:
     def dict_add(self, line):
         if not line or line[0] == '#':
             return None, None
-        if line[-1] == '!':
-            return self.matcher.dict_add(line[:-1], line[-1])  # 特殊匹配模式
+        if len(line) > 1 and line[-1] == '!':
+            return self.matcher.dict_add(line[:-1], line[-1], strip=False)  # 特殊匹配模式
         else:
-            return self.matcher.dict_add(line)  # 分段匹配模式
+            return self.matcher.dict_add(line, strip=False)  # 分段匹配模式
 
     def dict_end(self):
         self.matcher.dict_end()
@@ -89,26 +113,41 @@ class word_spliter_t:
         segs = self.matcher.do_match(txt, mode=mac.mode_t.merge_cross)
         return segs if segs else [(0, len(txt), None)]
 
-    def split(self, txt, with_space=False):
-        """基于绑定的词表对txt进行分段.返回值:[分段字符串]"""
+    def split(self, txt, with_space=' '):
+        """基于绑定的词表对txt进行分段.
+            返回值:分段列表[b,e,tag],结果串列表[子串]
+        """
         rst = []
-        segs = self.match(txt)
+        mres = self.match(txt)
+
+        segs = []
+
+        def rec_merge(seg):
+            if rst:
+                segs.append((segs.pop(-1)[0], seg[1], None))
+                t = rst.pop(-1) + txt[seg[0]:seg[1]]
+                rst.append(t)
+            else:
+                segs.append(seg)
+                rst.append(txt[seg[0]:seg[1]])
+
         attach = False
-        for seg in segs:
+        for seg in mres:
             if seg[2] == '!':  # 如果遇到特殊匹配
-                line = (rst.pop(-1) if rst else '') + txt[seg[0]:seg[1]]  # 则进行当前与前一段的拼装
-                rst.append(line)
+                rec_merge(seg)  # 合并记录当前与前一段的拼装
                 attach = True  # 设置附加状态
             elif attach:  # 如果要求附加连接
                 if seg[2] in {None, '!'}:  # 且当前不是分段匹配
-                    line = (rst.pop(-1) if rst else '') + txt[seg[0]:seg[1]]  # 则进行当前与前一段的拼装
-                    rst.append(line)
+                    rec_merge(seg)  # 合并记录当前与前一段的拼装
                 attach = seg[2] == '!'  # 更新附加状态,可能继续附加
             elif seg[2] is None:  # 当前就是普通分段
                 rst.append(txt[seg[0]:seg[1]])
-            elif with_space:
-                rst.append('!' * (seg[1] - seg[0]))  # 占位的无用分段.
-        return rst
+                segs.append(seg)
+            else:
+                if with_space:
+                    rst.append(with_space * (seg[1] - seg[0]))  # 占位的无用分段.
+                segs.append(seg)
+        return segs, rst
 
 
 def split_by_strs(txt, strs, outstrs=False):
@@ -124,14 +163,14 @@ def split_by_strs(txt, strs, outstrs=False):
     match.dict_end()
 
     if outstrs:
-        return match.split(txt)
+        return match.split(txt, '')[1]
     else:
         return match.match(txt)
 
 
 class wild_spliter_t:
-    """基于ac匹配树的多字符串列表分隔器.
-        以绑定的关键词集合进行分段切分,如果关键词以'!'结尾则进行修复连接或不切分.
+    """基于ac匹配树的规则列表分隔器.
+        以绑定的组合规则进行分段切分.
     """
 
     def __init__(self):
@@ -195,7 +234,7 @@ class wild_spliter_t:
                 i += 1
         return segs
 
-    def split(self, txt, with_space=False):
+    def split(self, txt, with_space=' '):
         """基于绑定的词表对txt进行分段.返回值:[分段字符串,...]"""
         rst = []
         segs = self.match(txt)
@@ -203,8 +242,8 @@ class wild_spliter_t:
             if seg[2] is None:
                 rst.append(txt[seg[0]:seg[1]])
             elif with_space:
-                rst.append(' ' * (seg[1] - seg[0]))
-        return rst
+                rst.append(with_space * (seg[1] - seg[0]))
+        return segs, rst
 
 
 def split_by_wild(txt, strs, outstrs=False):
@@ -216,18 +255,18 @@ def split_by_wild(txt, strs, outstrs=False):
     """
     match = wild_spliter_t()
     for s in strs:
-        for segs in parse(s):
+        for segs in wild_parse(s):
             match.dict_add(segs)
     match.dict_end()
 
     if outstrs:
-        return match.split(txt)
+        return match.split(txt, '')[1]
     else:
         return match.match(txt)
 
 
-class spliter_t:
-    """复合分割器."""
+class text_spliter_t:
+    """文本复合分割器."""
 
     def __init__(self):
         self.wild_spliter = wild_spliter_t()
@@ -251,7 +290,7 @@ class spliter_t:
                         continue
 
                     if txt[0] == '{':
-                        words = parse(txt)  # 特殊规则格式,进行解析后再添加
+                        words = wild_parse(txt)  # 特殊规则格式,进行解析后再添加
                         if words is None:
                             print(f'spliter RULE is bad: {txt}')
                             continue
@@ -274,13 +313,42 @@ class spliter_t:
             self.word_spliter.dict_end()
         return ''
 
-    def split(self, txt, with_space=False):
+    def split(self, txt, with_space=''):
         """对txt进行分段.返回值:[分段字符串,...]"""
-        rst = []
-        strs = self.wild_spliter.split(txt, with_space)
-        for s in strs:
-            rst.extend(self.word_spliter.split(s, with_space))
-        return rst
+        rst_strs = []
+        rst_segs = []
+        segs1, strs1 = self.word_spliter.split(txt, with_space)
+        for seg in segs1:
+            if seg[2] is None:
+                s = txt[seg[0]:seg[1]]
+                segs2, strs2 = self.wild_spliter.split(s, with_space)
+                rst_strs.extend(strs2)
+                for seg2 in segs2:
+                    rst_segs.append((seg[0] + seg2[0], seg[0] + seg2[1], seg2[2]))
+            else:
+                rst_segs.append(seg)
+        return rst_segs, rst_strs
+
+
+class html_spliter_t:
+    """HTML文本清理分割器"""
+
+    def __init__(self):
+        self._html_cleaner = hs.html_stripper_t()
+        self._text_spliter = text_spliter_t()
+        for c in SEP_CHARS:  # 默认先装载分局所需的标点符号
+            self._text_spliter.word_spliter.dict_add(c, )
+        self._text_spliter.word_spliter.dict_end()
+
+    def load(self, rule_file):
+        """装载拆分规则.返回值:空串正常,否则为错误信息."""
+        return self._text_spliter.load(rule_file)
+
+    def split(self, txt):
+        rt = self._html_cleaner.proc(txt)
+        st = ub.sbccase_to_ascii_str2(rt, True, True)
+        segs, strs = self._text_spliter.split(st, ' ')
+        return rt, segs
 
 
 if __name__ == "__main__":
