@@ -75,9 +75,6 @@ class nt_parser_t:
         (f'([第笫上下新ABCDGKSXYZ]*{num_re}{{1,7}}[號号级大支只届年期次个度批委天时分公度经纬家郎哥幼条代纺化种克针建轻橡棉邦水齿皮客#]?)', types.tags_NU, __nu_rec.__func__),
     ]
 
-    # 行前缀章节号模式
-    line_pre_patts = [r'^([\s\n\._①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇]+)']
-
     # 为了更好的利用地名组份信息,更好的区分主干部分的类型,引入了"!尾缀标注"模式,规则如下:
     # 1 未标注!的行,整体地名(S)进行使用,并在移除尾缀词后,主干部分作为名称(N)使用,等同于标注了!N
     # 2 标注!的且没有字母的,不拆分,将整体作为:地名(S)
@@ -1034,7 +1031,7 @@ class nt_parser_t:
                 if fseg[0] <= nseg[0] and nseg[1] <= fseg[1]:
                     return  # 当前数字分段与后一个分段重叠,放弃
 
-            if mu.slen(nseg) == 1 and types.tags_NB.issubset(nseg[2]):
+            if segs and mu.slen(nseg) == 1 and types.tags_NB.issubset(nseg[2]):
                 segs[pos - 1] = (segs[pos - 1][0], nseg[1], nseg[2])  # 单字NB则直接与前面合并
             else:
                 segs.insert(pos, nseg)
@@ -1066,7 +1063,7 @@ class nt_parser_t:
                     if pseg[0] > nseg[0] or pseg[1] > nseg[1]:
                         break
 
-            if pos == len(segs) - 1 and pseg[0] <= nseg[0]:
+            if pos == len(segs) - 1 and pseg and pseg[0] <= nseg[0]:
                 pos += 1  # 末尾处额外后移判断
 
             rec(segs, pseg, pos, nseg)
@@ -1426,7 +1423,7 @@ class nt_parser_t:
                 return 0  # 模式匹配的部分是完整的已知要素(用配置的数据规避匹配规则),不用跳过首部
             return len(mres[0])  # 其他情况,跳过首部
 
-        for patt in self.line_pre_patts:
+        for patt in uni.LINE_PRE_PATTS:
             sc = chk_patt(patt)
             if sc:
                 return sc

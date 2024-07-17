@@ -497,3 +497,8 @@ def max_seg(segs):
         if slen(segs[i]) > slen(segs[rst]):
             rst = i
     return rst
+
+
+def tran_seg(seg, offset):
+    """按偏移量offset平移seg的范围,返回新值"""
+    return (seg[0] + offset, seg[1] + offset, seg[2])

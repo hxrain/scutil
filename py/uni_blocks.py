@@ -306,8 +306,13 @@ def sbccase_to_ascii_str(u, retain_CRFL=False):
     return ''.join([sbccase_to_ascii(ch, retain_CRFL) for ch in u])
 
 
+# 行前缀章节号模式
+LINE_PRE_PATTS = [r'^[\s\n]*[\._①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇]+',
+                  r'^[\s\n（\(]*([\s\._\d一二三四五六七八九]+[）\)\.、 ])+'
+                  ]
+
 # 强制进行中文符号到英文符号的映射
-_SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']', '«': '<', '»': '>', '〈': '<', '〉': '>','：':':',
+_SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']', '«': '<', '»': '>', '〈': '<', '〉': '>', '：': ':',
                      '—': '-', '━': '-', '∶': ':', '〇': '0', '‘': "'", '’': "'", '＋': '+', '“': '"', '”': '"', '″': '"', '＆': '&', '％': '%', '！': '!', '―': '-', '〖': '<', '〗': '>'}
 
 
@@ -909,3 +914,56 @@ def split_text(txt, drop_crlf=True, drop_punc=True, puns=PUNCTUATIONS):
             continue
         ret.append(c)
     return ret
+
+
+def filter_segs(txt, segs, dst='*'):
+    """替换文本串txt的指定分段列表segs对应的内容为目标字符dst"""
+    if not segs:
+        return txt
+    begin = 0
+    rst = []
+    for i in range(len(segs)):
+        seg = segs[i]
+        assert (seg[0] >= begin)
+        rst.append(txt[begin:seg[0]])
+        rst.append(dst * (seg[1] - seg[0]))
+        begin = seg[1]
+
+    if begin != len(txt):
+        rst.append(txt[begin:])
+    return ''.join(rst)
+
+
+assert filter_segs('1234567890', [(0, 3), (5, 7)]) == '***45**890'
+assert filter_segs('1234567890', [(1, 3), (5, 7)]) == '1**45**890'
+assert filter_segs('1234567890', [(2, 3), (5, 10)]) == '12*45*****'
+
+
+def skip_front(line):
+    """检查line的前缀特征,判断是否需要丢弃部分前缀章节号等字符.返回值:需要丢弃的前缀长度"""
+
+    if not line:
+        return 0
+
+    def chk_patt(patt):
+        mres = list(re.finditer(patt, line))
+        if not mres:
+            return 0  # 特定模式未匹配,不用跳过首部
+        return mres[0].span()[1]  # 其他情况,跳过首部
+
+    for patt in LINE_PRE_PATTS:
+        sc = chk_patt(patt)
+        if sc:
+            return sc
+
+    if line[0] == '(':
+        m = find_brackets(line, '()')
+        if m[0] is None:
+            return 1
+    if line[0] == '[':
+        m = find_brackets(line, '[]')
+        if m[0] is None:
+            return 1
+    if line[0] in {')', ']', '>'}:
+        return 1
+    return 0

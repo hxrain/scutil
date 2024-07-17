@@ -576,14 +576,14 @@ lw.appendx([('5',), ('6',)])
 
 
 class lines_writer:
-    def __init__(self, keyIdx=None, sep=',', fname=None, mode='a+'):
+    def __init__(self, keyIdx=None, sep=',', fname=None, mode='a+', encoding='utf-8'):
         self.fp = None
         self.keys = set()
         self.keyIdx = keyIdx
         self.sep = sep
         self.name = None
         if fname:
-            self.open(fname, mode=mode)
+            self.open(fname, encoding, mode)
 
     def open(self, fname, encoding='utf-8', mode='a+'):
         if self.fp is not None:
@@ -1409,7 +1409,7 @@ def text_file_unrepeat(fname, encoding='utf-8', oname=None, cb=None):
         return ei(e)
 
 
-def text_file_loop(fname, encoding='utf-8', oname=None, cb=None):
+def text_file_loop(fname, encoding='utf-8', oname=None, cb=None,omode='w+'):
     """对指定的文本文件fname按行调用cb进行处理后写入新文件oname
             def cb(line,rowno) 返回值为None时放弃当前行的输出
         返回值:空串正常.否则为错误信息.
@@ -1421,18 +1421,19 @@ def text_file_loop(fname, encoding='utf-8', oname=None, cb=None):
 
         if oname is None:
             oname = fname + '.out'
-        out = open(oname, 'w+', encoding=encoding)
+        out = open(oname, omode, encoding=encoding)
 
         if cb is None:
             out.writelines(lines)
         else:
             for rowno, line in enumerate(lines):
                 txt = cb(line.strip(), rowno)
-                if txt is not None:
-                    if not txt or txt[-1] != '\n':
-                        out.write(txt + '\n')
-                    else:
-                        out.write(txt)
+                if txt is None:
+                    continue
+                if not txt or txt[-1] != '\n':
+                    out.write(txt + '\n')
+                else:
+                    out.write(txt)
         return ''
     except Exception as e:
         return ei(e)

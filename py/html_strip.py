@@ -8,7 +8,7 @@ class html_stripper_t:
     rep_rule_0 = {
         "": ["&rdquo;", "&ldquo;", "rdquo;", "ldquo;", "&zwnj;", "&zwj;", "/**/", ],
         "\n": ["&#x000D;", "&#x000A;", ],
-        " ": ["&thinsp;", "&#12288;", "&nbsp;", "&ensp;", "&emsp;", "&#160;", ],
+        " ": ["&thinsp;", "&#12288;", "&nbsp;", "&ensp;", "&emsp;", "&#160;", "\u2002", '\u3000', '\u2003', '\u00A0'],
         "\"": ["\\&quot;\"", "\"\\&quot;", "&quot;", "&#34;", ],
         "&": ["&amp;", "&#38;", ],
         "'": ["&apos;", "&#39;", ],
@@ -41,7 +41,7 @@ class html_stripper_t:
         for k in self.rep_rule_0:
             vs = self.rep_rule_0[k]
             for v in vs:
-                self.rep_matcher.dict_add(v, k)
+                self.rep_matcher.dict_add(v, k, strip=False)
         self.rep_matcher.dict_end()
 
     def drop_blank(self, norm):
@@ -61,7 +61,7 @@ class html_stripper_t:
         """清理掉html中的URLData/style/script/tag等,降低文本字符数量."""
         txt = re.sub(r'data\s*:\s*image/[\d\w\+\/\=;,\n]*?(\)|")', r'\1 ', txt)
         txt = re.sub(r'(<\s*style|script\s*(.|\n)*?<\s*/\s*style|script\s*>)|(<\?xml[^/>]*?/>)', r' ', txt)
-        txt = re.sub('<([^>/]*?)/>|<([^/][^>]*?)>|</([^>]*?)>', ' ', txt)  # 丢弃节点tag
+        txt = re.sub('<([^>/]*?)/>|<([^/][^>]*?)>|</([^>]*?)>', '', txt)  # 丢弃节点tag
         return txt
 
     def proc(self, txt, blank=True):
