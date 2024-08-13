@@ -709,6 +709,44 @@ def find_brackets(restr, chrs, bpos=0, epos=-1):
     return (b, e, d)
 
 
+# 可进行配对包裹的字符关系对
+_G_brackets_map = {'<': '>', '(': ')', '[': ']', '"': '"', "'": "'", '{': '}'}
+_G_brackets_rmap = {_G_brackets_map[k]: k for k in _G_brackets_map}
+
+
+def find_brackets_list(txt, result):
+    """在txt中查找可按深度配对(_G_brackets_map)的字符匹配元组,将配对结果放入result列表[(起点,终点)].
+        返回值:None无错误;否则返回匹配的深度剩余栈列表[(位置,字符)]
+    """
+    stack = []
+
+    def _is_left_char(char):
+        """判断当前左括号是否可以push积累"""
+        if char not in _G_brackets_map:
+            return False  # 不是左括号
+        rchar = _G_brackets_map[char]
+        if char == rchar and stack:  # 左右括号是同一种字符的时候
+            if stack[-1][1] == char:
+                return False  # 如果stack的最后已经存在当前字符,则不能push累积
+        return True
+
+    for pos in range(len(txt)):
+        char = txt[pos]  # 对文本串进行逐一遍历
+        if _is_left_char(char):
+            stack.append((pos, char))  # 遇到了左括号则记录到stack中
+        elif char in _G_brackets_rmap:
+            pchar = _G_brackets_rmap[char]  # 遇到了右括号
+            if stack and stack[-1][1] == pchar:  # 如果真的与stack中最后的配对相吻合
+                result.append((stack[-1][0], pos))  # 则记录最内侧(最深的)的括号范围
+                stack.pop(-1)  # 并剔除stack中已经用过的待配对信息
+            else:
+                break  # 出现错层现象了,放弃当前配对分析
+
+    if stack:  # 括号配对失败
+        return stack  # 返回待配对层级信息list
+    return None
+
+
 _G_NUMMAP_ZH = {'零': '0', '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9'}
 
 
@@ -939,7 +977,7 @@ assert filter_segs('1234567890', [(1, 3), (5, 7)]) == '1**45**890'
 assert filter_segs('1234567890', [(2, 3), (5, 10)]) == '12*45*****'
 
 
-def skip_front(line):
+def skip_front(line, with_brackets=True):
     """检查line的前缀特征,判断是否需要丢弃部分前缀章节号等字符.返回值:需要丢弃的前缀长度"""
 
     if not line:
@@ -956,14 +994,15 @@ def skip_front(line):
         if sc:
             return sc
 
-    if line[0] == '(':
-        m = find_brackets(line, '()')
-        if m[0] is None:
+    if with_brackets:
+        if line[0] == '(':
+            m = find_brackets(line, '()')
+            if m[0] is None:
+                return 1
+        if line[0] == '[':
+            m = find_brackets(line, '[]')
+            if m[0] is None:
+                return 1
+        if line[0] in {')', ']', '>'}:
             return 1
-    if line[0] == '[':
-        m = find_brackets(line, '[]')
-        if m[0] is None:
-            return 1
-    if line[0] in {')', ']', '>'}:
-        return 1
     return 0

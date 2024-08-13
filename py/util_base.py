@@ -11,7 +11,7 @@ from xml.dom import minidom
 import zipfile
 from hash_calc import calc_key
 import traceback
-
+import hashlib
 
 # -----------------------------------------------------------------------------
 def es(e: Exception):
@@ -60,6 +60,10 @@ def find_zh_chars(s, is_zh=True):
         return re.findall('[\u4e00-\u9fa5]', s)
     else:
         return re.findall('[!-~]', s)
+
+def md5(s):
+    """计算字符串的MD5值"""
+    return hashlib.md5(s.encode('utf-8')).hexdigest()
 
 
 # -----------------------------------------------------------------------------
@@ -1409,7 +1413,7 @@ def text_file_unrepeat(fname, encoding='utf-8', oname=None, cb=None):
         return ei(e)
 
 
-def text_file_loop(fname, encoding='utf-8', oname=None, cb=None,omode='w+'):
+def text_file_loop(fname, encoding='utf-8', oname=None, cb=None, omode='w+'):
     """对指定的文本文件fname按行调用cb进行处理后写入新文件oname
             def cb(line,rowno) 返回值为None时放弃当前行的输出
         返回值:空串正常.否则为错误信息.

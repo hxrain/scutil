@@ -67,7 +67,7 @@ class nt_parser_t:
     num_rules = [
         (f'([铁农建第笫经纬新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片]+)', types.tags_NS, __nu_rec.__func__),
         (f'([铁农建第笫新]*{num_re}{{1,7}}[号]?)([分]?部队|煤矿|[团校院馆局会库矿场])', types.tags_NM, __nu_rec.__func__),
-        (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店台站园亭部处营连排厅社所船室坊])', types.tags_NB, __nu_rec.__func__),
+        (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店站园亭部处营连排厅社所船室坊])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫大小老]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫东南西北]*{num_re}{{1,7}})([职中小高冶路街委米])(?![学])', types.tags_NS, __nu_rec.__func__),
         (f'([铁农建经纬山钢莲光山华司达大中小老江海安星煤宝金城]+{num_re}{{1,7}})', types.tags_NU, __nu_rec.__func__),
@@ -467,13 +467,13 @@ class nt_parser_t:
     def _merge_bracket(segs, txt):
         """合并segs段落列表中被左右括号包裹的部分,返回值:结果列表"""
 
-        def _merge_brackets_segs(bi, ei, segs):
+        def _merge_range_seg(bi, ei, segs):
             """合并(bi,ei)分段以及其左右的括号,变为一个大分段"""
             segs[bi] = (segs[bi][0] - 1, segs[ei][1] + 1, segs[ei][2])  # 更新bi处的分段信息
-            for i in range(ei - bi):  # 丢弃到ei的分段
+            for i in range(ei - bi):  # 丢弃后续分段
                 segs.pop(bi + 1)
 
-        def _find_brackets_segs(b, e, segs):
+        def _calc_range_seg(b, e, segs):
             """查找segs中(b,e)范围内的seg,返回值:(bi,ei,bool)"""
             bi = None
             ei = None
@@ -496,41 +496,19 @@ class nt_parser_t:
             return bi, ei, True
 
         # 进行有深度感知的括号配对,得到每个层级的配对位置
-        stack = []  # 记录当前深度待配对的信息
+
         result = []  # 记录完整的配对结果
-
-        def can_push(char):
-            """判断当前左括号是否可以push积累"""
-            if char not in nt_parser_t.brackets_map:
-                return False  # 不是左括号
-            rchar = nt_parser_t.brackets_map[char]
-            if char == rchar and stack:  # 左右括号是同一种字符的时候
-                if stack[-1][1] == char:
-                    return False  # 如果stack的最后已经存在当前字符,则不能push累积
-            return True
-
-        for pos in range(len(txt)):
-            char = txt[pos]  # 对文本串进行逐一遍历
-            if can_push(char):
-                stack.append((pos, char))  # 如果遇到了左括号则记录到stack中
-            elif char in nt_parser_t.brackets_rmap:
-                pchar = nt_parser_t.brackets_rmap[char]
-                if stack and stack[-1][1] == pchar:  # 如果遇到了右括号,并且真的与stack中最后的配对相吻合
-                    result.append((stack[-1][0], pos))  # 则记录最内侧的括号范围
-                    stack.pop(-1)  # 并剔除stack中已经用过的待配对信息
-                else:
-                    break  # 出现错层现象了,放弃当前配对分析
-
+        stack = uni.find_brackets_list(txt, result)  # 记录当前深度待配对的信息
         if stack:  # 括号配对失败
             return stack  # 返回待配对层级信息list
 
         for res in result:
-            bi, ei, ok = _find_brackets_segs(res[0], res[1], segs)
+            bi, ei, ok = _calc_range_seg(res[0], res[1], segs)
             if not ok:
                 if bi is None and ei is None:
                     continue  # 规避'<新疆艺术(汉文)>杂志社'里面的'(汉文)'
                 return res  # 括号范围内有未知成分,停止处理,返回tuple(b,e)
-            _merge_brackets_segs(bi, ei, segs)  # 合并括号范围
+            _merge_range_seg(bi, ei, segs)  # 合并括号范围
         return None  # 正常完成
 
     @staticmethod
