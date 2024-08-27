@@ -65,14 +65,14 @@ class nt_parser_t:
     num_re = r'[×\.+○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰叁肆伍陆柒捌玖拾佰百千仟万廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]'
     # 数字序号组合模式
     num_rules = [
-        (f'([铁农建第笫经纬新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片]+)', types.tags_NS, __nu_rec.__func__),
+        (f'([铁农建第笫经纬新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片台室]+)', types.tags_NS, __nu_rec.__func__),
         (f'([铁农建第笫新]*{num_re}{{1,7}}[号]?)([分]?部队|煤矿|[团校院馆局会库矿场])', types.tags_NM, __nu_rec.__func__),
-        (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店站园亭部处营连排厅社所船室坊])', types.tags_NB, __nu_rec.__func__),
+        (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店站园亭部处营连排厅社所船坊])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫大小老]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫东南西北]*{num_re}{{1,7}})([职中小高冶路街委米])(?![学])', types.tags_NS, __nu_rec.__func__),
         (f'([铁农建经纬山钢莲光山华司达大中小老江海安星煤宝金城]+{num_re}{{1,7}})', types.tags_NU, __nu_rec.__func__),
         (f'([东南西北]+{num_re}{{1,7}}|{num_re}{{1,7}}[东南西北新]+|[东南西北][分])', types.tags_NA, __nu_rec.__func__),
-        (f'([第笫上下新ABCDGKSXYZ]*{num_re}{{1,7}}[號号级大支只届年期次个度批委天时分公度经纬家郎哥幼条代纺化种克针建轻橡棉邦水齿皮客#]?)', types.tags_NU, __nu_rec.__func__),
+        (f'([第笫上下新ABCDGKSXYZ]*{num_re}{{1,7}}[號号级大支只届期次个度批委天时分公度经纬家郎哥幼条代纺化种克针建轻橡棉邦水齿皮客#]?)', types.tags_NU, __nu_rec.__func__),
     ]
 
     # 为了更好的利用地名组份信息,更好的区分主干部分的类型,引入了"!尾缀标注"模式,规则如下:
@@ -495,12 +495,39 @@ class nt_parser_t:
                     return bi, ei, False  # 前后分段位置相离
             return bi, ei, True
 
+        def _find_last_brk_seg(segs, pos):
+            """在segs分段列表中查找pos前面紧邻的分段"""
+            for i in range(len(segs) - 1, -1, -1):
+                seg = segs[i]
+                if seg[1] > pos:
+                    continue
+                if seg[1] == pos:
+                    return seg
+                if seg[1] < pos:
+                    return None
+            return None
+
+        def _skip_head_brk_seg(result):
+            """尝试跳过头尾被包裹的NM整体"""
+            if not result or result[-1][0] != 0 or txt[0] not in {'"', '(', "'"}:
+                return False
+            if txt[result[-1][1] - 1] == ')':
+                result.pop(-1)
+                return True  # 可能是(公司名(尾缀))这样的情况
+            lseg = _find_last_brk_seg(segs, result[-1][1])
+            if lseg and lseg[2] & {types.NM, types.NB, types.NO}:
+                result.pop(-1)
+                return True  # 遇到从头到NM尾整体被包裹的情况了
+            return False
+
         # 进行有深度感知的括号配对,得到每个层级的配对位置
 
         result = []  # 记录完整的配对结果
         stack = uni.find_brackets_list(txt, result)  # 记录当前深度待配对的信息
         if stack:  # 括号配对失败
             return stack  # 返回待配对层级信息list
+
+        _skip_head_brk_seg(result)  # 尝试丢弃整体包裹的"或(
 
         for res in result:
             bi, ei, ok = _calc_range_seg(res[0], res[1], segs)

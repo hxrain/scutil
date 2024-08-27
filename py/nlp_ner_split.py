@@ -13,16 +13,17 @@ SEP_NAMES = {'·': '.', '°': '.', '—': '.', '━': '.', '．': '.', '－': '.
              '\\': '.', '"': "'", '●': '.', '[': '(', ']': ')', '{': '(', '}': ')', '―': '.', '─': '.', '､': '、', '￮': '0'}
 
 
-def ner_text_clean(txt, with_sbc=True):
-    """对文本进行必要的处理转换,但不应改变文本长度和位置"""
+def ner_chars_clean(txt, with_sbc=True):
+    """对文本中特定字符进行必要的处理转换,但不应改变文本长度和位置"""
     if with_sbc:
         txt = ub.sbccase_to_ascii_str2(txt, True, True)
     txt = ub.char_replace(txt, SEP_NAMES).upper()
     return txt
 
 
-# 用于NER分句的符号,不应含有"#&.@";'、'顿号也偶尔出现在NT名称中,但更频繁出现在原文中,所以暂时先放弃名字中的作用,也用于分句.
-SEP_CHARS = {'\n', '、', '！', '？', '￥', '%', '，', '。', '|', '!', '?', '$', '%', ',', '\\', '`', '~', ':', '丶', '：', ';', '；', '*', '\u200b', '\uf0d8', '\ufeff'}
+# 用于NER分句的符号,不应含有"#&.@";
+SEP_CHARS = {'\n', '！', '？', '￥', '%', '，', '。', '|', '!', '?', '$', '%', ',', '\\', '`', '~', ':', '丶', '：', ';', '；', '*', '\u200b', '\uf0d8', '\ufeff'}
+SEP_CHARS.add('、')  # '、'顿号也偶尔出现在NT名称中,但更频繁出现在原文中,所以暂时先放弃名字中的作用,也用于分句.
 
 
 def tiny_text_split(txt, skip_front=True):
@@ -229,7 +230,7 @@ class wild_spliter_t:
         grpno = len(self.pairs)  # 用当前已有数量作为新的组号
         self.pairs[grpno] = (strs, exres)  # 绑定组号与对应词列表
         for s in strs:  # 装载词汇并绑定对应组号集合
-            self.matcher.dict_add(s, {grpno})
+            self.matcher.dict_add(s, {grpno}, force=True)
 
     def rule_add(self, rule):
         """直接添加匹配规则"""
@@ -405,14 +406,14 @@ class text_spliter_t:
         """对txt进行分段.返回值:[分段字符串,...]"""
         rst_segs = []  # 最终返回的分割段列表
         rst_strs = []  # 分割段对应的字符串列表
-        # 按标点分割
-        segs0, strs0 = tiny_text_split(txt)
+
+        segs0, strs0 = tiny_text_split(txt)  # 按标点分割
         for i0, seg0 in enumerate(segs0):
             if seg0[2] is None and mu.slen(seg0) >= 3:  # 非标点分段
                 # 进行跨段分割
                 segs1, strs1 = self.wild_spliter.split(strs0[i0], with_space)
-                if len(segs1) != len(strs1):
-                    print(txt)
+                # if len(segs1) != len(strs1):
+                #     print(txt)
                 for i1, seg1 in enumerate(segs1):
                     if seg1[2] is None and mu.slen(seg0) >= 3:  # 当前是跨段需保留的部分
                         # 进行停用词分割
@@ -434,26 +435,30 @@ class html_spliter_t:
     """HTML文本清理分割器"""
 
     def __init__(self):
-        self._html_cleaner = hs.html_stripper_t()
-        self._text_spliter = text_spliter_t()
-        # for c in SEP_CHARS:  # 默认先装载分句所需的标点符号
-        #     self._text_spliter.word_spliter.dict_add(c, )
-        # self._text_spliter.word_spliter.dict_end()
+        self._html_cleaner = hs.html_stripper_t()  # HTML文本清理器
+        self._text_spliter = text_spliter_t()  # 文本停用词拆分器
+        self._pre_ac = mac.ac_match_t()  # 前处理替换器
 
-    def load(self, rule_file):
-        """装载拆分规则.返回值:空串正常,否则为错误信息."""
-        return self._text_spliter.load(rule_file)
+    def load(self, rule_file, pre_file):
+        """装载规则文件.
+            rule_file - 停用词拆分规则
+            pre_file - 前处理替换规则
+            返回值:空串正常,否则为错误信息.
+        """
+        err = self._text_spliter.load(rule_file)
+        if err:
+            return f'html_spliter_t.load() fail: {rule_file}'
+        err = self._pre_ac.dict_load(pre_file)
+        if err:
+            return f'html_spliter_t.load() fail: {pre_file}'
+        return ''
 
     def split(self, txt):
-        rt = self._html_cleaner.proc(txt)
-        st = ub.sbccase_to_ascii_str2(rt, True, True)
-        segs, strs = self._text_spliter.split(st, ' ')
-        for i in range(len(segs)):
-            seg = segs[i]
-            if seg[2] is None:
-                assert st[seg[0]:seg[1]] == strs[i]
-            else:
-                assert mu.slen(seg) == len(strs[i])
+        """对文本进行完整的预处理并进行停用词分段处理"""
+        rt = self._html_cleaner.proc(txt)  # 初步预处理后丢弃HTML标签的文本内容
+        st = ub.sbccase_to_ascii_str2(rt, True, True)  # 进行半角归一化,得到临时断句使用的文本内容
+        st1 = self._pre_ac.do_filter(st)  # 进行额外的前置替换,规避含有断句字符的有效内容(在前处理规则文件中统一使用半角归一化字符即可)
+        segs, strs = self._text_spliter.split(st1, ' ')  # 进行断句拆分(在停用词规则文件中统一使用半角归一化字符即可)
         return rt, segs
 
 
