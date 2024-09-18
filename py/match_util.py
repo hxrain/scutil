@@ -289,7 +289,7 @@ class words_trie_t:
                 0<deep<len(word) - 部分匹配:node为下级节点
         """
         if not word:
-            return 0, self.root
+            return 0, 0, self.root
 
         if self.reversed:
             iter = range(len(word) - 1, -1, -1)

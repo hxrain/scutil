@@ -70,9 +70,9 @@ class nt_parser_t:
         (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店站园亭部处营连排厅社所船坊])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫大小老]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫东南西北]*{num_re}{{1,7}})([职中小高冶路街委米])(?![学])', types.tags_NS, __nu_rec.__func__),
-        (f'([铁农建经纬山钢莲光山华司达大中小老江海安星煤宝金城]+{num_re}{{1,7}})', types.tags_NU, __nu_rec.__func__),
+        (f'([铁农建经纬山钢莲光山华司达大中小老江海安星煤宝金城片]+{num_re}{{1,7}})', types.tags_NU, __nu_rec.__func__),
         (f'([东南西北]+{num_re}{{1,7}}|{num_re}{{1,7}}[东南西北新]+|[东南西北][分])', types.tags_NA, __nu_rec.__func__),
-        (f'([第笫上下新ABCDGKSXYZ]*{num_re}{{1,7}}[號号级大支只届期次个度批委天时分公度经纬家郎哥幼条代纺化种克针建轻橡棉邦水齿皮客#]?)', types.tags_NU, __nu_rec.__func__),
+        (f'([第笫上下新A-Z.]*{num_re}{{1,7}}[號号级大支只届期次个度批委天时分公度吨经纬家郎哥幼条代纺化种克针建轻橡棉邦水齿皮客阁#℃]?)', types.tags_NU, __nu_rec.__func__),
     ]
 
     # 为了更好的利用地名组份信息,更好的区分主干部分的类型,引入了"!尾缀标注"模式,规则如下:
@@ -332,7 +332,7 @@ class nt_parser_t:
 
         def ns_tags(line):
             """根据地名进行行政级别查询,返回对应的类型标记"""
-            if line[-2:] in {'林场', '农场', '牧场', '渔场', '水库'}:
+            if line[-2:] in {'林场', '农场', '牧场', '渔场', '水库', '灌区'}:
                 return types.tags_NSNM
             if line[-3:] in {'管理区'}:
                 return types.tags_NSNM
@@ -472,6 +472,15 @@ class nt_parser_t:
             segs[bi] = (segs[bi][0] - 1, segs[ei][1] + 1, segs[ei][2])  # 更新bi处的分段信息
             for i in range(ei - bi):  # 丢弃后续分段
                 segs.pop(bi + 1)
+
+            # 需要判断后面是否应该补全报社尾缀分段
+            posA = segs[bi][1]
+            if posA < len(txt) and txt[posA] in {'社', '室'}:
+                if bi + 1 < len(segs):
+                    pos = segs[bi + 1][0]
+                    if txt[pos] in {'社', '室'}:
+                        return
+                segs.insert(bi + 1, (posA, posA + 1, types.tags_NM))
 
         def _calc_range_seg(b, e, segs):
             """查找segs中(b,e)范围内的seg,返回值:(bi,ei,bool)"""
@@ -1318,9 +1327,14 @@ class nt_parser_t:
             return 2  # 告知是完整拼装(有允许的交叉)
         return 0  # 告知完整拼装(有交叉)
 
-    def verify(self, name, segs=None, merge_types=False, rec_NL=False, comboc=True, mres=None):
+    def verify(self, name, segs=None, merge_types=False, rec_NL=False, comboc=True, mres=None, strict=False):
         """对name中出现的多重NT构成特征进行拆分并校验有效性,如附属机构/分支机构/工会
             segs - 可记录组份分段数据的列表.
+            merge_types - 是否合并相同类型分段
+            rec_NL - 是否独立记录后缀分段
+            comboc - 是否合并连续已知单字
+            mres - 可记录最初的匹配分组(未处理过的)
+            strict - 是否未严格模式,遇到未知分段则不记录
             返回值:分段列表[(bpos,epos,types)]
                   返回的types只有NM与NB两种组份模式
         """
@@ -1392,8 +1406,12 @@ class nt_parser_t:
         for i, seg in enumerate(segs):
             stype = seg[2]
             epos = seg[1]
+            if mu.slen(seg) == 0:
+                print(name, segs)
             islast = i == len(segs) - 1
             if stype is None:
+                if strict and name[seg[0]] not in {'(', ')'}:
+                    break
                 continue
             if stype & types.tags_NLNM:  # NT/NL/NTNL
                 rec(i, seg, bpos, epos, types.NM)
