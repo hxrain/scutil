@@ -215,20 +215,23 @@ def get_sock_info(sock):
 class tiny_proxy_session:
     '便于进行服务端proxy会话操作的功能类'
 
-    def __init__(self, src_sock, log_out):
+    def __init__(self, src_sock, log_out, enable_log=False):
         self.src_sock = tiny_proxy_sock(src_sock)
         self.dst_sock = None
         self.proxy_info = None
         self._log_out = log_out
+        self._enable_log_ = enable_log
 
     def proxy(self):
         return '<proxy=(%s:%d)>' % (self.proxy_info[0], self.proxy_info[1]) if self.proxy_info else ''
 
     def warn(self, *args):
-        self._log_out('WARN:', get_sock_info(self.src_sock.sock), self.proxy(), *args)
+        if self._log_out:
+            self._log_out('WARN:', get_sock_info(self.src_sock.sock), self.proxy(), *args)
 
     def log(self, *args):
-        self._log_out('INFO:', get_sock_info(self.src_sock.sock), self.proxy(), *args)
+        if self._log_out and self._enable_log_:
+            self._log_out('INFO:', get_sock_info(self.src_sock.sock), self.proxy(), *args)
 
 
 # CONNECT method response OK.
@@ -297,7 +300,7 @@ def tiny_proxy_svr(port, handler, maxconn=200):
         '代理请求处理入口,在多线程中被运行'
         try:
             if not _do_req(session, handler):
-                session.log('TinyProxyFor Fail.')
+                session.warn('TinyProxyFor Fail.')
         except Exception as e:
             print(e)
             pass
@@ -308,7 +311,7 @@ def tiny_proxy_svr(port, handler, maxconn=200):
     def _do_req(session, handler):
         '真正的代理请求处理函数,在多线程中被运行'
         if not session.src_sock.wait_head():
-            session.log('recv src head fail')
+            session.warn('recv src head fail')
             return False
 
         # 根据当前请求的会话信息,获取目标代理地址

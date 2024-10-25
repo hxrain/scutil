@@ -156,6 +156,32 @@ class manager_t:
         return self._puts_dat == self._gets_rst
 
 
+def do_put(wm, dat, rst_cb):
+    """给任务队列送入待处理数据,并尝试进行结果的处理.
+        wm: 并发管理器
+        dat: 待处理数据
+        rst_cb: 结果处理方法
+    """
+    if not wm.que_rst.empty():
+        for rst in wm.get_rst():
+            rst_cb(rst)
+    wm.put_dat(dat)
+    while not wm.que_rst.empty():
+        for rst in wm.get_rst():
+            rst_cb(rst)
+
+
+def do_end(wm, rst_cb):
+    """
+    等待任务队列处理完成,并发送结束通知
+    """
+    while not wm.is_finish():
+        for rst in wm.get_rst():
+            rst_cb(rst)
+    wm.notify()
+    wm.end()
+
+
 if __name__ == "__main__":
     # cb_main和cb_worker必须是全局函数,不能在这里局部定义,否则出错
     # 使用生产者进程
