@@ -62,7 +62,7 @@ class nt_parser_t:
                 rec(lst, seg)
 
     # 数字序号基础模式
-    num_re = r'[A-Z×\.+○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰貮两叁仨肆伍陆柒捌玖拾佰百千仟万廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]'
+    num_re = r'[A-Z×\.+○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰貮貳两叁参仨肆伍陆柒捌玖拾佰百千仟万廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]'
     _oc_nums = ['匕', '比', '彼', '必', '毕', '碧', '卞', '变', '表', '别', '宾', '彬', '斌', '滨', '冰', '缤', '兵', '秉', '炳', '并', '波', '伯', '帛', '泊', '铂', '博', '亳', '渤', '搏', '卜', '补', '不', '布',
                 '步', '擦', '才', '材', '财', '采', '彩', '菜', '蔡', '餐', '灿', '仓', '璨', '苍', '沧', '藏', '曹', '草', '策', '岑', '层', '曾', '叉', '插', '茶', '茬', '查', '搽', '差', '柴', '婵', '馋', '禅',
                 '蝉', '产', '昌', '尝', '常', '昶', '畅', '超', '晁', '朝', '潮', '车', '屮', '澈', '扯', '琛', '臣', '尘', '辰', '沉', '陈', '宸', '晨', '成', '丞', '呈', '诚', '承', '乘', '程', '澄', '橙', '池',
@@ -132,8 +132,8 @@ class nt_parser_t:
     num_rules = [
         (f'([铁农建经纬纵横山钢莲光山华司达大中小老期江海安星煤宝金城片{"".join(_oc_nums)}]+{num_re}{{1,7}})', types.tags_NU, __nu_rec.__func__),
         (f'([东南西北]+{num_re}{{1,7}}|{num_re}{{1,7}}[东南西北新]+|[东南西北][分])', types.tags_NA, __nu_rec.__func__),
-        (f'([第笫上下新A-Z.]*{num_re}{{1,7}}[號号级大支只届期工次个度批委天时分鲜番房家运花阿核肉茶饭公度录吨经纬家郎哥幼条代纺化种停克田针奶年月日阀表班调医缸牛兽酿岁继建酒冷轻橡棉邦干水齿皮客阁座#℃]?)', types.tags_NU, __nu_rec.__func__),
-        (f'([铁农建第笫经纬纵横新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片台室房]+)', types.tags_NS, __nu_rec.__func__),
+        (f'([第笫上下新A-Z.]*{num_re}{{1,7}}[號号级大支只届期工次个度批委天时分鲜番房家运花阿核肉茶饭公度录吨经纬家郎哥幼条代纺化种停克田针奶年月日阀表班调医养缸牛兽酿岁继建酒冷轻橡棉邦斤干水齿皮客阁座层#℃]?)', types.tags_NU, __nu_rec.__func__),
+        (f'([铁农建第笫经纬纵横新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片台室房田]+)', types.tags_NS, __nu_rec.__func__),
         (f'([铁农建第笫新]*{num_re}{{1,7}}[号]?)([分]?部队|煤矿|[团校院馆局会库矿场])', types.tags_NM, __nu_rec.__func__),
         (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店铺站园亭部处营连排厅社所船坊])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫大小老]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
@@ -1199,6 +1199,8 @@ class nt_parser_t:
                     ln = mu.slen(n)
                     if ln - lo >= 2:  # 新段比旧段多两个字的,丢弃旧段
                         return True
+                    if ln > lo and ln >= 4:
+                        return True
                     if types.tags_NZ.issubset(o[2]) and types.tags_NM.issubset(n[2]):
                         return True  # '美食|美食屋'=>NZ&NM,丢弃NZ
                     if types.tags_NM.issubset(o[2]) and types.tags_NZ.issubset(n[2]):
@@ -1273,8 +1275,8 @@ class nt_parser_t:
                     if mu.slen(o) >= 4 and n[2] & {types.NA, types.NN}:
                         return False  # 长分段包含短NA,不记录
                     if len(rst) >= 2:
-                        p = rst[-2]  # p,o,n三段顺序排列
-                        if p[0] >= o[0] and n[1] <= o[1] and p[1] > n[0]:
+                        p = rst[-2]  # p,o,n三个段进行判断
+                        if p[0] >= o[0] and n[1] <= o[1] and p[1] > n[0]:  # o完整涵盖了p和n,且p与n交叉
                             if types.tags_NA.issubset(o[2]) and {types.NM, types.NB} & n[2]:
                                 rst.pop(-1)  # NA涵盖了NM的时候丢弃前段
                                 return True
@@ -1298,7 +1300,7 @@ class nt_parser_t:
                         rst.pop(-2)  # 前段p与旧段o起点相同且更短,新段n接壤旧段o,则丢弃前段p
 
                 if n[0] - o[0] == 1 and n[1] - o[1] == 1 and types.tags_NS & o[2] and {types.NS, types.NH} & n[2]:
-                    if chk_prorsad(rst, n) or txt[o[1]] in {'乡', '村', '镇'}:
+                    if chk_prorsad(rst, n) or txt[o[1]] in {'乡', '村', }:  # '镇'}:
                         return True  # 前方有接续的分段,则记录
                     return False  # 天津市&津市市,不记录
                 return True
