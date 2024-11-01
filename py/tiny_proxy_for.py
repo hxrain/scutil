@@ -259,8 +259,8 @@ class tick_meter:
 
 # 代理服务器回调处理器句柄
 class tiny_proxy_handler:
-    def __init__(self):
-        self.meter_idle = tick_meter(5 * 1000, False)
+    def __init__(self, idle_tick=1 * 1000):
+        self.meter_idle = tick_meter(idle_tick, False)
         pass
 
     def on_idle(self):

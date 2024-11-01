@@ -164,11 +164,17 @@ def do_put(wm, dat, rst_cb):
     """
     if not wm.que_rst.empty():
         for rst in wm.get_rst():
-            rst_cb(rst)
+            try:
+                rst_cb(rst)
+            except Exception as e:
+                print(e)
     wm.put_dat(dat)
     while not wm.que_rst.empty():
         for rst in wm.get_rst():
-            rst_cb(rst)
+            try:
+                rst_cb(rst)
+            except Exception as e:
+                print(e)
 
 
 def do_end(wm, rst_cb):
@@ -177,7 +183,10 @@ def do_end(wm, rst_cb):
     """
     while not wm.is_finish():
         for rst in wm.get_rst():
-            rst_cb(rst)
+            try:
+                rst_cb(rst)
+            except Exception as e:
+                print(e)
     wm.notify()
     wm.end()
 
