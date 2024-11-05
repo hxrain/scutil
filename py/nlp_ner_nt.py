@@ -132,8 +132,8 @@ class nt_parser_t:
     num_rules = [
         (f'([铁农建经纬纵横山钢莲光山华司达大中小老期江海安星煤宝金城片{"".join(_oc_nums)}]+{num_re}{{1,7}})', types.tags_NU, __nu_rec.__func__),
         (f'([东南西北]+{num_re}{{1,7}}|{num_re}{{1,7}}[东南西北新]+|[东南西北][分])', types.tags_NA, __nu_rec.__func__),
-        (f'([第笫上下新A-Z.]*{num_re}{{1,7}}[號号级大支只届期工次个度批委天时分鲜番房家运花阿核肉茶饭公度录吨经纬家郎哥幼条代纺化种停克田针奶年月日阀表班调医养缸牛兽酿岁继建酒冷轻橡棉邦斤干水齿皮客阁座层#℃]?)', types.tags_NU, __nu_rec.__func__),
-        (f'([铁农建第笫经纬纵横新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片台室房田]+)', types.tags_NS, __nu_rec.__func__),
+        (f'([第笫上下新A-Z.]*{num_re}{{1,7}}[號号级大支只届期工次个度批委天时分秒鲜番房家运花阿核肉茶饭公度录吨经纬家郎哥幼条代纺化种停克田针奶年月日阀杯轮表班调医养缸牛兽酿岁继建酒冷轻橡棉邦斤干水齿皮客阁座层#℃]?)', types.tags_NU, __nu_rec.__func__),
+        (f'([铁农建兵第笫经纬纵横新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片台室房田]+)', types.tags_NS, __nu_rec.__func__),
         (f'([铁农建第笫新]*{num_re}{{1,7}}[号]?)([分]?部队|煤矿|[团校院馆局会库矿场])', types.tags_NM, __nu_rec.__func__),
         (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店铺站园亭部处营连排厅社所船坊])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫大小老]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
@@ -167,7 +167,7 @@ class nt_parser_t:
             return rst
 
         ret = sorted(rst, key=lambda x: x[0])
-        return nt_parser_t._merge_segs(ret, False, False)[0]
+        return nt_parser_t._merge_segs(None, ret, False, False)[0]
 
     @staticmethod
     def rec_nums(segs, txt, nulst=None):
@@ -196,7 +196,7 @@ class nt_parser_t:
             """判断txt[pos]是否还需要向后扩展"""
             if txt[pos:pos + 2] in {'工区', '分号', '部队', '公里', '马路', '社区'}:
                 return pos + 2
-            if txt[pos:pos + 2] in {'营业', '营销', '营养', '营造', '营部', '矿业', '乡镇', '中学', '五金', '百货', '连锁', '冶金', '船舶', '高地'}:
+            if txt[pos:pos + 2] in {'营业', '营销', '营养', '营造', '营部', '矿业', '乡镇', '中学', '五金', '百货', '连锁', '冶金', '船舶', '高地', '组货'}:
                 return pos
             if uidx + 1 < len(usegs):
                 if mu.slen(usegs[uidx]) == 1 and txt[pos - 1] in {'第'}:
@@ -508,32 +508,38 @@ class nt_parser_t:
         """装载NA尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NA, encode, chk_cb=self._chk_cb)
 
+    def load_no(self, fname, encode='utf-8', isend=True):
+        """装载NO尾缀词典,返回值:''正常,否则为错误信息."""
+        return self.__load(isend, fname, types.tags_NO, encode, chk_cb=self._chk_cb)
+
     def loads(self, dicts_list, path=None, with_end=True, dbginfo=False):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
-        rst = []
+        map = {"NS": self.load_ns, "NT": self.load_nt, "NZ": self.load_nz, "NN": self.load_nn, "NA": self.load_na, "NO": self.load_no, }
+        bad = []
         for i, d in enumerate(dicts_list):
             fname = d[1] if path is None else os.path.join(path, d[1])
+            ftype = d[0]
+            if ftype not in map:
+                r = f'BAD<{ftype}>,<{fname}>'
+                bad.append(r)
+                if dbginfo:
+                    print(r)
+                continue
+
             if dbginfo:
-                if rst:
-                    print(rst)
                 print(f'loaging dictfile: {fname}')
-            if d[0] == 'NS':
-                r = self.load_ns(fname, isend=False)
-            elif d[0] == 'NT':
-                r = self.load_nt(fname, isend=False)
-            elif d[0] == 'NZ':
-                r = self.load_nz(fname, isend=False)
-            elif d[0] == 'NN':
-                r = self.load_nn(fname, isend=False)
-            elif d[0] == 'NA':
-                r = self.load_na(fname, isend=False)
+
+            r = map[ftype](fname, isend=False)
             if r != '':
-                rst.append(r)
+                bad.append(f'ERR<{r}>,<{fname}>')
+                if dbginfo:
+                    print(r)
+
         if with_end:
             if dbginfo:
                 print('building AC Tree ...')
             self.matcher.dict_end()
-        return ''.join(rst)
+        return ''.join(bad)
 
     @staticmethod
     def _merge_bracket(segs, txt):
@@ -865,7 +871,7 @@ class nt_parser_t:
             i += chk_drop(i) if is_trunk(segs[i], i, 3) else 1
 
     @staticmethod
-    def _merge_segs(segs, merge_types=True, combi=False, comboc_txt=None):
+    def _merge_segs(matcher, segs, merge_types=True, combi=False, comboc_txt=None):
         '''处理segs段落列表中交叉/包含/相同组份合并(merge_types)的情况,返回值:(结果列表,前后段关系列表)'''
         rst = []
         clst = []
@@ -956,7 +962,15 @@ class nt_parser_t:
                 if w in chars_NONS:
                     return types.tags_NO
                 else:
-                    return nnd.nt_tail_datas.get(w, typ_nhit)
+                    if not matcher:
+                        return nnd.nt_tail_datas.get(w, typ_nhit)
+                    else:
+                        if len(w) == 1 and comboc_txt[b - 1:e] in {'县城'}:
+                            return types.tags_NS
+                        mres = matcher.do_check(w, mode=mac.mode_t.max_match)
+                        if not mres or mu.slen(mres[-1]) != len(w):
+                            return typ_nhit
+                        return mres[-1][2]
 
             if types.NX not in seg[2]:
                 if combi and can_combi_NM(pseg, seg):
@@ -1226,7 +1240,9 @@ class nt_parser_t:
                         if types.tags_NS.issubset(f[2]) and types.tags_NZ.issubset(n[2]):
                             rst.pop(-2)  # NS+NZ,踢掉中间的两个相交分段
                             return True
-
+                        if n[1] == o[1] and types.tags_NO & n[2] and types.tags_NA & o[2]:
+                            rst.pop(-2)  # 甲爱|爱小|A:爱小屋|O:小屋,踢掉中间的两个分段
+                            return True
                 if len(rst) >= 2:
                     p = rst[-2]
                     if o[1] == n[0] + 1 and types.tags_NM.issubset(o[2]) and types.tags_NZ.issubset(n[2]):
@@ -1274,6 +1290,7 @@ class nt_parser_t:
                         return False  # 长段包含特定短段,不记录
                     if mu.slen(o) >= 4 and n[2] & {types.NA, types.NN}:
                         return False  # 长分段包含短NA,不记录
+
                     if len(rst) >= 2:
                         p = rst[-2]  # p,o,n三个段进行判断
                         if p[0] >= o[0] and n[1] <= o[1] and p[1] > n[0]:  # o完整涵盖了p和n,且p与n交叉
@@ -1300,7 +1317,7 @@ class nt_parser_t:
                         rst.pop(-2)  # 前段p与旧段o起点相同且更短,新段n接壤旧段o,则丢弃前段p
 
                 if n[0] - o[0] == 1 and n[1] - o[1] == 1 and types.tags_NS & o[2] and {types.NS, types.NH} & n[2]:
-                    if chk_prorsad(rst, n) or txt[o[1]] in {'乡', '村', }:  # '镇'}:
+                    if chk_prorsad(rst, n):  # or txt[o[1]] in {'乡', '村', }:  # '镇'}:
                         return True  # 前方有接续的分段,则记录
                     return False  # 天津市&津市市,不记录
                 return True
@@ -1351,7 +1368,7 @@ class nt_parser_t:
             返回值:(分段列表[(b,e,{types})],分段关系列表[(pseg,rl,nseg,cr)])
         '''
         segs = self.split(txt, nulst, mres=mres)  # 先拆分得到可能的列表
-        rlst, clst = nt_parser_t._merge_segs(segs, merge, True, txt if comboc else None)  # 进行完整合并
+        rlst, clst = nt_parser_t._merge_segs(self.matcher, segs, merge, True, txt if comboc else None)  # 进行完整合并
         if with_useg:
             rlst = mu.complete_segs(rlst, len(txt), True)[0]  # 补全中间的空洞分段
 
