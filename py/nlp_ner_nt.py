@@ -29,19 +29,27 @@ class nt_parser_t:
     def __nu_rec(lst, mres, typ, offset=0):
         """记录数字匹配结果"""
 
-        def rec(lst, seg):
+        def rec(lst: list, seg):
             """记录匹配结果,规避多条规则的重复匹配分段,保留高优先级结果"""
-            for i in range(len(lst)):
-                rseg = lst[i]
-                if rseg[0] == seg[0] and rseg[1] == seg[1]:
-                    if types.cmp(rseg[2], seg[2]) < 0:
-                        lst[i] = seg  # 先进行一圈查找,如果存在与新分段重叠的段,则保留高优先级的分段.
-                    return
-                if rseg[0] <= seg[0] and seg[1] <= rseg[1]:
+            for i in range(len(lst) - 1, -1, -1):
+                pseg = lst[i]
+                # if (pseg[1] > seg[0] and pseg[1] <= seg[1]) or (pseg[0] >= seg[0] and pseg[0] < seg[1]):
+                if pseg[0] >= seg[0] and pseg[1] <= seg[1]:
+                    if types.cmp(pseg[2], seg[2]) < 0 or (types.tags_NU & pseg[2] and types.tags_NO & seg[2]):
+                        lst.pop(i)  # 先进行一圈查找,如果存在与新分段重叠的段,则保留高优先级的分段.
+                        continue
+                if pseg[0] <= seg[0] and seg[1] <= pseg[1]:
                     return  # 存在长匹配,则丢弃当前短匹配
             if len(lst) >= 2:
-                if lst[-2][1] == seg[0] and types.tags_NS.issubset(lst[-2][2]) and types.tags_NU.issubset(seg[2]):
-                    lst.pop(-1)  # 前后是NS+NU,则丢弃中间段
+                fseg = lst[-2]
+                if fseg[1] == seg[0] and types.tags_NS.issubset(fseg[2]) and seg[2] & {types.NS, types.NO}:
+                    lst.pop(-1)  # 前后是NS+NU,则丢弃NU,记录新的
+
+            for i in range(len(lst) - 1, -1, -1):
+                pseg = lst[i]
+                if seg[0] <= pseg[0]:
+                    lst.insert(i, seg)
+                    return
             lst.append(seg)
 
         if typ & types.tags_NM:
@@ -62,7 +70,7 @@ class nt_parser_t:
                 rec(lst, seg)
 
     # 数字序号基础模式
-    num_re = r'[A-Z×\.+○O\d甲乙丙丁戊己庚辛壬癸幺零一二三四五六七八九十壹贰貮貳两叁参仨肆伍陆柒捌玖拾佰百千仟万廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]'
+    num_re = r'[A-Z×\.+○O\d甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥零一二三四五六七八九十幺壹贰貮貳两叁参仨肆伍陆柒捌玖拾佰百千仟万廿卅IⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]'
     _oc_nums = ['匕', '比', '彼', '必', '毕', '碧', '卞', '变', '表', '别', '宾', '彬', '斌', '滨', '冰', '缤', '兵', '秉', '炳', '并', '波', '伯', '帛', '泊', '铂', '博', '亳', '渤', '搏', '卜', '补', '不', '布',
                 '步', '擦', '才', '材', '财', '采', '彩', '菜', '蔡', '餐', '灿', '仓', '璨', '苍', '沧', '藏', '曹', '草', '策', '岑', '层', '曾', '叉', '插', '茶', '茬', '查', '搽', '差', '柴', '婵', '馋', '禅',
                 '蝉', '产', '昌', '尝', '常', '昶', '畅', '超', '晁', '朝', '潮', '车', '屮', '澈', '扯', '琛', '臣', '尘', '辰', '沉', '陈', '宸', '晨', '成', '丞', '呈', '诚', '承', '乘', '程', '澄', '橙', '池',
@@ -127,15 +135,16 @@ class nt_parser_t:
                 '綦', '汽', '器', '羌', '芩', '瞿', '取', '绕', '稔', '嵘', '镕', '裳', '烧', '设', '声', '氏', '事', '侍', '试', '释', '手', '抒', '属', '朔', '笋', '他', '态', '坦', '瑭', '疼', '踢', '僮', '抟',
                 '坨', '歪', '菀', '碗', '位', '喔', '勿', '洗', '辖', '携', '锌', '星', '岫', '袖', '绣', '须', '煦', '泫', '旬', '浔', '夭', '邀', '晔', '彝', '倚', '译', '绎', '弈', '羿', '翌', '熠', '茵', '瑛',
                 '庸', '忧', '寓', '愿', '匀', '郧', '咱', '轧', '斋', '招', '爪', '肇', '贞', '筝', '证', '栀', '植', '止', '芷', '至', '质', '炙', '挚', '稚', '轴', '诸', '逐', '烛', '助', '赚', '隹', '拙', '琢',
-                '孜', '兹', '籽', '恣', '投', '水']
+                '孜', '兹', '籽', '恣', '投', '水', '珅', '姐', '桩']
     # 数字序号组合模式
     num_rules = [
         (f'([铁农建经纬纵横山钢莲光山华司达大中小老期江海安星煤宝金城片{"".join(_oc_nums)}]+{num_re}{{1,7}})', types.tags_NU, __nu_rec.__func__),
-        (f'([东南西北]+{num_re}{{1,7}}|{num_re}{{1,7}}[东南西北新]+|[东南西北][分])', types.tags_NA, __nu_rec.__func__),
-        (f'([第笫上下新A-Z.]*{num_re}{{1,7}}[號号级大支只届期工次个度批委天时分秒鲜番房家运花阿核肉茶饭公度录吨经纬家郎哥幼条代纺化种停克田针奶年月日阀杯轮表班调医养缸牛兽酿岁继建酒冷轻橡棉邦斤干水齿皮客阁座层#℃]?)', types.tags_NU, __nu_rec.__func__),
-        (f'([铁农建兵第笫经纬纵横新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街院里亩线楼栋段桥井闸门渠河沟江坝村区师机片台室房田]+)', types.tags_NS, __nu_rec.__func__),
-        (f'([铁农建第笫新]*{num_re}{{1,7}}[号]?)([分]?部队|煤矿|[团校院馆局会库矿场])', types.tags_NM, __nu_rec.__func__),
-        (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店铺站园亭部处营连排厅社所船坊])', types.tags_NB, __nu_rec.__func__),
+        (f'([东南西北]+{num_re}{{1,7}}[号]?|{num_re}{{1,7}}[东南西北新]+|[东南西北][分])', types.tags_NU, __nu_rec.__func__),
+        (f'([第笫上下新A-Z.]*{num_re}{{1,7}}[号]?[號级大支只届期工次个度批委天时分秒鲜番房船轮家运花阿核肉茶饭公度录吨经纬家郎哥幼条代纺化种停克田针奶口年月日阀杯表班调医养缸牛兽酿岁继建酒冷轻橡棉邦斤干水齿皮客阁座层#℃]?)', types.tags_NU, __nu_rec.__func__),
+        (f'([铁农建兵第笫经纬纵横新ABCDGKSXYZ]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|[道路弄街里亩线楼栋段桥井闸门渠河沟江坝村区师机片台室房田]+)', types.tags_NS, __nu_rec.__func__),
+        (f'([铁农建第笫新]*{num_re}{{1,7}}[号]?)([分]?部队|煤矿)', types.tags_NM, __nu_rec.__func__),
+        (f'([铁农建第笫新]*{num_re}{{1,7}}[号]?)([分]?[团校院馆局会库矿场])', types.tags_NO, __nu_rec.__func__),
+        (f'([铁农建第笫]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|[厂店铺站园亭部处营连排厅社所坊])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫大小老]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
         (f'([铁农建第笫东南西北]*{num_re}{{1,7}})([职中小高冶路街委米条])(?![学])', types.tags_NS, __nu_rec.__func__),
     ]
@@ -162,12 +171,12 @@ class nt_parser_t:
             if not mres:
                 continue
             pat[2](rst, mres, pat[1], offset)
+            # rst = sorted(rst, key=lambda x: x[0])
 
         if not rst:
             return rst
 
-        ret = sorted(rst, key=lambda x: x[0])
-        return nt_parser_t._merge_segs(None, ret, False, False)[0]
+        return nt_parser_t._merge_segs(None, rst, False, False)[0]
 
     @staticmethod
     def rec_nums(segs, txt, nulst=None):
@@ -175,7 +184,7 @@ class nt_parser_t:
         chks = []
 
         def chk_num_segs(rsts):
-            """检查记录可以进行数字匹配的分段"""
+            """分析需要进行数字匹配的分段"""
             nonlocal chks
             seg = rsts[-1]  # 当前段
             idx = len(rsts) - 1  # 当前段索引
@@ -257,7 +266,8 @@ class nt_parser_t:
 
             b = skip_prev(useg[0], uidx)  # 向前扩张
             e = skip_next(useg[1], uidx)  # 向后扩张
-            nums = nt_parser_t.query_nu(txt[b:e], nulst, b)  # 进行数字序号匹配
+            s = txt[b:e]
+            nums = nt_parser_t.query_nu(s, nulst, b)  # 进行数字序号匹配
             rst.extend(nums)
 
         nt_parser_t._merge_nums(segs, rst)  # 合并数字序号分段到整体结果中
@@ -287,7 +297,7 @@ class nt_parser_t:
                 trie.add(en)
         return trie
 
-    def __load(self, isend, fname, tags, encode='utf-8', vals_cb=None, chk_cb=None):
+    def __load(self, isend, fname, tags, encode='utf-16', vals_cb=None, chk_cb=None):
         """装载词典文件fname并绑定数据标记tags,返回值:''正常,否则为错误信息."""
         if fname is None:
             return None
@@ -327,7 +337,7 @@ class nt_parser_t:
         if isend:
             self.matcher.dict_end()
 
-    def load_nt(self, fname=None, encode='utf-8', isend=True, with_NO=True, keys=None, debars=None):
+    def load_nt(self, fname=None, encode='utf-16', isend=True, with_NO=True, keys=None, debars=None):
         """装载NT尾缀词典,返回值:''正常,否则为错误信息."""
 
         # 初始化构建匹配词表
@@ -338,6 +348,8 @@ class nt_parser_t:
                 if keys and k not in keys:
                     continue
                 tags = data['.']
+                if tags & types.tags_NS:
+                    continue  # 不装载内置的区域特征词表
                 exts = data['+']
                 nobs = data['-']
                 if len(k) > 1 or (len(k) == 1 and with_NO):
@@ -377,7 +389,7 @@ class nt_parser_t:
             lbl = nt_parser_t.tag_labels[lbl]  # 江标注字符转换为对应类型
         return name, lbl
 
-    def load_ns(self, fname=None, encode='utf-8', isend=True, worlds=True, ns_lvl_limit=5, drops_tailchars=None, conv_fname='rule_ns_conv.txt'):
+    def load_ns(self, fname=None, encode='utf-16', isend=True, worlds=True, ns_lvl_limit=5, drops_tailchars=None, conv_fname='rule_ns_conv.txt'):
         """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
         lvls = {0: types.tags_NS, 1: types.tags_NS1, 2: types.tags_NS2, 3: types.tags_NS3, 4: types.tags_NS4, 5: types.tags_NS5}
 
@@ -482,7 +494,10 @@ class nt_parser_t:
                 return [(name, ns_tags(name))]
             # 解析得到主干部分
             aname = cai.drop_area_tail(name, drops_tailchars)
-            if name == aname or aname in nnd.nt_tail_datas:
+            if name == aname:
+                return [(name, ns_tags(name))]
+            if aname in nnd.nt_tail_datas:
+                print(f'<{fname}> {name}@{aname} is repeat in nt_tail_datas.')
                 return [(name, ns_tags(name))]
 
             if len(aname) <= 1:
@@ -496,23 +511,23 @@ class nt_parser_t:
 
         return self.__load(isend, fname, types.tags_NS, encode, vals_cb, self._chk_cb) if fname else ''
 
-    def load_nz(self, fname, encode='utf-8', isend=True):
+    def load_nz(self, fname, encode='utf-16', isend=True):
         """装载NZ组份词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NZ, encode, chk_cb=self._chk_cb)
 
-    def load_nn(self, fname, encode='utf-8', isend=True):
+    def load_nn(self, fname, encode='utf-16', isend=True):
         """装载NN尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NN, encode, chk_cb=self._chk_cb)
 
-    def load_na(self, fname, encode='utf-8', isend=True):
+    def load_na(self, fname, encode='utf-16', isend=True):
         """装载NA尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NA, encode, chk_cb=self._chk_cb)
 
-    def load_no(self, fname, encode='utf-8', isend=True):
+    def load_no(self, fname, encode='utf-16', isend=True):
         """装载NO尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NO, encode, chk_cb=self._chk_cb)
 
-    def loads(self, dicts_list, path=None, with_end=True, dbginfo=False):
+    def loads(self, dicts_list, path=None, with_end=True, dbginfo=False, encode='utf-16'):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
         map = {"NS": self.load_ns, "NT": self.load_nt, "NZ": self.load_nz, "NN": self.load_nn, "NA": self.load_na, "NO": self.load_no, }
         bad = []
@@ -529,7 +544,7 @@ class nt_parser_t:
             if dbginfo:
                 print(f'loaging dictfile: {fname}')
 
-            r = map[ftype](fname, isend=False)
+            r = map[ftype](fname, encode, isend=False)
             if r != '':
                 bad.append(f'ERR<{r}>,<{fname}>')
                 if dbginfo:
@@ -988,6 +1003,9 @@ class nt_parser_t:
                     if comboc_txt and pseg[1] - seg[0] == 1:
                         if types.tags_NN.issubset(pseg[2]) and types.tags_NS.issubset(seg[2]) and comboc_txt[pseg[0]] not in {'和', '驻'}:
                             rst[-1] = (pseg[0], seg[1], seg[2])  # NN&NS,后段吞并前段
+                            return
+                        if types.tags_NU.issubset(pseg[2]) and types.tags_NA.issubset(seg[2]):
+                            rst[-1] = (pseg[0], seg[1], seg[2])  # NU&NA,后段吞并前段
                             return
                         if types.tags_NU.issubset(seg[2]):
                             seg = (pseg[1], seg[1], seg[2])  # &NU则切除相交部分

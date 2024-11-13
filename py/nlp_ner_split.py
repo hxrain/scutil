@@ -9,7 +9,7 @@ import re
 """
 
 # 名字分隔符归一化
-SEP_NAMES = {'·': '.', '°': '.', '—': '.', '━': '.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.','‧':'.',
+SEP_NAMES = {'·': '.', '°': '.', '—': '.', '━': '.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.', '‧': '.',
              '\\': '.', '"': "'", '●': '.', '[': '(', ']': ')', '{': '(', '}': ')', '―': '.', '─': '.', '､': '、', '￮': '0', '﹢': '+', '﹒': '.', 'ˉ': '.'}
 
 
@@ -407,13 +407,76 @@ class text_spliter_t:
         rst_segs = []  # 最终返回的分割段列表
         rst_strs = []  # 分割段对应的字符串列表
 
+        def adj_debar_match(segs, txt, strs):
+            """尝试调整切割分段列表中出现的跨段且需保护的部分,比如'{关于*的}'不能破坏'关于它的!'"""
+
+            def find_next(b, ids):
+                """从segs的b开始,查找含有相同ids的分段,返回其下标"""
+                for i in range(b, len(segs)):
+                    if segs[i][2] and segs[i][2] & ids:
+                        return i
+                return None
+
+            mods = 0
+
+            pos = 0
+            while pos < len(segs):
+                cseg = segs[pos]
+                if cseg[2] is None:
+                    pos += 1
+                    continue
+                next = find_next(pos + 1, cseg[2])  # 遇到跨段匹配的分段了,则尝试查找对应的下一段
+                if next is None:
+                    return  # 找不到就结束了
+                nseg = segs[next]
+                # 对找到的跨段内容进行排除测试
+                st = txt[cseg[0]:nseg[1]]
+                mres = self.word_spliter.matcher.do_check(st, mode=mac.mode_t.max_match)
+                if not mres or mres[-1][2] != '!':  # 无命中则继续检查后续段
+                    pos += 1
+                    continue
+                # 命中排除分段了,则将对应分段删除并合并
+                for i in range(next - pos):
+                    segs.pop(pos)
+                segs[pos] = (cseg[0], nseg[1], None)
+                pos += 1
+                mods += 1
+
+            if not mods:
+                return  # 未修改过,直接返回
+
+            strs.clear()
+            # 需要检查排除处理后是否存在需要重新合并的未匹配分段
+            pos = 0
+            while pos < len(segs) - 1:
+                cseg = segs[pos]
+                if cseg[2] is not None:
+                    pos += 1
+                    strs.append(with_space * (cseg[1] - cseg[0]))  # 重构被丢弃的文本串为对应长度的空白串
+                    continue
+
+                nseg = segs[pos + 1]
+                if nseg[2] is not None:
+                    pos += 1
+                    strs.append(txt[cseg[0]:cseg[1]])  # 记录上一个有效分段字符串
+                    continue
+
+                # 更新或记录新的合并字符串
+                if not strs:
+                    strs.append(txt[cseg[0]:nseg[1]])
+                else:
+                    strs[pos] = txt[cseg[0]:nseg[1]]
+                    
+                segs[pos] = (cseg[0], nseg[1], None)
+                segs.pop(pos + 1)
+
         segs0, strs0 = tiny_text_split(txt)  # 按标点分割
         for i0, seg0 in enumerate(segs0):
             if seg0[2] is None and mu.slen(seg0) >= 3:  # 非标点分段
                 # 进行跨段分割
                 segs1, strs1 = self.wild_spliter.split(strs0[i0], with_space)
-                # if len(segs1) != len(strs1):
-                #     print(txt)
+                adj_debar_match(segs1, strs0[i0], strs1)  # 进行规避校正
+
                 for i1, seg1 in enumerate(segs1):
                     if seg1[2] is None and mu.slen(seg0) >= 3:  # 当前是跨段需保留的部分
                         # 进行停用词分割
