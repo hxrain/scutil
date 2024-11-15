@@ -427,11 +427,13 @@ class nt_parser_t:
                 tags = lvls[lvl]
                 for name in alst:
                     self.matcher.dict_add(name, ns_tags(name), force=True)  # 进行动态类型计算
+                    self.matcher.dict_add('驻' + name, tags, force=True)  # 增加驻地名称模式
                     aname = cai.drop_area_tail(name, drops_tailchars)
                     if name != aname and aname not in nnd.nt_tail_datas:
                         if aname in aname_convs:
                             tags = aname_convs[aname]  # 对内置地名的简称进行类型调整
                         self.matcher.dict_add(aname, tags, force=True)  # 特定尾缀地区名称,放入简称和初始类型
+                        self.matcher.dict_add('驻' + aname, tags, force=True)  # 增加驻地简称模式
 
                 cnames = cai.make_comb_parent_name(id)
                 for name in cnames:
