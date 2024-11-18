@@ -283,6 +283,7 @@ class nt_parser_t:
     def __init__(self, light=False):
         self.matcher = mac.ac_match_t()  # 定义ac匹配树
         self._bads = self.make_tails_bads()  # 尾缀坏词匹配器
+        self.nsa_type_maps = {}  # 内置地名简称类型映射表
         if light:
             self.load_nt(isend=False)
             self.load_ns(isend=True)
@@ -302,28 +303,35 @@ class nt_parser_t:
         if fname is None:
             return None
 
-        def add(word, tag, row, txt):
+        def add_word(word, tag, row, txt):
             ret, old = self.matcher.dict_add(word, tag, force=True)
             if chk_cb is not None and not ret:
                 chk_cb(fname, row, txt, word, old)
 
+        def add_line(txt, row):
+            if not txt or txt[0] == '#':
+                return
+            if vals_cb:
+                vals = vals_cb(txt)
+                for val in vals:
+                    add_word(val[0], val[1], row, txt)
+            else:
+                name, tag = nt_parser_t._split_label(txt)  # 内置标注解析处理
+                if not tag:
+                    tag = tags
+                add_word(name, tag, row, txt)
+
         try:
-            row = -1
-            with open(fname, 'r', encoding=encode) as fp:
-                for _line in fp:
-                    row += 1
-                    txt = _line.strip()
-                    if not txt or txt[0] == '#':
-                        continue
-                    if vals_cb:
-                        vals = vals_cb(txt)
-                        for val in vals:
-                            add(val[0], val[1], row, txt)
-                    else:
-                        name, tag = nt_parser_t._split_label(txt)  # 内置标注解析处理
-                        if not tag:
-                            tag = tags
-                        add(name, tag, row, txt)
+            if isinstance(fname, str):
+                row = -1
+                with open(fname, 'r', encoding=encode) as fp:
+                    for _line in fp:
+                        row += 1
+                        txt = _line.strip()
+                        add_line(txt, row)
+            elif isinstance(fname, list):
+                for row, txt in enumerate(fname):
+                    add_line(txt, row)
             if isend:
                 self.matcher.dict_end()
             return ''
@@ -368,10 +376,11 @@ class nt_parser_t:
 
     def _chk_cb(self, fname, row, txt, word, tag):
         """默认的检查词典冲突的输出回调事件处理器"""
+        fn = fname if isinstance(fname, str) else f'dict@{fname[0]}'
         if txt == word:
-            print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat!<{tag}>')
+            print(f'<{fn}|{row + 1:>8},{len(txt):>2}>:{txt} repeat!<{tag}>')
         else:
-            print(f'<{fname}|{row + 1:>8},{len(txt):>2}>:{txt} repeat {word}<{tag}>')
+            print(f'<{fn}|{row + 1:>8},{len(txt):>2}>:{txt} repeat {word}<{tag}>')
 
     @staticmethod
     def _split_label(line):
@@ -389,23 +398,24 @@ class nt_parser_t:
             lbl = nt_parser_t.tag_labels[lbl]  # 江标注字符转换为对应类型
         return name, lbl
 
-    def load_ns(self, fname=None, encode='utf-16', isend=True, worlds=True, ns_lvl_limit=5, drops_tailchars=None, conv_fname='rule_ns_conv.txt'):
-        """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
-        lvls = {0: types.tags_NS, 1: types.tags_NS1, 2: types.tags_NS2, 3: types.tags_NS3, 4: types.tags_NS4, 5: types.tags_NS5}
-
-        def _load_convs():
-            """装载内置地名的简称类型调整字典"""
-            if not fname or not conv_fname:
-                return {}
-            rst = {}
-            rfname = os.path.join(os.path.dirname(fname), conv_fname)
-            with open(rfname, 'r', encoding='utf-8') as rf:
+    def load_nsa(self, rfname, encode='utf-16', isend=None):
+        """装载内置地名的简称类型校正字典,避免将'公安县'的'公安'当作地名.需要在调用load_ns之前执行."""
+        if isinstance(rfname, str):
+            with open(rfname, 'r', encoding=encode) as rf:
                 for line in rf.readlines():
                     if not line or line[0] == '#':
                         continue
                     aname, typ = nt_parser_t._split_label(line)
-                    rst[aname] = typ
-            return rst
+                    self.nsa_type_maps[aname] = typ
+        elif isinstance(rfname, list):
+            for line in rfname:
+                aname, typ = nt_parser_t._split_label(line)
+                self.nsa_type_maps[aname] = typ
+        return ''
+
+    def load_ns(self, fname=None, encode='utf-16', isend=True, worlds=True):
+        """装载NS组份词典,worlds告知是否开启全球主要地区.返回值:''正常,否则为错误信息."""
+        lvls = {0: types.tags_NS, 1: types.tags_NS1, 2: types.tags_NS2, 3: types.tags_NS3, 4: types.tags_NS4, 5: types.tags_NS5}
 
         def ns_tags(line):
             """根据地名进行行政级别查询,返回对应的类型标记"""
@@ -418,20 +428,17 @@ class nt_parser_t:
 
         # 装入内置的行政区划名称
         if len(self.matcher.do_loop(None, '牡丹江市')) != 4:
-            aname_convs = _load_convs()
             for id in cai.map_id_areas:
                 alst = cai.map_id_areas[id]
                 lvl = cai.query_aera_level(alst[0])  # 根据正式地名得到行政区划级别
-                if lvl > ns_lvl_limit:
-                    continue  # 可进行层级限制,不装载低层级的区划名称.
-                tags = lvls[lvl]
+
                 for name in alst:
+                    tags = lvls[lvl]
                     self.matcher.dict_add(name, ns_tags(name), force=True)  # 进行动态类型计算
                     self.matcher.dict_add('驻' + name, tags, force=True)  # 增加驻地名称模式
-                    aname = cai.drop_area_tail(name, drops_tailchars)
+                    aname = cai.drop_area_tail(name)
                     if name != aname and aname not in nnd.nt_tail_datas:
-                        if aname in aname_convs:
-                            tags = aname_convs[aname]  # 对内置地名的简称进行类型调整
+                        tags = self.nsa_type_maps.get(aname, tags)  # 对内置地名的简称进行类型调整
                         self.matcher.dict_add(aname, tags, force=True)  # 特定尾缀地区名称,放入简称和初始类型
                         self.matcher.dict_add('驻' + aname, tags, force=True)  # 增加驻地简称模式
 
@@ -460,18 +467,14 @@ class nt_parser_t:
         # 装入内置的世界主要国家与首都
         if worlds and len(self.matcher.do_loop(None, '环太平洋')) != 4:
             for state in cai.map_worlds:
-                tags = types.tags_NS
-                if state in aname_convs:
-                    tags = aname_convs[state]  # 对state地名进行类型调整
+                tags = self.nsa_type_maps.get(state, types.tags_NS)  # 对state地名进行类型调整
                 r, ot = self.matcher.dict_add(state, tags, force=True)
                 if not r:
                     print(f"nlp_ner_nt.load_ns state is repeat: {state} {ot}")
 
                 city = cai.map_worlds[state]
                 if city:
-                    tags = types.tags_NS1
-                    if city in aname_convs:
-                        tags = aname_convs[city]  # 对city地名进行类型调整
+                    tags = self.nsa_type_maps.get(city, types.tags_NS1)  # 对city首都地名进行类型调整
                     r, ot = self.matcher.dict_add(city, tags, force=True)
                     if not r:
                         print(f"nlp_ner_nt.load_ns city is repeat: {city} {ot}")
@@ -495,15 +498,17 @@ class nt_parser_t:
             if tag == '':  # 不要求进行解析处理
                 return [(name, ns_tags(name))]
             # 解析得到主干部分
-            aname = cai.drop_area_tail(name, drops_tailchars)
+            aname = cai.drop_area_tail(name)
             if name == aname:
                 return [(name, ns_tags(name))]
             if aname in nnd.nt_tail_datas:
-                print(f'<{fname}> {name}@{aname} is repeat in nt_tail_datas.')
+                fn = fname if isinstance(fname, str) else f'dict@{fname[0]}'
+                print(f'<{fn}> {name}@{aname} is repeat in nt_tail_datas.')
                 return [(name, ns_tags(name))]
 
             if len(aname) <= 1:
-                print(f'<{fname}>:{line} split <{aname}>')
+                fn = fname if isinstance(fname, str) else f'dict@{fname[0]}'
+                print(f'<{fn}>:{line} split <{aname}>')
             if tag is None:  # 没有明确标注主干类型时
                 if aname[-1] in nt_parser_t.num_re:
                     tag = types.tags_NA  # 弱化类型
@@ -531,24 +536,24 @@ class nt_parser_t:
 
     def loads(self, dicts_list, path=None, with_end=True, dbginfo=False, encode='utf-16'):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
-        map = {"NS": self.load_ns, "NT": self.load_nt, "NZ": self.load_nz, "NN": self.load_nn, "NA": self.load_na, "NO": self.load_no, }
+        map = {"NS": self.load_ns, "NT": self.load_nt, "NZ": self.load_nz, "NN": self.load_nn, "NA": self.load_na, "NO": self.load_no, "SA": self.load_nsa}
         bad = []
         for i, d in enumerate(dicts_list):
             fname = d[1] if path is None else os.path.join(path, d[1])
             ftype = d[0]
             if ftype not in map:
-                r = f'BAD<{ftype}>,<{fname}>'
+                r = f'BAD<{ftype}>@<{fname if isinstance(fname, str) else i}>'
                 bad.append(r)
                 if dbginfo:
                     print(r)
                 continue
 
             if dbginfo:
-                print(f'loaging dictfile: {fname}')
+                print(f'loaging dictfile: <{ftype}>@<{fname if isinstance(fname, str) else i}>')
 
             r = map[ftype](fname, encode, isend=False)
             if r != '':
-                bad.append(f'ERR<{r}>,<{fname}>')
+                bad.append(f'ERR<{r}>:<{ftype}>@<{fname if isinstance(fname, str) else i}>')
                 if dbginfo:
                     print(r)
 
@@ -898,7 +903,7 @@ class nt_parser_t:
         def can_combi_NM(pseg, seg):
             """判断特殊序列是否可以合并"""
             if pseg[2] & {types.NZ, types.NS} and types.equ(seg[2], types.tags_NM):
-                if merge_types and mu.slen(pseg) <= 6 and mu.slen(seg) < 3:
+                if merge_types and mu.slen(pseg) <= 2 and mu.slen(seg) <= 2:
                     return True  # 要求合并,且前后段比较短,可以合并
                 if pseg[1] > seg[0] and seg[1] - pseg[0] < 10:
                     return True  # 交叉(NZ,NS)&NM,且前后段比较短,可以合并
@@ -1240,8 +1245,9 @@ class nt_parser_t:
                     if types.tags_NM.issubset(o[2]) and types.tags_NZ.issubset(n[2]):
                         return True  # '农业科|农业科技'=>NM&NZ,丢弃NM
 
-                if o[1] - n[0] >= 2 and 3 >= n[0] - o[0] >= 2 and n[1] > o[1] and types.tags_NS.issubset(o[2]) and {types.NN, types.NA} & n[2]:
-                    rst[-1] = (o[0], n[0], o[2])  # NS&NA长相交且剩余多字,则进行切分
+                if o[1] - n[0] >= 2 and 3 >= n[0] - o[0] >= 2 and n[1] - o[1] >= 1 and types.tags_NS & o[2] and {types.NN, types.NA} & n[2]:
+                    if cai.query_ids_by_area(txt[o[0]:n[0]]):  # 内部整合的市区县模式,可以进行切分
+                        rst[-1] = (o[0], n[0], o[2])  # NS&NA长相交且剩余多字,则进行切分
                     if len(rst) >= 2 and mu.slen(rst[-2]) > mu.slen(rst[-1]) and rst[-2][0] == rst[-1][0]:
                         rst.pop(-2)  # o分段缩短后,如果存在被涵盖的p段,则丢弃p
                     return False

@@ -13,6 +13,7 @@ from hash_calc import calc_key
 import traceback
 import hashlib
 
+
 # -----------------------------------------------------------------------------
 def es(e: Exception):
     """格式化简短异常信息"""
@@ -60,6 +61,7 @@ def find_zh_chars(s, is_zh=True):
         return re.findall('[\u4e00-\u9fa5]', s)
     else:
         return re.findall('[!-~]', s)
+
 
 def md5(s):
     """计算字符串的MD5值"""
@@ -1345,6 +1347,28 @@ def dict_reduce(main, data):
     """将data中的计数结果累积到main中"""
     for k in data:
         main[k] = main.get(k, 0) + data[k]
+
+
+def load_lines(fname, encoding='utf-8', cb=None):
+    """装载文件行,并可进行过滤.
+        def cb(line) 返回None不记录
+        返回值:([行列表],err),err为空正常
+    """
+    try:
+        fp = open(fname, 'r', encoding=encoding)
+        lines = fp.readlines()
+        fp.close()
+        if cb is None:
+            return lines, ''
+        else:
+            outs = []
+            for line in lines:
+                txt = cb(line)
+                if txt is not None:
+                    outs.append(txt)
+        return outs, ''
+    except Exception as e:
+        return None, ei(e)
 
 
 def text_file_sort(fname, mode=1, encoding='utf-8', cb=None):
