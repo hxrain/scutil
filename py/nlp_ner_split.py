@@ -155,6 +155,9 @@ class word_spliter_t:
     def dict_end(self):
         self.matcher.dict_end()
 
+    def clear(self):
+        self.matcher.clear()
+
     def match(self, txt):
         """对txt进行内部词表的匹配.返回值:[(begin,end,val)],val is None对应未匹配部分"""
         segs = self.matcher.do_match(txt, mode=mac.mode_t.merge_cross)
@@ -247,6 +250,10 @@ class wild_spliter_t:
 
     def dict_end(self):
         self.matcher.dict_end()
+
+    def clear(self):
+        self.matcher.clear()
+        self.pairs.clear()
 
     def match(self, txt):
         """对txt进行内部词表的匹配.返回值:[(begin,end,val)],val is None对应未匹配部分"""
@@ -341,6 +348,8 @@ class text_spliter_t:
 
     def load(self, fname, isend=True, encoding='utf-8'):
         """装载规则文件.返回值:''正常,其他为错误信息."""
+        self.wild_spliter.clear()
+        self.word_spliter.clear()
         try:
             rules = {}  # 进行重复性检查,记录所有装载过的规则
 
@@ -466,7 +475,7 @@ class text_spliter_t:
                     strs.append(txt[cseg[0]:nseg[1]])
                 else:
                     strs[pos] = txt[cseg[0]:nseg[1]]
-                    
+
                 segs[pos] = (cseg[0], nseg[1], None)
                 segs.pop(pos + 1)
 
@@ -502,18 +511,19 @@ class html_spliter_t:
         self._text_spliter = text_spliter_t()  # 文本停用词拆分器
         self._pre_ac = mac.ac_match_t()  # 前处理替换器
 
-    def load(self, rule_file, pre_file):
+    def load(self, rule_file, pre_file, encoding='utf-16'):
         """装载规则文件.
             rule_file - 停用词拆分规则
             pre_file - 前处理替换规则
             返回值:空串正常,否则为错误信息.
         """
-        err = self._text_spliter.load(rule_file)
+        err = self._text_spliter.load(rule_file, encoding=encoding)
         if err:
-            return f'html_spliter_t.load() fail: {rule_file}'
-        err = self._pre_ac.dict_load(pre_file)
+            return f'html_spliter_t._text_spliter.load() fail: {rule_file}'
+        self._pre_ac.clear()
+        _, err = self._pre_ac.dict_load(pre_file, encoding=encoding)
         if err:
-            return f'html_spliter_t.load() fail: {pre_file}'
+            return f'html_spliter_t._pre_ac.load() fail: {pre_file}'
         return ''
 
     def split(self, txt):
@@ -523,6 +533,30 @@ class html_spliter_t:
         st1 = self._pre_ac.do_filter(st)  # 进行额外的前置替换,规避含有断句字符的有效内容(在前处理规则文件中统一使用半角归一化字符即可)
         segs, strs = self._text_spliter.split(st1, ' ')  # 进行断句拆分(在停用词规则文件中统一使用半角归一化字符即可)
         return rt, segs
+
+
+class tails_checker_t:
+    """尾缀检查器"""
+
+    def __init__(self):
+        self._ac = mac.ac_match_t()
+
+    def load(self, rule_file, encoding='utf-16'):
+        """装载匹配规则,返回值:错误信息"""
+        _, err = self._ac.dict_load(rule_file, defval='.', sep='!', encoding=encoding)  # val is '.' 为尾缀匹配;val is '' 为完整匹配
+        return err
+
+    def match(self, name):
+        """判断nt名称name是否匹配了无效尾缀,返回值:0-未命中;1-完整命中;2-尾缀命中"""
+        mres = self._ac.do_check(name, mode=mac.mode_t.max_match)
+        if not mres:
+            return 0
+        m = mres[-1]
+        if m[2] == '.':
+            return 2
+        if mu.slen(m) == len(name):
+            return 1
+        return 0
 
 
 if __name__ == "__main__":

@@ -117,6 +117,11 @@ class ac_match_t:
         if fname:
             self.dict_load(fname)
 
+    def clear(self):
+        if self.root:
+            self.root.childs.clear()
+        self.root = self.node_t()
+
     def dict_add(self, keyword, val=delimit, strip=True, force=False):
         """添加关键词条到词表
             keyword - 待匹配的关键词
@@ -228,7 +233,7 @@ class ac_match_t:
         """
         try:
             rc = 0
-            with open(fname, 'r', encoding='utf8') as f:
+            with open(fname, 'r', encoding=encoding) as f:
                 for line in f:
                     line = line.strip()
                     if not line:
