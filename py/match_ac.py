@@ -94,7 +94,7 @@ class ac_match_t:
                 node = node.parent
             return ''.join(rst)
 
-        def get_fails(self):
+        def get_fails(self,order=0):
             """获取指定节点node的有效fail跳转路径"""
             fails = []
             node = self
@@ -102,7 +102,7 @@ class ac_match_t:
                 fails.append(node)
             while node and node.fail:
                 if node.fail.end is not None:
-                    fails.insert(0, node.fail)
+                    fails.insert(order, node.fail)
                 node = node.fail
             return fails
 
