@@ -21,12 +21,56 @@ def ner_chars_clean(txt, with_sbc=True):
     return txt
 
 
+# 行前缀/前置日期串/章节号模式
+LINE_PRE_PATTS = [r'^[\s\n]*[\._①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿⒀⒁⒂⒃⒄⒅⒆⒇+]+',
+                  r'^(19|20)\d{2}[\-年\.]\d{1,2}[\-月\.]\d{1,2}日?',
+                  r'^[12]\d{3}[\-年]?\d{2}[\-月]?(\d{1,2}日?)?',
+                  r'[\dA-Z]{4,}[\-][\dA-Z\-]{2,}',
+                  r'[\dA-Z]+[号楼层座]+[\dA-Z]{2,}[室]?',
+                  r'^\d+\.[\.\d]*',
+                  r'^[\s\n（\(]*([\s\._\d一二三四五六七八九]+[）\)\.、 ])+',
+                  r'^[\-/\\][\dA-Z]*-?\d*',
+                  r'^\d+[座套]',
+                  ]
+
+
+def skip_front(line, with_brackets=True):
+    """检查line的前缀特征,判断是否需要丢弃部分前缀章节号等字符.返回值:需要丢弃的前缀长度"""
+
+    if not line:
+        return 0
+
+    def chk_patt(patt):
+        mres = list(re.finditer(patt, line))
+        if not mres:
+            return 0  # 特定模式未匹配,不用跳过首部
+        return mres[0].span()[1]  # 其他情况,跳过首部
+
+    for patt in LINE_PRE_PATTS:
+        sc = chk_patt(patt)
+        if sc:
+            return sc
+
+    if with_brackets:
+        if line[0] == '(':
+            m = ub.find_brackets(line, '()')
+            if m[0] is None:
+                return 1
+        if line[0] == '[':
+            m = ub.find_brackets(line, '[]')
+            if m[0] is None:
+                return 1
+        if line[0] in {')', ']', '>'}:
+            return 1
+    return 0
+
+
 # 用于NER分句的符号,不应含有"#&.@";
 SEP_CHARS = {'\n', '！', '？', '￥', '%', '，', '。', '|', '!', '?', '$', '%', ',', '\\', '`', '~', ':', '丶', '：', ';', '；', '*', '\u200b', '\uf0d8', '\ufeff'}
 SEP_CHARS.add('、')  # '、'顿号也偶尔出现在NT名称中,但更频繁出现在原文中,所以暂时先放弃名字中的作用,也用于分句.
 
 
-def tiny_text_split(txt, skip_front=True):
+def tiny_text_split(txt, drop=True):
     """对txt进行简单分行处理,返回值:[(b,e,tag)],[line]"""
     segs = []
     strs = []
@@ -45,7 +89,7 @@ def tiny_text_split(txt, skip_front=True):
         segs.append((pos, len(txt), None))
         strs.append(txt[pos:])
 
-    if skip_front:  # 跳过每行首部的章节号
+    if drop:  # 跳过每行首部的章节号
         i = 0
         while i < len(segs):
             seg = segs[i]
@@ -53,7 +97,7 @@ def tiny_text_split(txt, skip_front=True):
             if len(line) <= 3:
                 i += 1
                 continue
-            sk = ub.skip_front(line)
+            sk = skip_front(line)
             if not sk:
                 i += 1
                 continue
@@ -66,21 +110,69 @@ def tiny_text_split(txt, skip_front=True):
     return segs, strs
 
 
+def find_gap(line, segs):
+    """根据留存的串列表segs,在line中查找缺失的部分"""
+    rst = []
+    for seg in segs:
+        if seg[2]:
+            rst.append(line[seg[0]:seg[1]])
+    return rst
+
 def wild_parse(line, tostr=None):
     """解析分段规则,返回用于匹配器使用的结果.
-        组合拼接,解析'{A|B@C|D@E|F}',返回:['ACE', 'ACF', 'ADE', 'ADF', 'BCE', 'BCF', 'BDE', 'BDF']
-        组合跨越,解析'{A|B*C|D}',返回:[('A','C'),('A','D'),('B','C'),('B','D')]
-        扩展跨越,解析'{A|B`正则表达式`C|D}',返回:[('A','C'),('A','D'),('B','C'),('B','D')],正则表达式
-        格式不符返回:None
-        当组合拼接的最后有叹号的时候'{..@..}!',会给每个组合结果都带上最后的叹号.
+        返回值:
+            格式不符返回:(-1,None)
+            词汇列表,解析'{A|B|C}',返回:(0,['A','B','C'])
+            组合拼接,解析'{A|B@C|D@E|F}',返回:(1,['ACE', 'ACF', 'ADE', 'ADF', 'BCE', 'BCF', 'BDE', 'BDF'])
+            组合跨越,解析'{A|B*C|D}',返回:(2,[('A','C'),('A','D'),('B','C'),('B','D')])
+            扩展跨越,解析'{A|B`正则表达式`C|D}',返回:(3,[('A','C'),('A','D'),('B','C'),('B','D')],正则表达式)
+        当组合拼接或词汇列表的最后有叹号的时候'{...}!',会给每个结果都带上最后的叹号.
+            占位列表,解析'{A|B|C}!',返回:(10,['A!','B!','C!'])
+            占位拼接,解析'{A|B@C|D}!',返回:(11,['AC!', 'AD!', 'BC!', 'BD!'])
         tostr is None 默认模式,只有@分组才会返回字符串;
         tostr is True 强制模式,返回字符串列表.
         tostr is False禁止转换,返回tuple组合列表
     """
-    if not line or len(line) < 5:
-        return None
+    if not line or len(line) < 3:
+        return -1, None
     if line[0] != '{' or (line[-1] != '}' and line[-2:] != '}!'):
-        return None
+        return -1, None
+
+    def make_combs(sep, line, exclmark):
+        """生成组合结果"""
+        grps = line[1:-1].split(sep)  # 根据分隔符@或*进行分组拆分
+        for i in range(len(grps)):
+            grps[i] = grps[i].split('|')  # 对每个分组进行组合拆分
+        rst = []
+
+        # 进行多级排列组合,得到返回结果
+        def loop(res, node):
+            res.append(node)  # 利用当前组合结果list当作stack,其长度代表递归深度.
+            deep = len(res)  # 得到递归深度
+            if deep >= len(grps):
+                comb = tuple(res) if exclmark is None else tuple(res + ['!'])
+                rst.append(comb)  # 当前是最深层了,记录本轮组合结果
+                res.pop(-1)
+                return
+            # 继续深度递归下一层
+            for n in grps[deep]:
+                loop(res, n)
+            res.pop(-1)
+
+        for node in grps[0]:
+            res = []
+            loop(res, node)  # 从首层开始深度递归,构造全部的组合结果
+        return rst
+
+    def make_list(line, exclmark):
+        """生成词汇列表"""
+        grps = line[1:-1].split('|')
+        rst = []
+        for g in grps:
+            if not g:
+                continue
+            rst.append(g if not exclmark else g + '!')
+        return rst
 
     # 先进行扩展跨越的预处理,得到校验所需的正则表达式,并将其降级为组合跨越模式
     exts = re.findall(r'`(.+?)`', line)
@@ -96,34 +188,13 @@ def wild_parse(line, tostr=None):
     if mpos == -1:
         mpos = line.find('*')
         if exclmark and mpos > 0:
-            return None  # 星号规则不允许有叹号尾缀
+            return -1, None  # 星号跨段规则不允许有叹号尾缀
     if mpos == -1:
-        return None
-
-    sep = line[mpos]  # 得到分组的分隔符
-    grps = line[1:-1].split(sep)  # 根据分隔符@或*进行分组拆分
-    for i in range(len(grps)):
-        grps[i] = grps[i].split('|')  # 对每个分组进行组合拆分
-
-    rst = []
-
-    # 进行多级排列组合,得到返回结果
-    def loop(res, node):
-        res.append(node)  # 利用当前组合结果list当作stack,其长度代表递归深度.
-        deep = len(res)  # 得到递归深度
-        if deep >= len(grps):
-            comb = tuple(res) if exclmark is None else tuple(res + ['!'])
-            rst.append(comb)  # 当前是最深层了,记录本轮组合结果
-            res.pop(-1)
-            return
-        # 继续深度递归下一层
-        for n in grps[deep]:
-            loop(res, n)
-        res.pop(-1)
-
-    for node in grps[0]:
-        res = []
-        loop(res, node)  # 从首层开始深度递归,构造全部的组合结果
+        sep = None
+        rst = make_list(line, exclmark)
+    else:
+        sep = line[mpos]  # 得到分组的分隔符
+        rst = make_combs(sep, line, exclmark)
 
     # 进行后处理得到返回结果
     if (tostr is None and sep == '@') or tostr:
@@ -131,9 +202,16 @@ def wild_parse(line, tostr=None):
             rst[i] = ''.join(rst[i])
 
     if exts:
-        return rst, exts[0]
+        return 3, rst, exts[0]
     else:
-        return rst
+        if sep is None:
+            return (0, rst) if not exclmark else (10, rst)
+        if sep == '@':
+            return (1, rst) if not exclmark else (11, rst)
+        if sep == '*':
+            return 2, rst
+
+    return -2, None
 
 
 class word_spliter_t:
@@ -148,7 +226,7 @@ class word_spliter_t:
         if not line or line[0] == '#':
             return None, None
         if len(line) > 1 and line[-1] == '!':
-            return self.matcher.dict_add(line[:-1], line[-1], strip=False)  # 特殊匹配模式
+            return self.matcher.dict_add(line[:-1], line[-1], strip=False)  # 规避占位模式
         else:
             return self.matcher.dict_add(line, strip=False)  # 分段匹配模式
 
@@ -219,33 +297,41 @@ def split_by_strs(txt, strs, outstrs=False):
 
 
 class wild_spliter_t:
-    """基于ac匹配树的规则列表分隔器.
-        以绑定的组合规则进行分段切分.
+    """基于ac匹配树的跨段分隔器.
+        以绑定的跨段规则进行分段切分.
     """
 
     def __init__(self):
         self.matcher = mac.ac_match_t()
         self.pairs = {}  # 记录所有的双词组合,映射到组号
 
-    def dict_add(self, strs, exres=None):
-        """添加双词列表strs和对应的扩展re表达式."""
-        assert (len(strs) == 2)
+    def dict_add(self, pair, exres=None):
+        """添加词对儿pair和对应的扩展re表达式.返回值:None正常;其他为重复的组号"""
+        assert (len(pair) == 2)
         grpno = len(self.pairs)  # 用当前已有数量作为新的组号
-        self.pairs[grpno] = (strs, exres)  # 绑定组号与对应词列表
-        for s in strs:  # 装载词汇并绑定对应组号集合
+        self.pairs[grpno] = (pair, exres)  # 绑定组号与对应词列表
+        for s in pair:  # 记录词汇,组号放入集合便于合并不同组别的相同词汇
             self.matcher.dict_add(s, {grpno}, force=True)
+        return None
+
+    def dict_hold(self, word):
+        """添加需要保留的占位词,用于规避误匹配;返回值:空串正常,否则为重复词汇"""
+        if word[-1] == '!':
+            word = word[:-1]
+        s, v = self.matcher.dict_add(word, -1, force=False)
+        return '' if s else str(v)
 
     def rule_add(self, rule):
-        """直接添加匹配规则"""
-        wp = wild_parse(rule)
-        if wp is None:
-            return False
-        if isinstance(wp, tuple):
-            for pair in wp[0]:
-                self.dict_add(pair, wp[1])
-        else:
-            for pair in wp:
+        """直接添加跨段匹配规则"""
+        w = wild_parse(rule)
+        if w[0] == 3:
+            for pair in w[1]:
+                self.dict_add(pair, w[2])
+        elif w[0] == 2:
+            for pair in w[1]:
                 self.dict_add(pair)
+        else:
+            return False
         return True
 
     def dict_end(self):
@@ -257,57 +343,56 @@ class wild_spliter_t:
 
     def match(self, txt):
         """对txt进行内部词表的匹配.返回值:[(begin,end,val)],val is None对应未匹配部分"""
-        rsegs = self.matcher.do_match(txt, mode=mac.mode_t.max_match)
+        mres = self.matcher.do_check(txt, mode=mac.mode_t.max_match)
         segs = []
         grps = {}
-        for seg in rsegs:  # 先统计各分组匹配情况,同时进行原始匹配结果的克隆,避免污染元数据
-            segs.append((seg[0], seg[1], set(seg[2]) if seg[2] else None))
-            if seg[2] is None:
+
+        def rec(gn, st, si):
+            """进行跨段匹配的分段记录处理"""
+            mp = self.pairs[gn][0]  # 得到跨段匹配规则中的前后段内容
+            mr = self.pairs[gn][1]  # 跨段匹配的校验规则
+            if st[2] == mp[0]:  # 当前匹配分段是前段
+                if gn not in grps:
+                    grps[gn] = [(st, si)]
+                    return  # 首次出现的前段,直接记录
+                elif len(grps[gn]) == 1 and grps[gn][0][0][0] < st[0]:
+                    grps[gn][0] = (st, si)
+                    return  # 遇到更靠后的前段,更新记录
+
+            elif st[2] == mp[1]:  # 当前匹配分段是后段
+                if gn not in grps or len(grps[gn]) != 1:
+                    return  # 尚未记录前段,或已经完整记录过了,则不再记录
+                ga = grps[gn][0][0]
+                if mr and not re.fullmatch(mr, txt[ga[1]:st[0]]):
+                    return  # 要求进行模式校验,但校验不通过,放弃
+                grps[gn].append((st, si))  # 正确匹配,记录后段
+                return True  # 告知调用者,当前匹配分组gn得到了一个完整匹配结果
+
+        for si, seg in enumerate(mres):  # 先统计各分组匹配情况,同时进行原始匹配结果的克隆,避免污染元数据
+            if seg[2] is -1:
                 continue
             for gn in seg[2]:
-                if gn not in grps:
-                    grps[gn] = []
-                grps[gn].append((seg[0], seg[1], txt[seg[0]:seg[1]]))  # 记录每个匹配的对应值顺序到组号列表中
-        if not grps:
-            return [(0, len(txt), None)]
+                if rec(gn, (seg[0], seg[1], txt[seg[0]:seg[1]]), si):  # 记录每个匹配的对应值顺序到组号列表中
+                    gp = grps[gn]
+                    segs.append((gp[0][1], gp[1][1], gn))  # 成功命中跨段匹配规则了,记录匹配情况(前段序号,后段序号,规则组号)
+        if not segs:
+            return [(0, len(txt), None)]  # 当前文本未命中任何分段匹配
 
-        def equ(pairs, grp):
-            """比较预先配置的双词和动态匹配的分组是否相同"""
-            l1 = pairs[0]
-            if len(l1) != len(grp):
-                return False
-            for i, v in enumerate(l1):
-                if v != grp[i][2]:
-                    return False
-            if pairs[1] and not re.fullmatch(pairs[1], txt[grp[0][1]:grp[1][0]]):
-                return False  # 要求进行双词中间部分的正则匹配
-
-            return True
-
-        # 判断匹配结果是否符合预先登记的分组词汇列表
-        for gn in grps:
-            if not equ(self.pairs[gn], grps[gn]):
-                grps[gn].append(None)  # 不是完全匹配的分组则标记不使用
-
-        for i in range(len(segs)):
-            seg = segs[i]
-            if seg[2] is None:
-                continue
-            for gn in list(seg[2]):  # 逐一回溯处理,剔除匹配不成功的分段标记
-                if grps[gn][-1] is None:
-                    seg[2].remove(gn)
-            if not seg[2]:
-                segs[i] = (seg[0], seg[1], None)  # 校正匹配结果
-
-        # 需要重新合并之前部分匹配后又被撤销的分段.
-        i = 1
-        while i < len(segs):
-            if segs[i - 1][2] is None and segs[i][2] is None:
-                segs[i - 1] = (segs[i - 1][0], segs[i][1], None)
+        # 检查是否存在交叉匹配,丢弃后面的结果
+        for i in range(len(segs) - 1, 0, -1):
+            p = segs[i - 1]
+            c = segs[i]
+            if c[0] < p[1]:
                 segs.pop(i)
-            else:
-                i += 1
-        return segs
+
+        # 重构最终的匹配结果
+        rsegs = []
+        for si in segs:
+            r = mres[si[0]]
+            rsegs.append((r[0], r[1], si[2]))
+            r = mres[si[1]]
+            rsegs.append((r[0], r[1], si[2]))
+        return mac.ac_match_t.do_complete(rsegs, txt)
 
     def split(self, txt, with_space=' '):
         """基于绑定的词表对txt进行分段.返回值:[分段字符串,...]"""
@@ -354,10 +439,11 @@ class text_spliter_t:
             rules = {}  # 进行重复性检查,记录所有装载过的规则
 
             def chk(word, line, lineno):
-                if word not in rules:
-                    rules[word] = line
+                s = word[:-1] if word[-1] == '!' else word
+                if s not in rules:
+                    rules[s] = line
                 else:
-                    print(f'<{fname}|{lineno:>8},{len(line):>2}>: spliter RULE is repeat: {word} at "{line}" and {rules[word]}')
+                    print(f'<{fname}|{lineno:>8},{len(line):>2}>: spliter RULE is repeat: {word} at "{line}" and {rules[s]}')
 
             with open(fname, 'r', encoding=encoding) as f:
                 for i, line in enumerate(f.readlines()):
@@ -366,25 +452,33 @@ class text_spliter_t:
                         continue
 
                     if txt[0] == '{':
-                        wprules = wild_parse(txt)  # 特殊规则格式,进行解析后再添加
-                        if wprules is None or not isinstance(wprules, (tuple, list)):
+                        w = wild_parse(txt)  # 特殊规则格式,进行解析后再添加
+                        if w[0] < 0:
                             print(f'spliter RULE is bad: {txt}')
                             continue
 
-                        if isinstance(wprules, tuple):  # 扩展跨越
-                            for segs in wprules[0]:
+                        if w[0] == 3:  # 扩展跨越
+                            for segs in w[1]:
                                 chk('/'.join(segs), txt, i)
-                                self.wild_spliter.dict_add(segs, wprules[1])
-                        elif isinstance(wprules[0], tuple):  # 组合跨越
-                            for segs in wprules:
+                                self.wild_spliter.dict_add(segs, w[2])
+                        elif w[0] == 2:  # 组合跨越
+                            for segs in w[1]:
                                 chk('/'.join(segs), txt, i)
                                 self.wild_spliter.dict_add(segs)
-                        elif isinstance(wprules[0], str):  # 组合拼接
-                            for word in wprules:
+                        elif w[0] in {0, 1}:  # 词汇列表或组合拼接
+                            for word in w[1]:
                                 chk(word, txt, i)
                                 self.word_spliter.dict_add(word)
-
-                    else:  # 普通格式,直接添加
+                        elif w[0] in {10, 11}:  # 占位列表或占位拼接
+                            for word in w[1]:
+                                chk(word, txt, i)
+                                self.word_spliter.dict_add(word)
+                                self.wild_spliter.dict_hold(word)
+                    elif txt[-1] == '!':  # 普通格式的占位词
+                        chk(txt, txt, i)
+                        self.word_spliter.dict_add(txt)
+                        self.wild_spliter.dict_hold(txt)
+                    else:  # 普通格式的分割词
                         chk(txt, txt, i)
                         self.word_spliter.dict_add(txt)
         except Exception as e:
