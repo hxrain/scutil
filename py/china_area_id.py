@@ -3997,7 +3997,11 @@ def make_map_area_ids(tails={'省', '市', '区', '县', '州', '盟'}, id_mask=
         alst = map_id_areas[id]
         for name in alst:
             _rec(name, id)
-            _rec(drop_area_tail(name, tails), id)
+            if name in {'河南县', '河南自治县'}:
+                continue
+            aname = drop_area_tail(name, tails)
+            if aname != name:
+                _rec(aname, id)
     return rst
 
 

@@ -369,15 +369,15 @@ def complete_segs(mres, slen, isfull=False, segs=None, ext=None, cb=None):
     rc = 0
 
     for seg in mres:
-        if seg[0] > pos:
-            rst.append((pos, seg[0], ext))
+        if seg[0] > pos:  # 当前分段的起点超过了上一个分段的终点,说明遇到空白分段了
+            rst.append((pos, seg[0], ext))  # 记录空白分段
             if cb: cb(rst)
             rc += 1
-        pos = seg[1]
+        pos = seg[1]  # 更新最后分段的终点
         if isfull:
-            rst.append(seg)
+            rst.append(seg)  # 如果要求完整记录,则江当前分段也计入结果
             if cb: cb(rst)
-    if pos != slen:
+    if pos != slen:  # 循环结束需要判断最后面是否存在空白分段
         rst.append((pos, slen, ext))
         if cb: cb(rst)
         rc += 1
