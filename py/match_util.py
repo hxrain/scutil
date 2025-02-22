@@ -490,7 +490,7 @@ def drop_nesting(segs):
     return rst
 
 
-def max_seg(segs):
+def max_len_seg(segs):
     """在segs分段列表中,查找第一个最长的段.返回值:索引"""
     rst = 0
     for i in range(1, len(segs)):
@@ -502,3 +502,44 @@ def max_seg(segs):
 def tran_seg(seg, offset):
     """按偏移量offset平移seg的范围,返回新值"""
     return (seg[0] + offset, seg[1] + offset, seg[2])
+
+
+def insert_pos(segs, seg, begin=0):
+    """在segs分段列表中从begin偏移开始,查找seg分段应该insert插入的位置."""
+    pos = None
+    for i in range(begin, len(segs)):
+        pseg = segs[i]  # 从头遍历分析前置分段
+        if pseg[0] < seg[0]:
+            continue  # 前置分段的起始点小于当前分段,则继续试探
+        if pseg[0] > seg[0]:
+            return i  # 前置分段的起始点大于当前分段,则在当前位置插入
+        else:
+            pos = i  # 现在,遇到起始点相同的分段了,需要额外处理
+            break
+
+    if pos is None:  # 已有的前置分段的起始点全部小于当前分段,则追加在末尾
+        return len(segs)
+
+    # 现在,需要对具有相同起始点的分段进行遍历,比较结束点的位置
+    for i in range(pos, len(segs)):
+        nseg = segs[i]
+        if nseg[0] != seg[0]:
+            return i  # 如果分段的起始点不同了,那么就在其后位置插入
+        if nseg[1] < seg[1]:
+            continue  # 如果结束点小于当前分段则继续试探
+        else:
+            return i  # 否则,结束点大于等于当前分段,则插入在这里
+
+    return len(segs)  # 最后补漏,剩余段全部起始点相同且结束点小于最新分段.
+
+
+if __name__ == "__main__":
+    segs = [(0, 2), (1, 2), (1, 4)]
+    assert (insert_pos(segs, (0, 1)) == 0)
+    assert (insert_pos(segs, (0, 2)) == 0)
+    assert (insert_pos(segs, (0, 3)) == 1)
+    assert (insert_pos(segs, (1, 2)) == 1)
+    assert (insert_pos(segs, (1, 3)) == 2)
+    assert (insert_pos(segs, (1, 4)) == 2)
+    assert (insert_pos(segs, (1, 5)) == 3)
+    assert (insert_pos(segs, (2, 3)) == 3)

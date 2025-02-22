@@ -817,3 +817,270 @@ def check_tail_type(tail):
         elif word in nt_tails:
             return p, nt_tails[word]['.']
     return None, None
+
+
+class tree_paths_t:
+    """
+        基于树状结构进行segs分段路径的最优寻径.
+        核心结构有,segs路径列表,tree路径树,ends树的末端列表,用于回溯.
+    """
+
+    class node_t:
+        """分段路径的节点类型,用于记录父子节点和路径积分"""
+
+        def __init__(self):
+            self.parent = None  # 当前节点的父节点,根节点为空
+            self.childs = []  # 当前节点的所有子节点
+            self.sidx = None  # 当前节点对应的分段索引
+            self.score = (0, 0)  # 当前节点自身的评分
+            self.total = (0, 0)  # 当前节点路径的整体评分
+            self.deep = 0  # 当前节点路径的深度
+            self.variance = 0  # 分段长度差累积
+
+    def __init__(self):
+        self.clear()
+        self.score_maps = {'X': 0, 'A': 4, 'U': 4, 'N': 5, 'H': 7, 'S': 7, 'Z': 7, 'F': 6, 'L': 8, 'O': 7, 'B': 6, 'M': 7}
+
+    def clear(self):
+        self.root = tree_paths_t.node_t()
+        self.ends = []
+
+    def score(self, seg, nseg, txt):
+        """根据seg与nseg前后两个分段的关系,计算nseg路径节点的积分,返回值:(惩罚扣分,奖励积分)"""
+
+        # 根据前后分段的类型得到积分标准
+        segt = self.score_maps[types.tag(seg[2])]
+        nsegt = self.score_maps[types.tag(nseg[2])]
+        if nseg[1] - nseg[0] == 1:
+            nsegt -= 1
+        ds = 0
+        if nseg[0] > seg[1]:  # 前后段分离
+            ds = nseg[0] - seg[1]  # 间隔长度扣分
+            if ds == 1 and txt[seg[1]] in {'(', ')', '<', '>', '"', "'"}:
+                ds = 0  # 特殊字符的空白间隔不扣分
+            else:
+                ds *= 5
+            ns = (nseg[1] - nseg[0]) * nsegt  # 自身长度加分
+        elif seg[1] > nseg[0]:  # 前后段交叉
+            if seg[1] - nseg[0] >= 2 and seg[2] & nseg[2] & {types.NZ, types.NN}:
+                ds = 0  # 特定重叠双字的情况
+            elif seg[1] - nseg[0] >= 2 and seg[2] & {types.NM, types.NO, types.NS, types.NZ, types.NN, types.NU} and nseg[2] & {types.NM, types.NO, types.NB}:
+                ds = 0  # 特定重叠多字的情况,不扣分
+            elif seg[1] - nseg[0] == 1 and nseg[1] - seg[0] == 3 and seg[2] & {types.NA, types.NN} and nseg[2] & {types.NA, types.NN}:
+                ds = 0
+            else:
+                ds = (seg[1] - nseg[0]) * 3  # min(segt, nsegt)  # 根据相交长度与前后类型标准分,进行扣除
+            ns = (nseg[1] - seg[1]) * nsegt  # 前后相交,仅计算后段剩余部分
+        else:  # 前后相邻
+            ns = (nseg[1] - nseg[0]) * nsegt  # 正常情况,仅计算完整的后段积分
+        return ns, ds
+
+    @staticmethod
+    def _take_first(offset, segs):
+        """从segs的offset开始,查找与之相同起点的节点对应的索引列表"""
+        head = segs[offset][0]
+        rst = [offset]
+        c = 0
+        for idx in range(offset + 1, len(segs)):
+            if segs[idx][0] == head:
+                rst.insert(0, idx)
+                c = 0
+            elif c > 3:
+                break
+            c += 1
+        return rst
+
+    @staticmethod
+    def _take_nexts(pos, segs):
+        """基于segs分段列表的pos节点索引,查找pos后的所有粘连分段.返回值:[]分段列表"""
+        rst = []
+        seg = segs[pos]
+        c = 0
+        for idx in range(pos + 1, len(segs)):  # 从pos索引向后查找可达分段
+            nseg = segs[idx]
+            c += 1
+            if nseg[0] > seg[1] and c > 3:
+                break  # 多次向后试探,遇到分离的分段则停止尝试
+            if seg[0] < nseg[0] <= seg[1] and nseg[1] > seg[1]:
+                rst.insert(0, idx)  # 遇到与当前分段相交或相连的分段,则记录其索引
+                c = 0
+
+        if not rst:
+            while pos < len(segs) - 1:
+                nseg = segs[pos + 1]  # 上述过程未找到后续分段,则尝试查找分离的后段
+                if nseg[0] > seg[0] and nseg[1] > seg[1]:
+                    rst = tree_paths_t._take_first(pos + 1, segs)
+                    break
+                pos += 1
+
+        return rst
+
+    def _chk_path(self, txt, segs, pnode, pseg, nseg):
+        """检查当前路径是否需要被放弃"""
+        if pnode.parent is None:
+            return False
+        if pnode.parent.sidx is not None:
+            fseg = segs[pnode.parent.sidx]
+            if fseg[1] == nseg[0]:
+                if fseg[0] < pseg[0] < fseg[1] and nseg[0] < pseg[1] < nseg[1]:
+                    return True  # 出现了pseg被fseg和nseg完整涵盖的情况,放弃当前路径
+        return False
+
+    def _loop(self, txt, segs, pnode, badlimit=4):
+        """核心方法,进行深度优先遍历,构建有效的路径树"""
+        pseg = segs[pnode.sidx]
+        nexts = tree_paths_t._take_nexts(pnode.sidx, segs)
+        if not nexts:  # 没有后续节点了,当前节点就是本路径的终点,记录当前结果
+            txtl = len(txt)
+            if not self.ends or pseg[1] == txtl or (pseg[1] == txtl - 1 and txt[-1] == ')'):
+                if self.ends and self.ends[-1].total[1] >= badlimit:
+                    self.ends.pop(-1)  # 如果之前存在着临时的坏结果,则丢弃
+                self.ends.append(pnode)
+            return
+
+        for nidx in nexts:
+            nseg = segs[nidx]
+            score = self.score(pseg, nseg, txt)  # 当前路径节点分
+            total = (pnode.total[0] + score[0], pnode.total[1] + score[1])
+            if total[1] >= badlimit and len(self.ends) >= 1:
+                continue  # 发现继续走下去惩罚积分较大,则当前路径被剪枝放弃
+            if self._chk_path(txt, segs, pnode, pseg, nseg):
+                continue  # 出现了无效匹配的情况,放弃当前路径
+            if self.ends:
+                lnode = self.ends[-1]  # 已经存在的最新端点
+                if total[1] > lnode.total[1] + 1:
+                    continue  # 路径走到中间的时候扣分已经大于存在的结果了,那么剩余路径不用尝试了
+                if pnode.deep + 1 > lnode.deep and total[0] <= lnode.total[0]:
+                    continue  # 路径深度大于已有结果,且总分也小于它,则放弃当前路径
+
+            node = tree_paths_t.node_t()  # 生成当前节点
+            node.sidx = nidx  # 记录当前节点对应的分段索引
+            node.parent = pnode  # 记录父节点
+            node.deep = pnode.deep + 1  # 当前路径节点的深度
+            node.score = score  # 当前路径节点积分
+            node.total = total  # 路径总分
+            node.variance = pnode.variance + abs((nseg[1] - nseg[0]) - (pseg[1] - pseg[0]))  # 累积分段长度差
+            pnode.childs.append(node)  # 记录当前节点
+            self._loop(txt, segs, node)  # 深度遍历新节点路径
+
+    def _path_dbg(self, end, txt, segs):
+        """调试,根据路径端点输出完整路径分段信息"""
+
+        def _make_path(node):
+            rst = []
+            while node.parent is not None:
+                rst.insert(0, node)
+                node = node.parent
+            return rst
+
+        def _make_segs(path):
+            rst = []
+            for node in path:
+                seg = segs[node.sidx]
+                rst.append(f'{types.tag(seg[2])}:{txt[seg[0]:seg[1]]}:{node.total[0]}/{node.total[1]}')
+            return rst
+
+        return _make_segs(_make_path(end))
+
+    def _take(self, txt, segs, showdbg):
+        """根据末端列表选取最优路径,作为最终结果"""
+        if showdbg:
+            print(f"\n---->{txt}<----")
+            print(f"{str(segs).replace(' ', '')}")
+            ts = []
+            for seg in segs:
+                ts.append(f"{types.tag(seg[2])}:{txt[seg[0]:seg[1]]}")
+            print(f'{"|".join(ts)}')
+            showdbg = len(self.ends)
+            for end in self.ends:
+                pd = self._path_dbg(end, txt, segs)
+                print(f'  {"|".join(pd)}')
+
+        def filter_nt(ends):
+            """尝试过滤筛除非nt端点路径,若存在NT尾缀端点,则其他非NT尾缀端点均丢弃"""
+            rms = []
+            for i, node in enumerate(ends):
+                seg = segs[node.sidx]
+                if not seg[2] & {types.NM, types.NO, types.NB}:
+                    rms.append(i)
+            if len(rms) == len(ends):
+                return False  # 所有端点都不是nt,则不处理
+            for i in reversed(rms):
+                ends.pop(i)  # 否则丢弃非nt尾缀的路径
+            return True
+
+        def filter_top(ends):
+            """对全部端点路径按总分进行分组,只保留该分数下最高分的端点"""
+            tops = {}
+            rms = []
+            for i, node in enumerate(ends):
+                ts = node.total[0]  # 根据总分进行分组记录
+                if ts not in tops:
+                    tops[ts] = [i]
+                else:
+                    tops[ts].append(i)
+
+            for ts in tops:  # 每个总分的分组内部,只保留扣分最少的结果
+                tsl = sorted(tops[ts], key=lambda i: 0 - ends[i].total[1], reverse=True)
+                for i in range(1, len(tsl)):
+                    if ends[tsl[i]].total != ends[tsl[0]].total:
+                        rms.append(tsl[i])
+
+            for i in sorted(rms, reverse=True):
+                ends.pop(i)  # 删除所有不被保留的路径节点
+
+        # 通过积分评价排序,筛选得到最优结果路径
+        filter_top(self.ends)
+        have_nt = filter_nt(self.ends)  # 尝试预先筛选丢弃非NT结尾的路径
+
+        if showdbg and showdbg > 1:
+            print(f"---->filter<----")
+            showdbg = len(self.ends)
+            for end in self.ends:
+                pd = self._path_dbg(end, txt, segs)
+                print(f'  {"|".join(pd)}')
+
+        if len(self.ends) > 1:
+            # 排序规则:最少扣分且最短的路径下的最高有效分
+            ends = sorted(self.ends, key=lambda x: (0 - x.total[1], 0 - x.deep, x.total[0] - x.total[1], 0 - x.variance), reverse=True)
+            node = ends[0]
+        else:
+            node = self.ends[0]
+
+        if showdbg and showdbg > 1:
+            pd = self._path_dbg(node, txt, segs)
+            print(f'>>{"|".join(pd)}')
+
+        rst = []
+        # 根据最优路径的端点逆向重构完整的分段结果
+        while node.parent is not None:
+            rst.insert(0, segs[node.sidx])
+            node = node.parent
+        return rst
+
+    def find(self, txt, segs, showdbg=False):
+        """基于文本txt的分段匹配列表segs,查找最优路径"""
+        if not txt or not segs:
+            return []
+        if len(segs) == 1:
+            return list(segs)
+
+        nexts = tree_paths_t._take_first(0, segs)
+        seg = (0, segs[nexts[0]][0], types.tags_NX)
+        for nidx in nexts:
+            nseg = segs[nidx]
+            node = tree_paths_t.node_t()  # 生成当前节点
+            node.sidx = nidx  # 记录当前节点对应的分段索引
+            node.deep = self.root.deep + 1
+            node.parent = self.root  # 记录根节点
+            node.total = node.score = self.score(seg, nseg, txt)  # 路径节点分
+            self.root.childs.append(node)  # 记录当前节点
+            self._loop(txt, segs, node)  # 深度遍历新节点路径
+
+        return self._take(txt, segs, showdbg)  # 提取最终结果
+
+
+def find_nt_paths(txt, segs, dbg=False):
+    """从segs匹配结果列表中,查找构造nt名称的最佳路径"""
+    tp = tree_paths_t()
+    return tp.find(txt, segs, dbg)
