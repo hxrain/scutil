@@ -29,29 +29,16 @@ class nt_parser_t:
     def __nu_rec(lst, mres, typ, offset=0):
         """记录数字匹配结果"""
 
-        def rec(lst: list, seg):
-            """记录匹配结果,规避多条规则的重复匹配分段,保留高优先级结果"""
-            for i in range(len(lst) - 1, -1, -1):
-                pseg = lst[i]
-                # if (pseg[1] > seg[0] and pseg[1] <= seg[1]) or (pseg[0] >= seg[0] and pseg[0] < seg[1]):
-                if pseg[0] >= seg[0] and pseg[1] <= seg[1]:
-                    if types.cmp(pseg[2], seg[2]) < 0 or (types.tags_NU & pseg[2] and types.tags_NO & seg[2]):
-                        lst.pop(i)  # 先进行一圈查找,如果存在与新分段重叠的段,则保留高优先级的分段.
-                        continue
-                if pseg[0] <= seg[0] and seg[1] <= pseg[1]:
-                    return  # 存在长匹配,则丢弃当前短匹配
-            if len(lst) >= 2:
-                fseg = lst[-2]
-                if fseg[1] == seg[0] and types.tags_NS.issubset(fseg[2]) and seg[2] & {types.NS, types.NO}:
-                    lst.pop(-1)  # 前后是NS+NU,则丢弃NU,记录新的
+        def _rec(lst, seg):
+            pos = mu.insert_pos(lst, seg)
+            if pos < len(lst):
+                pseg = lst[pos]
+                if pseg[0] == seg[0] and pseg[1] == seg[1]:
+                    return False
+            lst.insert(pos, seg)
+            return True
 
-            for i in range(len(lst)):
-                pseg = lst[i]
-                if seg[0] <= pseg[0]:
-                    lst.insert(i, seg)
-                    return
-            lst.append(seg)
-
+        rc = 0
         if typ & types.tags_NM:
             for m in mres:
                 grp2 = m.group(2)
@@ -62,12 +49,15 @@ class nt_parser_t:
 
                 rge = m.span()
                 seg = (rge[0] + offset, rge[1] + offset, tag)
-                rec(lst, seg)
+                if _rec(lst, seg):
+                    rc += 1
         else:
             for m in mres:
                 rge = m.span()
                 seg = (rge[0] + offset, rge[1] + offset, typ)
-                rec(lst, seg)
+                if _rec(lst, seg):
+                    rc += 1
+        return rc
 
     # 数字序号基础模式
     num_zh = '甲乙丙丁戊己庚辛壬癸丑寅卯辰巳午未申酉戌亥零一二三四五六七八九十幺壹贰貮貳两叁参仨肆伍陆柒捌玖拾佰伯百千仟万廿卅'
@@ -75,13 +65,12 @@ class nt_parser_t:
 
     # 数字序号组合模式
     num_rules = [
-        (f'([第笫新]*{num_re}{{1,7}}[号分#℃]?)', types.tags_NU, __nu_rec.__func__),
-        (f'([第笫新]*{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|号门|号线|组村|[道路弄街里亩线楼栋段桥井闸渠河沟江坝村区师机片台房田])', types.tags_NS, __nu_rec.__func__),
-        (f'([第笫新]*{num_re}{{1,7}}[号]?)([分]?部队|煤矿)', types.tags_NM, __nu_rec.__func__),
-        (f'([第笫新]*{num_re}{{1,7}}[号]?)([分]?院区|柜组|[团校院馆局会矿场社所部处坊])', types.tags_NO, __nu_rec.__func__),
-        (f'([第笫新]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|仓库|支部|号店|茶楼|[厂店铺站园亭营连排厅仓库])', types.tags_NB, __nu_rec.__func__),
-        (f'([第笫新大小老东西南北]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
-        (f'([第笫新大小老东西南北]*{num_re}{{1,7}})(职高|职中|[职路街委米条])(?![学])', types.tags_NS, __nu_rec.__func__),
+        (f'([第笫新老大小东西南北]?{num_re}{{1,7}}[号#]?[轮分秒度吨届座级期船至℃]?)', types.tags_NU, __nu_rec.__func__),
+        (f'([第笫新老大小东西南北]?{num_re}{{1,7}}[号级大支#]*)(公里|马路|社区|号门|号线|号口|组村|职高|职中|[职委米条道路弄街里亩线楼栋段桥井闸渠河沟江坝村区机片台房田])', types.tags_NS, __nu_rec.__func__),
+        (f'([第笫新]*{num_re}{{1,7}}[号]?)([分]?院区|柜组|部队|煤矿|[团校院馆局会矿场社所部处坊])', types.tags_NO, __nu_rec.__func__),
+        (f'([第笫新老大小东西南北]*{num_re}{{1,7}}[号]?)([分]?营部|工区|分号|仓库|支部|号店|茶楼|[厂店铺站园亭营连排厅仓库])', types.tags_NB, __nu_rec.__func__),
+        (f'([第笫新老大小东西南北]*{num_re}{{0,7}}[号]?[分支大中小]?[组队])', types.tags_NB, __nu_rec.__func__),
+        (f'([第笫农]*{num_re}{{1,7}}[师])([零一二三四五六七八九十]+团)?', types.tags_NS, __nu_rec.__func__),
     ]
     # 附加单字填充占位模式
     att_chars = {'省', '市', '区', '县', '乡', '镇', '村', '州', '盟', '旗', '办', '与', '及', '和', '的', '暨', '新', '老', '原', '女', '驻', '东', '南', '西', '北', '路', '街', '道', '港', '至', '段'}
@@ -100,31 +89,29 @@ class nt_parser_t:
     brackets_rmap = {'>': '<', ')': '(', ']': '[', '"': '"', "'": "'"}
 
     @staticmethod
-    def query_nu(txt, nulst=None, offset=0):
-        """查询txt中的数字相关特征模式,nulst可给出外部数字模式匹配列表.返回值:[b,e,{types}]"""
-        rst = []
-        if not nulst:
-            nulst = nt_parser_t.num_rules
-        for pat in nulst:
+    def query_nu(txt, rst, offset=0):
+        """查询txt中的数字相关特征模式,结果记录在rst中:[b,e,{types}],b的起始偏移为offset"""
+        rc = 0
+        for pat in nt_parser_t.num_rules:
             mres = list(re.finditer(pat[0], txt))
             if not mres:
                 continue
-            pat[2](rst, mres, pat[1], offset)
+            rc += pat[2](rst, mres, pat[1], offset)
 
         if len(txt) == 1:
             for pat in nt_parser_t.att_rules:
                 mres = list(re.finditer(pat[0], txt))
                 if not mres:
                     continue
-                pat[2](rst, mres, pat[1], offset)
+                rc += pat[2](rst, mres, pat[1], offset)
 
-        return rst
+        return rc
 
     @staticmethod
-    def rec_nums(segs, txt, nulst=None):
+    def rec_nums(segs, txt):
         """根据预匹配分段列表,尝试进行编号分段的补全.返回值:补充的分段数量"""
         num_chars2 = {'第', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖', '拾', '零'}
-        num_chars3 = {'大', '农', '中'}
+        num_chars3 = {'大', '中', '铁', '农', '建'}
         num_chars3.update(num_chars2)
 
         chks = []
@@ -161,7 +148,7 @@ class nt_parser_t:
 
             if mu.slen(seg) == 1 and c0 not in {'.'}:
                 _rec(idx)  # 如果当前是单字NA段,则记录
-            elif mu.slen(seg) > 1 and (cl in {'第', '铁', '农', '建'} or c0 in num_chars2 or cl in num_chars2):
+            elif mu.slen(seg) > 1 and (c0 in num_chars2 or cl in num_chars3):
                 _rec(idx)  # 如果当前是特定多字NA段,则记录
 
         usegs, uc = mu.complete_segs(segs, len(txt), True, cb=chk_num_segs)  # 得到补全的分段列表
@@ -224,7 +211,7 @@ class nt_parser_t:
                 if pseg[2] & {types.NN, types.NA}:
                     if uidx >= 2:
                         ppseg = usegs[uidx - 2]
-                        if pseg[1] <= ppseg[1] and ppseg[2] & {types.NM, types.NZ, types.NB, types.NF, types.NS}:
+                        if pseg[1] <= ppseg[1] and ppseg[2] and ppseg[2] & {types.NM, types.NZ, types.NB, types.NF, types.NS}:
                             return pos  # 浦东|东,不涵盖'东'
                         if txt[pseg[0]] in {'东', '南', '西', '北'}:
                             return pos - mu.slen(pseg)
@@ -242,7 +229,7 @@ class nt_parser_t:
                     return pos
             return pos - 1 if pos else pos
 
-        rst = []
+        nums = []
         for uidx in chks:  # 逐一处理未匹配分段
             useg = usegs[uidx]
             if mu.slen(useg) == 1 and txt[useg[0]] in {'(', ')'}:
@@ -255,6 +242,8 @@ class nt_parser_t:
             if b != useg[0] or e - b > 2:
                 rgns.add((b + 1, e))
                 rgns.add((b, e - 1))
+            if e - b >= 4:
+                rgns.add((b + 2, e))
             if e >= useg[1]:
                 rgns.add((useg[0], useg[1]))
             if mu.slen(useg) == 2:
@@ -269,17 +258,16 @@ class nt_parser_t:
 
             for rgn in rgns:
                 s = txt[rgn[0]:rgn[1]]
-                nums = nt_parser_t.query_nu(s, nulst, rgn[0])  # 进行数字序号匹配
-                nt_parser_t._merge_nums(rst, nums)
+                nt_parser_t.query_nu(s, segs, rgn[0])  # 进行数字序号匹配
 
-        nt_parser_t._merge_nums(segs, rst)  # 合并数字序号分段到整体结果中
-        return len(rst)
+        # nt_parser_t._merge_nums(segs, nums)  # 合并数字序号分段到整体结果中
+        return len(nums)
 
     @staticmethod
-    def chk_nums(words, nulst=None):
+    def chk_nums(words):
         """校验words中是否含有序号分段.返回值:[匹配的分段信息]"""
         segs = []
-        nt_parser_t.rec_nums(segs, words, nulst)
+        nt_parser_t.rec_nums(segs, words)
         return segs
 
     def __init__(self, light=False):
@@ -716,22 +704,16 @@ class nt_parser_t:
                 return False  # 前后相邻的NM/NB不要合并
 
             # 允许分段相交合并的类型集合
-            can_cross_typesSZF = {types.NS, types.NZ, types.NF}
             can_cross_typesANH = {types.NA, types.NN, types.NH, types.NU}
             if not type_eq:  # 前后段类型不一致时,需要额外判断
                 if pseg[1] > seg[0]:
-                    # if mu.slen(seg) + mu.slen(pseg) <= 5 and can_cross_typesSZF & seg[2] and can_cross_typesSZF & pseg[2]:
-                    #     return True  # 在要求合并的情况下,两个分段如果在许可的类型范围内且交叉,也合并
                     if comboc_txt and seg[1] - pseg[0] <= 5 and (seg[0] - pseg[0] == 1 or seg[1] - pseg[1] == 1):
-                        if (types.tags_NN.issubset(pseg[2]) and types.tags_NZ.issubset(seg[2])) or (types.tags_NA.issubset(pseg[2]) and types.tags_NN.issubset(seg[2])):
+                        if idx >= 2 and mu.slen(segs[idx - 1]) == 1:
+                            return False  # 再前面仍然是单字,则这里不合并
+                        if types.tags_NN.issubset(pseg[2]) and types.tags_NZ.issubset(seg[2]):
                             # NN&NZ相交,且切分后剩余单字
-                            if idx >= 2 and mu.slen(segs[idx - 1]) == 1:
-                                return False  # 再前面仍然是单字,则这里不合并
                             nums = re.findall(nt_parser_t.num_re, comboc_txt[pseg[0]])
-                            if not nums:
-                                return True  # NN&NZ相交,且切分后剩余非数字单字,则进行合并
-                            else:
-                                return False
+                            return True if not nums else False  # NN&NZ相交,且切分后剩余非数字单字,则进行合并
                         if pseg[2] & can_cross_typesANH and seg[2] & can_cross_typesANH:
                             return True
                 return False  # 否则不合并
@@ -1040,7 +1022,7 @@ class nt_parser_t:
 
             rec(segs, pseg, pos, nseg)
 
-    def split(self, txt, nulst=None, with_useg=False, mres=None, pres=None, fp_dbg=False):
+    def split(self, txt, with_useg=False, mres=None, pres=None, fp_dbg=False):
         '''在txt中拆分可能的组份段落
             nulst - 可给出外部数字模式匹配列表
             with_useg - 是否补全分段列表
@@ -1262,7 +1244,7 @@ class nt_parser_t:
         clean_drop(segs)  # 进行无效匹配结果的丢弃
         if pres is not None and isinstance(pres, list):
             pres.extend(segs)  # 记录预处理后的结果
-        self.rec_nums(segs, txt, nulst)  # 进行未知分段的数字序号补全
+        self.rec_nums(segs, txt)  # 进行未知分段的数字序号补全
         nres = nnd.find_nt_paths(txt, segs, fp_dbg)  # 根据匹配结果查找最佳nt路径
         clean_drop(nres)  # 进行NO校正
         self._merge_bracket(nres, txt)  # 合并附加括号
@@ -1272,7 +1254,7 @@ class nt_parser_t:
         else:
             return nres
 
-    def parse(self, txt, merge=True, nulst=None, with_useg=False, comboc=True, mres=None, pres=None, fp_dbg=False):
+    def parse(self, txt, merge=True, with_useg=False, comboc=True, mres=None, pres=None, fp_dbg=False):
         '''在txt中解析可能的组份段落
             merge - 告知是否合并同类分段
             nulst - 可给出外部数字模式匹配列表
@@ -1282,7 +1264,7 @@ class nt_parser_t:
             pres - 记录匹配完成后并清理过的词汇列表
             返回值:(分段列表[(b,e,{types})],分段关系列表[(pseg,rl,nseg,cr)])
         '''
-        segs = self.split(txt, nulst, mres=mres, pres=pres, fp_dbg=fp_dbg)  # 先拆分得到可能的列表
+        segs = self.split(txt, mres=mres, pres=pres, fp_dbg=fp_dbg)  # 先拆分得到可能的列表
         rlst, clst = nt_parser_t._merge_segs(self.matcher, segs, merge, True, txt if comboc else None)  # 进行完整合并
         if with_useg:
             rlst = mu.complete_segs(rlst, len(txt), True)[0]  # 补全中间的空洞分段
