@@ -15,6 +15,7 @@ class sasl_plain:
         self.user = user
         self.pwd = pwd
         self.security_protocol = 'SASL_PLAINTEXT'  # 安全加密模式
+        self.sasl_mechanism = 'PLAIN'
         self.ssl_cafile = None  # ssl/ca证书文件
         self.ssl_keyfile = None  # ssl/key文件
         self.ssl_content = None  # ssl上下文
@@ -61,7 +62,7 @@ class sender:
 
         try:
             if isinstance(self.auth, sasl_plain):
-                self.mq = KafkaProducer(bootstrap_servers=self.host, sasl_mechanism="PLAIN", security_protocol=self.auth.security_protocol,
+                self.mq = KafkaProducer(bootstrap_servers=self.host, sasl_mechanism=self.auth.sasl_mechanism, security_protocol=self.auth.security_protocol,
                                         ssl_cafile=self.auth.ssl_cafile, ssl_context=self.auth.ssl_content, ssl_keyfile=self.auth.ssl_keyfile,
                                         sasl_plain_username=self.auth.user, sasl_plain_password=self.auth.pwd, **cfg)
             else:
@@ -112,6 +113,10 @@ class sender:
         self.mq.close()
         self.mq = None
 
+au=sasl_plain('admin','yuchen979')
+au.sasl_mechanism='SCRAM-SHA-256'
+sr=sender(['172.17.100.139:9092'],'qlm-info',au)
+sr.open()
 
 class receiver:
     """kafka消费者客户端,从服务器接收消息"""
