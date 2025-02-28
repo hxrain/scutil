@@ -113,10 +113,6 @@ class sender:
         self.mq.close()
         self.mq = None
 
-au=sasl_plain('admin','yuchen979')
-au.sasl_mechanism='SCRAM-SHA-256'
-sr=sender(['172.17.100.139:9092'],'qlm-info',au)
-sr.open()
 
 class receiver:
     """kafka消费者客户端,从服务器接收消息"""
