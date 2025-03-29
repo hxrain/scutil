@@ -418,7 +418,7 @@ def is_full_segs(mres, slen):
 
 def related_segs(a, b):
     """
-        分析两个分段a和b的相对关系: + 紧邻; ~ 离开; & 相交; @ 包含; = 相同
+        分析两个分段a和b的相对关系: +紧邻; ~分离; &相交; @包含; =相同
         返回值:
             'A=B',(a1,a2) - a1=b1,a2=b2 A等于B
             'A+B',(a1,b2) - a1,a2=b1,b2 A邻右B(B邻左A)
