@@ -118,6 +118,7 @@ def find_gap(line, segs):
             rst.append(line[seg[0]:seg[1]])
     return rst
 
+
 def wild_parse(line, tostr=None):
     """解析分段规则,返回用于匹配器使用的结果.
         返回值:
@@ -311,14 +312,17 @@ class wild_spliter_t:
         grpno = len(self.pairs)  # 用当前已有数量作为新的组号
         self.pairs[grpno] = (pair, exres)  # 绑定组号与对应词列表
         for s in pair:  # 记录词汇,组号放入集合便于合并不同组别的相同词汇
-            self.matcher.dict_add(s, {grpno}, force=True)
+            rst, old = self.matcher.dict_add(s, {grpno})
+            if not rst:
+                old.add(grpno)
+                self.matcher.dict_add(s, old)
         return None
 
     def dict_hold(self, word):
         """添加需要保留的占位词,用于规避误匹配;返回值:空串正常,否则为重复词汇"""
         if word[-1] == '!':
             word = word[:-1]
-        s, v = self.matcher.dict_add(word, -1, force=False)
+        s, v = self.matcher.dict_add(word, -1)
         return '' if s else str(v)
 
     def rule_add(self, rule):
