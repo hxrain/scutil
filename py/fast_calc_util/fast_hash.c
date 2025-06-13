@@ -1,4 +1,4 @@
-//"""skeeto哈希函数族"""
+﻿//"""skeeto哈希函数族"""
 unsigned long long rx_hash_skeeto3x(unsigned long long x,unsigned long long f0,unsigned long long f1,unsigned long long f2,unsigned long long f3,unsigned long long f4,unsigned long long f5,unsigned long long f6)
 {
     x ^= x >> f0;
