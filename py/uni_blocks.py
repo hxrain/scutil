@@ -317,8 +317,8 @@ def char_replace(src, dct=_SBC_CHR_CONV_TBL):
     """进行字符串特定符号转换"""
     lst = []
     for ch in src:
-        if ch in _SBC_CHR_CONV_TBL:
-            ch = _SBC_CHR_CONV_TBL[ch]
+        if ch in dct:
+            ch = dct[ch]
         lst.append(ch)
     return ''.join(lst)
 
@@ -838,7 +838,7 @@ assert (norm_date_str2('11TH,APR,2022') == '2022-04-11')
 
 
 def norm_time_str(txt):
-    pat = '(上午|中午|下午)?([\d一二三四五六七八九十]{1,2})[时点\:]([\d一二三四五六七八九十]{1,3})?[分\:]?(\d{1,2})?[秒|时|点|整]?'
+    pat = r'(上午|中午|下午)?([\d一二三四五六七八九十]{1,2})[时点\:]([\d一二三四五六七八九十]{1,3})?[分\:]?(\d{1,2})?[秒|时|点|整]?'
     ms = re.search(pat, txt)
     if not ms:
         return txt
