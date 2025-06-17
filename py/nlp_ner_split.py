@@ -10,15 +10,14 @@ import re
 
 # 名字分隔符归一化
 SEP_NAMES = {'·': '.', '°': '.', '—': '.', '━': '.', '．': '.', '－': '.', '•': '.', '-': '.', '・': '.', '_': '.', '▪': '.', '▁': '.', '/': '.', '／': '.', '‧': '.',
-             '\\': '.', '"': "'", '●': '.', '[': '(', ']': ')', '{': '(', '}': ')', '―': '.', '─': '.', '､': '、', '￮': '0', '﹢': '+', '﹒': '.', 'ˉ': '.'}
+             '\\': '.', '"': "'", '●': '.', '[': '(', ']': ')', '{': '(', '}': ')', '―': '.', '─': '.', '､': '、', '￮': '0', '﹢': '+', '﹒': '.', 'ˉ': '.','○':'0'}
 
 
 def ner_chars_clean(txt, with_sbc=True):
     """对文本中特定字符进行必要的处理转换,但不应改变文本长度和位置"""
     if with_sbc:
         txt = ub.sbccase_to_ascii_str2(txt, True, True)
-    txt = ub.char_replace(txt, SEP_NAMES).upper()
-    return txt
+    return ub.char_replace(txt, SEP_NAMES).upper()
 
 
 # 行前缀/前置日期串/章节号模式
@@ -373,7 +372,7 @@ class wild_spliter_t:
                 return True  # 告知调用者,当前匹配分组gn得到了一个完整匹配结果
 
         for si, seg in enumerate(mres):  # 先统计各分组匹配情况,同时进行原始匹配结果的克隆,避免污染元数据
-            if seg[2] is -1:
+            if seg[2] == -1:
                 continue
             for gn in seg[2]:
                 if rec(gn, (seg[0], seg[1], txt[seg[0]:seg[1]]), si):  # 记录每个匹配的对应值顺序到组号列表中
@@ -660,5 +659,5 @@ class tails_checker_t:
 if __name__ == "__main__":
     assert split_by_strs('0123456789', ['1', '34', '345!', '78'], True) == ['0', '23456', '9']
     assert split_by_wild('0123456789', ['{1*78}'], True) == ['0', '23456', '9']
-    assert split_by_wild('0123456789', ['{1`\d+`78}'], True) == ['0', '23456', '9']
-    assert split_by_wild('0123456789', ['{1`\d{1,4}`78}'], True) == ['0123456789']
+    assert split_by_wild('0123456789', [r'{1`\d+`78}'], True) == ['0', '23456', '9']
+    assert split_by_wild('0123456789', [r'{1`\d{1,4}`78}'], True) == ['0123456789']
