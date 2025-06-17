@@ -81,18 +81,145 @@ cdef list skeeto_3f = [
     (15, 0x336536c3, 13, 0x4f0e38b1, 16, 0x15d229f7, 16),
 ]
 
+#引入外部的c函数
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto3x(unsigned long long x, unsigned long long f0, unsigned long long f1, unsigned long long f2,
+                                     unsigned long long f3, unsigned long long f4, unsigned long long f5, unsigned long long f6)
 
 cdef extern from "fast_hash.c":
-    unsigned long long rx_hash_skeeto3x(unsigned long long x, unsigned long long f0, unsigned long long f1, unsigned long long f2,
-                                        unsigned long long f3, unsigned long long f4, unsigned long long f5, unsigned long long f6)
-
+    unsigned long long hash_skeeto__0(unsigned long long x)
 cdef extern from "fast_hash.c":
-    unsigned long long rx_hash_skeeto30(unsigned long long x)
+    unsigned long long hash_skeeto__1(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__2(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__3(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__4(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__5(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__6(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__7(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__8(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto__9(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_10(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_11(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_12(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_13(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_14(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_15(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_16(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_17(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_18(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_19(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_20(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_21(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_22(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_23(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_24(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_25(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_26(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_27(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_28(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_29(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_30(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_31(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_32(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_33(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_34(unsigned long long x)
+cdef extern from "fast_hash.c":
+    unsigned long long hash_skeeto_35(unsigned long long x)
 
-cpdef rx_hash_skeeto3(unsigned long long x, tuple f=skeeto_3f[0]):
+#36个skeeto哈希函数族指针列表
+cdef hash_skeeto_funcs = [
+    hash_skeeto__0, hash_skeeto__1, hash_skeeto__2, hash_skeeto__3, hash_skeeto__4, hash_skeeto__5, hash_skeeto__6, hash_skeeto__7, hash_skeeto__8,
+    hash_skeeto__9, hash_skeeto_10, hash_skeeto_11, hash_skeeto_12, hash_skeeto_13, hash_skeeto_14, hash_skeeto_15, hash_skeeto_16, hash_skeeto_17,
+    hash_skeeto_18, hash_skeeto_19, hash_skeeto_20, hash_skeeto_21, hash_skeeto_22, hash_skeeto_23, hash_skeeto_24, hash_skeeto_25, hash_skeeto_26,
+    hash_skeeto_27, hash_skeeto_28, hash_skeeto_29, hash_skeeto_30, hash_skeeto_31, hash_skeeto_32, hash_skeeto_33, hash_skeeto_34, hash_skeeto_35,
+]
+
+##------------------------------------------------------------------------------
+cpdef rx_hash_skeeto30(unsigned long long x):
     """skeeto哈希函数族"""
-    return rx_hash_skeeto3x(x, f[0], f[1], f[2], f[3], f[4], f[5], f[6])
+    return hash_skeeto__0(x)
 
+cpdef list[unsigned long long] rx_hash_skeeto3l(unsigned long long x, int b, int e):
+    """根据[b,e]序列索引范围,生成x的哈希函数族值列表"""
+    cdef list[unsigned long long] rst = []
+    for fi in range(b, e + 1):
+        func = hash_skeeto_funcs[fi]
+        rst.append(func(x))
+    return rst
+
+cpdef list[unsigned long long] rx_hash_skeeto3m(unsigned long long x, int b, int e, unsigned long long m):
+    """根据[b,e]序列索引范围以及比特数组长度,生成x的哈希函数族比特位置列表"""
+    cdef list[unsigned long long] rst = []
+    for fi in range(b, e + 1):
+        func = hash_skeeto_funcs[fi]
+        rst.append(func(x) % m)
+    return rst
+
+cpdef rx_hash_skeeto3x(unsigned long long x, int fi):
+    """skeeto哈希函数族"""
+    func = hash_skeeto_funcs[fi]
+    return func(x)
+
+##------------------------------------------------------------------------------
+cpdef rx_dek_hash(str v, reverse=False):
+    """字符串DEK Hash函数,可配置字符的哈希方式"""
+    if not v:
+        return 0
+    if reverse:
+        itr = reversed(v)
+        char = v[-1]
+    else:
+        itr = iter(v)
+        char = v[0]
+
+    cdef unsigned long long c = ord(char)
+    cdef unsigned long long code = c * 378551
+    for char in itr:
+        c = ord(char)
+        code = ((code << 5) ^ (code >> 27)) ^ hash_skeeto__0(c)
+    return code
+
+cpdef rx_dek_update(unsigned long long c, unsigned long long code=0):
+    """对数字c基于code进行迭代计算"""
+    if code == 0:
+        code = c * 378551
+    code = ((code << 5) ^ (code >> 27)) ^ hash_skeeto__0(c)
+    return code
+
+##------------------------------------------------------------------------------
 """判断两个simhash的结果是否相同"""
 cdef extern from "fast_hash.c":
     unsigned long long simhash_equx(unsigned long long hash1, unsigned long long hash2, unsigned long long limit)
@@ -208,7 +335,6 @@ cdef class super_shingle:
         self.s = s
         self.hashbits = hashbits  # 最终结果bit位数
         self.bitsmask = 0xffffffffffffffff if hashbits == 64 else 0xffffffff  # 最终结果bit位数对应的二进制掩码
-        self.hashfunc = rx_hash_skeeto3
 
     cpdef hash(self, str s):
         """计算字符串s的supershingle哈希,得到长度为m的{int}集合"""
@@ -233,8 +359,9 @@ cdef class super_shingle:
         if len(shingles) == 0:
             return None
         cdef list mins = []
+        hashfunc = hash_skeeto_funcs[hashfunc_idx + 1]
         for s in shingles:
-            mins.append(self.hashfunc(s, skeeto_3f[hashfunc_idx + 1]) & self.bitsmask)
+            mins.append(hashfunc(s) & self.bitsmask)
         return min(mins)
 
     cpdef distance(self, unsigned long long hash1, unsigned long long hash2):
