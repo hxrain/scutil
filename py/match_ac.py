@@ -254,6 +254,42 @@ class ac_match_t:
         self.do_loop(lambda pos, node: mode(rst, pos, node, self.root), message, msg_len, offset)
         return rst
 
+    def do_query(self, word, force=False, min_match=2, orderkey=True):
+        """查询以指定词汇word为首部的相关词列表
+            force - 是否强制记录word中最后匹配的首部词汇
+            min_match - 匹配word首部的最少字符数
+            orderkey - 是否进行匹配结果的排序
+            返回值: ([(匹配串,对应值)],匹配深度)
+        """
+        rst = []
+        wlen = len(word)
+
+        def _rec(node):
+            '''记录当前节点及其所有子节点'''
+            if node.end:
+                rst.append((node.pre_word(), node.end))
+            keys = sorted(node.childs.keys()) if orderkey else node.childs.keys()
+            for c in keys:
+                _rec(node.childs[c])
+
+        def _loop(node, pos):
+            if pos >= wlen:
+                if pos >= min_match:
+                    _rec(node)
+                return pos
+
+            char = word[pos]
+            if char not in node.childs:
+                if force and pos >= min_match:
+                    _rec(node)
+                return pos
+            else:
+                node = node.childs[char]
+                return _loop(node, pos + 1)
+
+        deep = _loop(self.root, 0)
+        return rst, deep
+
     @staticmethod
     def do_complete(matchs, message, msg_len=None):
         """将匹配结果进行补全,得到完整的分段列表.其中(b,e,None)为原始文本段,(b,e,val)为匹配目标段"""
@@ -325,3 +361,28 @@ class ac_match_t:
                 do_rep(m[0], m[1], m[2])
 
         return ''.join(rst)
+
+
+if __name__ == '__main__':
+    ac = ac_match_t()
+    ac.dict_add('12C')
+    ac.dict_add('12B')
+    ac.dict_add('12A')
+    ac.dict_add('123C')
+    ac.dict_add('123B')
+    ac.dict_add('123A')
+    ac.dict_add('12')
+    ac.dict_add('13')
+    ac.dict_add('14')
+    ac.dict_end()
+
+    print(ac.do_query('1'))
+    print(ac.do_query('10'))
+    print(ac.do_query('12'))
+    print(ac.do_query('13'))
+    print(ac.do_query('123'))
+    print(ac.do_query('123B'))
+    print(ac.do_query('12345'))
+    print(ac.do_query('12345', True))
+
+    print('\n!!!!!!!!!!!!!!!!\n'.strip())
