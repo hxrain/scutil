@@ -318,7 +318,7 @@ def clean_xml_tags(xstr, tags=['em']):
     if not tags:
         tags = ['[^<>]+']
     for tag in tags:
-        exp = f'<{tag}(\s+[^>]*)?/>|<{tag}(\s+[^>]*)?>|</{tag}>'
+        exp = rf'<{tag}(\s+[^>]*)?/>|<{tag}(\s+[^>]*)?>|</{tag}>'
         ret = re.sub(exp, '', ret)
     return ret
 
@@ -328,7 +328,7 @@ def remove_xml_tags(xstr, tags=['style', 'script']):
     ret = xstr.strip()  # 字符串两端净空
     ret = re.sub('<!--(.+)?-->', '', ret)  # 移除注释
     for tag in tags:
-        exp = f'<{tag}(\s+[^>]*)?>.*?</{tag}>'
+        exp = rf'<{tag}(\s+[^>]*)?>.*?</{tag}>'
         ret = re.sub(exp, '', ret, flags=re.DOTALL)
     return ret
 
@@ -582,6 +582,8 @@ lw.appendx([('5',), ('6',)])
 
 
 class lines_writer:
+    """带有文本行重复性过滤的输出器"""
+
     def __init__(self, keyIdx=None, sep=',', fname=None, mode='a+', encoding='utf-8'):
         self.fp = None
         self.keys = set()
@@ -638,6 +640,80 @@ class lines_writer:
                 else:
                     self.fp.write(t)
             self.keys.add(key)
+            return 2
+        except Exception as e:
+            return -2
+
+    def appendx(self, lst):
+        """追加元组列表到文件"""
+        if self.fp is None:
+            return -1
+        for l in lst:
+            r = self.appendt(l)
+            if r < 0:
+                return r
+        return 2
+
+    def save(self):
+        if self.fp is None:
+            return False
+        self.fp.flush()
+        return True
+
+    def close(self):
+        if self.fp is None:
+            return False
+        self.fp.close()
+        self.fp = None
+        return True
+
+
+class text_writer:
+    """简单的文本行输出器"""
+
+    def __init__(self, fname=None, mode='a+', sep=None, encoding='utf-8'):
+        self.fp = None
+        self.sep = sep
+        self.name = None
+        if fname:
+            self.open(fname, encoding, mode)
+
+    def open(self, fname, encoding='utf-8', mode='a+'):
+        if self.fp is not None:
+            return True
+        self.name = fname
+        try:
+            self.fp = open(fname, mode, encoding=encoding)
+            return True
+        except Exception as e:
+            return False
+
+    def append(self, line):
+        """追加行内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;1内容重复;2正常完成."""
+        if line is None:
+            return -2
+        line = line.strip()
+        if line == '': return 0
+
+        if self.sep:
+            t = line.split(self.sep)
+            return self.appendt(t)
+        else:
+            return self.appendt(line)
+
+    def appendt(self, t):
+        """追加(元组或字符串)内容到文件.返回值:-1文件未打开;-2其他错误;0内容为空;2正常完成."""
+        if self.fp is None:
+            return -1
+
+        try:
+            if isinstance(t, tuple):
+                self.fp.write(self.sep.join(t) + '\n')
+            else:
+                if t[-1] != '\n':
+                    self.fp.write(t + '\n')
+                else:
+                    self.fp.write(t)
             return 2
         except Exception as e:
             return -2
@@ -1264,9 +1340,9 @@ def dict_path(dct, path, dv=None):
         if dct is None:
             return dv
         if seg[-1] == ']':
-            rlst, msg = query_re(seg, '(.*?)\[(\d+)\]')
+            rlst, msg = query_re(seg, r'(.*?)\[(\d+)\]')
             if len(rlst) == 0:
-                rlst, msg = query_re(seg, '(.*?)\[(.*?)\]')
+                rlst, msg = query_re(seg, r'(.*?)\[(.*?)\]')
                 if len(rlst) == 0:
                     return dv
                 rs = rlst[0]
