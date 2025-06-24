@@ -62,7 +62,7 @@ class html_stripper_t:
         txt = re.sub(r'<br>|<br/>|<p>', r'\n', txt)  # 强制替换为换行
         txt = re.sub(r'data\s*:\s*image/[\d\w\+\/\=;,\n]*?(\)|")', r'\1 ', txt)
         txt = re.sub(r'(<\s*style|script\s*(.|\n)*?<\s*/\s*style|script\s*>)|(<\?xml[^/>]*?/>)', r' ', txt)
-        txt = re.sub('<([^>/]*?)/>|<([^/][^>]*?)>|</([^>]*?)>', '', txt)  # 丢弃html/xml节点tag
+        txt = re.sub(r'<([^>/]*?)/>|<([^/][a-zA-Z\d:_.]*?)>|</([^>]*?)>', '', txt)  # 丢弃html/xml节点tag
         return txt
 
     def proc(self, txt, blank=True):
