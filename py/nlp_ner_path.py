@@ -1,5 +1,10 @@
 from nlp_ner_data import types
 
+# 数字序号基础模式
+num_cn = {'零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '幺', '壹', '贰', '貮', '貳', '弍', '叁', '仨', '肆', '伍', '陆', '陸', '柒', '捌', '玖', '拾', '百', '千', '仟', '万'}
+num_zh = f'甲乙丙丁戊己庚辛壬癸丑寅卯辰巳午未申酉戌亥廿卅什两参佰伯'
+num_re = rf'A-Z×&+○O\dIⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ{num_zh}{"".join(num_cn)}'
+
 
 def make_tags_txt(segs, txt, usetag=True, sep='|'):
     """根据组份分段列表segs和文本串txt,生成标记表达格式串"""
@@ -42,7 +47,7 @@ def find_left(segs, seg, offset, steps=3, can_cross=False):
         if pseg[1] < seg[0] and c > steps:
             return 0
         if can_cross:
-            if seg[0] <= pseg[1] < seg[1]:
+            if seg[0] <= pseg[1] <= seg[1]:
                 return c
         else:
             if seg[0] == pseg[1] < seg[1]:
@@ -86,17 +91,21 @@ class tree_paths_t:
             """判断segs中seg左侧是否为断裂的"""
             sidx = None
             for idx in range(nidx - 1, -1, -1):
-                if segs[idx] == seg:
+                if segs[idx] == seg:  # 先根据nidx前向查找seg对应的位置
                     sidx = idx
                     break
             assert sidx is not None
+            if sidx == 0:
+                return False
             return find_left(segs, seg, sidx - 1, can_cross=True) == 0
 
         # 根据前后分段的类型得到积分标准
         segt = tree_paths_t.score_maps[types.tag(seg[2])]
         nsegt = tree_paths_t.score_maps[types.tag(nseg[2])]
-        if nseg[1] - nseg[0] == 1 and not nseg[2] & {types.NU}:
-            nsegt -= 1
+        if seg[1] - seg[0] == 1 and seg[2] & {types.NU}:
+            segt -= 1  # 前分段为NU单字,降一分
+        if nseg[1] - nseg[0] == 1 and not seg[2] & {types.NM, types.NO, types.NB}:
+            nsegt -= 1  # 后分段为单字,降一分
         ds = 0  # 初始扣分
         ns = None  # 初始得分
         if nseg[0] > seg[1]:  # 前后段分离
@@ -118,9 +127,12 @@ class tree_paths_t:
                 else:
                     ds = (seg[1] - nseg[0]) * 2
             elif seg[1] - nseg[0] == 1:
+                lseg = segs[nidx + 1] if segs and nidx + 1 < len(segs) else None
                 if nseg[1] - seg[0] <= 5 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
                     if nseg[1] - seg[0] <= 3 and txt[seg[0]] in {'老', '新'} and not nseg[2] & seg[2] & types.tags_NN:
+                        ns = (nseg[1] - nseg[0]) * tree_paths_t.score_maps['N']
+                    elif segs and txt[nseg[0]] in num_cn and (not lseg or not lseg[2] & {types.NO} or seg[1] != lseg[0]):
                         ns = (nseg[1] - nseg[0]) * tree_paths_t.score_maps['N']
                 elif nseg[1] - seg[0] >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
                     ds = 0  # 特定双段相交不扣分:NU&(NB,NO)
@@ -323,9 +335,7 @@ class tree_paths_t:
 
         if len(self.ends) > 1:
             # 排序规则:最少扣分且最短的路径下的最高有效分
-            ends = sorted(self.ends,
-                          key=lambda x: (0 - x.total[1], 0 - x.deep, x.total[0] - x.total[1], 0 - x.variance),
-                          reverse=True)
+            ends = sorted(self.ends, key=lambda x: (0 - x.total[1], 0 - x.deep, x.total[0] - x.total[1], 0 - x.variance), reverse=True)
             node = ends[0]
         else:
             node = self.ends[0]
@@ -348,7 +358,7 @@ class tree_paths_t:
             return list(segs)
 
         nexts = tree_paths_t._take_first(0, segs)
-        seg = (0, segs[nexts[0]][0], types.tags_NX)
+        seg = (0, segs[nexts[0]][0], types.tags_NA)
         for nidx in nexts:
             nseg = segs[nidx]
             node = tree_paths_t.node_t()  # 生成当前节点
@@ -386,13 +396,13 @@ def split_nt_paths(segs, slen=8):
             if epos:  # 先判断是否断裂
                 ppos = epos - 1
                 pseg = segs[ppos]
-                if pseg[1] < seg[0] and find_left(segs, seg, epos - 2, can_cross=True) == -1:
+                if pseg[1] < seg[0] and not find_left(segs, seg, epos - 2, can_cross=True):
                     return epos  # 出现了断裂的分段
 
             if epos - bpos >= slen:  # 再判断是否过长
                 if epos + 1 < sl:
                     nseg = segs[epos + 1]
-                    if nseg[0] < seg[1] or find_left(segs, nseg, epos - 1, 4, True) != -1 or (nseg[0] == seg[1] and nseg[2] & {types.NM, types.NO, types.NB}):
+                    if nseg[0] < seg[1] or find_left(segs, nseg, epos - 1, 4, True) or (nseg[0] == seg[1] and nseg[2] & {types.NM, types.NO, types.NB}) or seg[2] & {types.NU, types.NA}:
                         epos += 1
                         continue
 
@@ -401,7 +411,7 @@ def split_nt_paths(segs, slen=8):
             if seg[2] & {types.NM, types.NO, types.NB}:  # 判断是否为特征尾缀
                 next = _find_next(epos + 1, 4, {types.NM, types.NO, types.NB})
                 if next == -1:
-                    if epos + 1 < sl and find_left(segs, segs[epos + 1], epos, can_cross=True) != -1:
+                    if epos + 1 < sl and find_left(segs, segs[epos + 1], epos - 1, can_cross=True):
                         epos += 1
                         continue
                     return epos + 1
@@ -435,12 +445,36 @@ def find_nt_paths(txt, segs, dbg=False, rst=None):
 
     # 长分段,进行必要的拆分处理,避免深度递归耗尽内存.
     sps = split_nt_paths(segs)
-    if len(sps) == 1: return tp.find(txt, segs, dbg, rst)
+    if len(sps) == 1:
+        return tp.find(txt, segs, dbg, rst)
+
+    def skip(sr, lseg):
+        """基于rst[-1]与sr的首部进行拼接调整"""
+        ri = find_right(sr, lseg, 0, 4)
+        if ri == 1:
+            return
+        elif ri == 0:
+            while sr:
+                seg = sr[0]
+                if lseg[0] <= seg[0] and seg[1] <= lseg[1]:
+                    sr.pop(0)  # 如果新段的首部完全被旧段的尾部包含,则丢弃
+                else:
+                    return
+            return
+        for i in range(ri - 1):
+            sr.pop(0)
 
     if rst is None: rst = []
     for sp in sps:
         st = txt[:segs[sp[1] - 1][1]]
-        sr = tp.find(st, segs[sp[0]:sp[1]], dbg)
+        sr = segs[sp[0]:sp[1]]
+        if rst:
+            skip(sr, rst[-1])
+        sr = tp.find(st, sr, dbg)
         rst.extend(sr)  # 记录每个分段中的最佳路径结果
         tp.clear()
     return rst
+
+# segs = [(0, 2, {('NS', 146), ('NS2', 144)}), (1, 3, {('NN', 133)}), (2, 4, {('NN', 133)}), (2, 5, {('NN', 133)}), (3, 5, {('NA', 132)}), (4, 6, {('NN', 133)}), (5, 7, {('NN', 133)}), (6, 8, {('NN', 133)}), (7, 9, {('NN', 133)}), (7, 10, {('NO', 135)}), (8, 10, {('NO', 135)}), (9, 11, {('NN', 133)}), (10, 12, {('NZ', 150)}), (12, 16, {('NM', 154)}), (16, 18, {('NA', 132)}), (18, 24, {('NU', 134)}), (18, 25, {('NO', 135)}), (19, 21, {('NA', 132)}), (22, 24, {('NA', 132)}), (24, 25, {('NO', 135)})]
+# txt = '南充嘉宝堂正红大药房连锁有限公司南部第一百四十六店'
+# find_nt_paths(txt, segs)
