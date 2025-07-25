@@ -73,7 +73,10 @@ class tree_paths_t:
             self.deep = 0  # 当前节点路径的深度
             self.variance = 0  # 分段长度差累积
 
-    score_maps = {'X': 0, 'U': 3, 'A': 5, 'N': 6, 'H': 7, 'S': 8, 'Z': 8, 'O': 8, 'B': 9, 'M': 9, 'L': 9, }
+        def __repr__(self):
+            return f"total: {self.total}, deep: {self.deep}, variance: {self.variance}"
+
+    score_maps = {'X': 0, 'U': 4, 'A': 5, 'N': 6, 'H': 7, 'S': 8, 'Z': 8, 'O': 8, 'B': 9, 'M': 9, 'L': 9, }
     unchars = {'(', ')', '<', '>', '"', "'"}
 
     def __init__(self):
@@ -99,13 +102,18 @@ class tree_paths_t:
                 return False
             return find_left(segs, seg, sidx - 1, can_cross=True) == 0
 
-        # 根据前后分段的类型得到积分标准
-        segt = tree_paths_t.score_maps[types.tag(seg[2])]
+        # 根据分段类型得到积分标准
         nsegt = tree_paths_t.score_maps[types.tag(nseg[2])]
-        if seg[1] - seg[0] == 1 and seg[2] & {types.NU}:
-            segt -= 1  # 前分段为NU单字,降一分
-        if nseg[1] - nseg[0] == 1 and not seg[2] & {types.NM, types.NO, types.NB}:
-            nsegt -= 1  # 后分段为单字,降一分
+        seg_len = seg[1] - seg[0]
+        nseg_len = nseg[1] - nseg[0]
+        txt_len = len(txt)
+
+        if nseg_len == 1:
+            if not seg[2] & {types.NM, types.NO, types.NB} or txt[nseg[0]] == '老':
+                nsegt -= 1  # 后分段为单字,降一分
+        elif nseg_len >= 3 and nseg[1] < txt_len and txt[nseg[1] - 1] in {'县', '乡', '村', '镇'} and nseg[2] & {types.NS, }:
+            nsegt += 1
+
         ds = 0  # 初始扣分
         ns = None  # 初始得分
         if nseg[0] > seg[1]:  # 前后段分离
@@ -114,7 +122,7 @@ class tree_paths_t:
                 ds = 0  # 特殊字符的空白间隔不扣分
             else:
                 ds *= 3
-            ns = (nseg[1] - nseg[0]) * nsegt  # 自身长度加分
+            ns = nseg_len * nsegt  # 自身长度加分
         elif seg[1] > nseg[0]:  # 前后段交叉
             if seg[1] - nseg[0] >= 2:  # 特定重叠多字的情况
                 if seg[2] & nseg[2] & {types.NZ, types.NN}:
@@ -123,25 +131,31 @@ class tree_paths_t:
                     ds = 0
                 elif not seg[2] & {types.NB} and nseg[2] & {types.NM, types.NO, types.NB}:
                     ds = 0
-                    ns = (nseg[1] - nseg[0]) * nsegt  # 按正常情况计算完整的后段积分
+                    ns = nseg_len * nsegt  # 按正常情况计算完整的后段积分
                 else:
                     ds = (seg[1] - nseg[0]) * 2
             elif seg[1] - nseg[0] == 1:
                 lseg = segs[nidx + 1] if segs and nidx + 1 < len(segs) else None
-                if nseg[1] - seg[0] <= 5 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
+                ts_len = nseg[1] - seg[0]
+                if ts_len <= 5 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
-                    if nseg[1] - seg[0] <= 3 and txt[seg[0]] in {'老', '新'} and not nseg[2] & seg[2] & types.tags_NN:
-                        ns = (nseg[1] - nseg[0]) * tree_paths_t.score_maps['N']
+                    if nseg[2] & seg[2] & types.tags_NU:
+                        ns = (nseg[1] - seg[1]) * nsegt
+                    elif ts_len <= 3 and (txt[seg[0]] in {'老', '新'} or txt[seg[0]] in num_cn) and not nseg[2] & seg[2] & types.tags_NN:
+                        ns = nseg_len * tree_paths_t.score_maps['N']
                     elif segs and txt[nseg[0]] in num_cn and (not lseg or not lseg[2] & {types.NO} or seg[1] != lseg[0]):
-                        ns = (nseg[1] - nseg[0]) * tree_paths_t.score_maps['N']
-                elif nseg[1] - seg[0] >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
+                        ns = nseg_len * tree_paths_t.score_maps['N']
+                elif ts_len >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
                     ds = 0  # 特定双段相交不扣分:NU&(NB,NO)
-                    ns = (nseg[1] - nseg[0]) * nsegt
+                    ns = nseg_len * nsegt
+                elif ts_len >= 3 and seg[2] & {types.NA} and nseg[2] & {types.NO} and txt[seg[0]] in num_cn:
+                    ds = 0  # 特定双段相交不扣分:NA&(NB,NO) 且 NA的首字是数字
+                    ns = nseg_len * nsegt
                 elif nidx and nidx > 2 and seg[0] and nseg[1] - nseg[0] >= 3 and left_break(segs, seg) and txt[seg[0] - 1] not in tree_paths_t.unchars:
                     ds = 0  # 特殊情况:seg与nseg相交,而seg的前面是未知分段,则尽量保留更长的nseg分段
-                    ns = (nseg[1] - nseg[0]) * nsegt
+                    ns = nseg_len * nsegt
                 elif nseg[2] & {types.NB, types.NO, types.NM} and nseg[1] - nseg[0] <= 4:
-                    if (seg[1] - seg[0] <= 3 or nseg[1] - nseg[0] <= 2) and txt[nseg[0]] in {'省', '市', '区', '县', '乡', '镇', '村', '州', '旗'}:
+                    if (seg_len <= 3 or nseg[1] - nseg[0] <= 2) and txt[nseg[0]] in {'省', '市', '区', '县', '乡', '镇', '村', '州', '旗'}:
                         ds = 0  # 特定尾缀单字相交不扣分,如"红星村|村委会"
                     else:
                         ds = 4
@@ -155,7 +169,7 @@ class tree_paths_t:
             if ns is None:
                 ns = (nseg[1] - seg[1]) * nsegt  # 前后相交,仅计算后段剩余部分
         else:  # 前后相邻
-            ns = (nseg[1] - nseg[0]) * nsegt  # 正常情况,仅计算完整的后段积分
+            ns = nseg_len * nsegt  # 正常情况,仅计算完整的后段积分
         return ns, ds
 
     @staticmethod
@@ -231,9 +245,9 @@ class tree_paths_t:
                 continue  # 出现了无效匹配的情况,放弃当前路径
             if self.ends:
                 lnode = self.ends[-1]  # 已经存在的最新端点
-                if total[1] > lnode.total[1] + 1:
+                if total[1] > lnode.total[1] + 2:
                     continue  # 路径走到中间的时候扣分已经大于存在的结果了,那么剩余路径不用尝试了
-                if pnode.deep + 1 > lnode.deep and total[0] <= lnode.total[0]:
+                if pnode.deep + 1 > lnode.deep and total[0] < lnode.total[0]:
                     continue  # 路径深度大于已有结果,且总分也小于它,则放弃当前路径
 
             node = tree_paths_t.node_t()  # 生成当前节点
@@ -296,8 +310,7 @@ class tree_paths_t:
             for i in reversed(rms):
                 end = ends[i]
                 seg = segs[end.sidx]
-                if end.total[0] < mt_score or types.NA in seg[2] or (
-                        types.NS in seg[2] and txt[seg[1] - 2:seg[1]] in {'门市'}):
+                if end.total[0] < mt_score or seg[2] & {types.NA, types.NU} or (types.NS in seg[2] and txt[seg[1] - 2:seg[1]] in {'门市'}):  # NS三门市
                     ends.pop(i)  # 否则丢弃非nt尾缀的路径
             return True
 
@@ -336,7 +349,13 @@ class tree_paths_t:
         if len(self.ends) > 1:
             # 排序规则:最少扣分且最短的路径下的最高有效分
             ends = sorted(self.ends, key=lambda x: (0 - x.total[1], 0 - x.deep, x.total[0] - x.total[1], 0 - x.variance), reverse=True)
-            node = ends[0]
+            e0 = ends[0]
+            e1 = ends[1]
+            if e1.total[1] <= 2 and e1.total[0] - e1.total[1] > e0.total[0] + 6 and e1.deep <= e0.deep:
+                node = e1
+            else:
+                node = e0
+            # node = ends[0]
         else:
             node = self.ends[0]
 
