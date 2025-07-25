@@ -860,10 +860,10 @@ class spider_base:
     # 统一生成默认请求参数
     def _make_req_param(self, source):
         req = {}
-        if source.proxy:
-            req['PROXY'] = source.proxy  # 尝试绑定采集源静态代理
-        elif source.proxy_addr:
+        if source.proxy_addr:
             req['PROXY'] = source.proxy_addr  # 尝试绑定采集源动态代理
+        elif source.proxy:
+            req['PROXY'] = source.proxy  # 尝试绑定采集源静态代理
         elif _proxy:
             req['PROXY'] = _proxy  # 再尝试绑定全局代理服务器
         return req
