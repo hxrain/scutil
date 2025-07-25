@@ -58,10 +58,10 @@ class nt_parser_t:
 
     # 数字序号组合模式
     num_rules = [(f'([第笫苐新老大小东西南北省市区县村镇乡]?[\\.{nnp.num_re}]{{1,7}}[#号户轮块度角毛分秒吨届座级期船至元克机天年℃]?)', types.tags_NU, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号级大支]*)(公里|经路|纬路|马路|社区|组村|队组|组组|职高|职中|[职委米条轮船道路弄街口里亩线楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
+                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|社区|组村|队组|组组|职高|职中|[职委米条轮船道路弄街口里亩线楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
                   types.tags_NS, __nu_rec.__func__),
-                 (f'([第笫苐新东西南北]*[{nnp.num_re}]{{1,7}}[号分]*)(院区|柜组|部队|煤矿|船队|[团校院馆局会矿场社所部处坊店园摊])', types.tags_NO, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号]?)(营部|工区|分号|仓库|支部|号店|茶楼|分厂|分铺|分站|[厂铺站园亭厅仓库])', types.tags_NB, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|[团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NO, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}})(工区|分号|仓库|支部|[分][团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{0,7}}[号分中小]*[组队])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐农兵]*[{nnp.num_re}]{{1,7}}[师])([零一二三四五六七八九十]+团)?', types.tags_NS, __nu_rec.__func__), ]
     # 附加单字填充占位模式
@@ -150,7 +150,19 @@ class nt_parser_t:
 
         def skip_next(pos, uidx, usegs):
             """判断txt[pos]是否还需要向后扩展"""
-            w_nexts = {'工区', '分号', '部队', '公里', '马路', '社区', '号仓', '分钟', '小时', '职高', '大道', '院区', '支部', '号店', '船队', '号楼', '分场'}
+            w_stops = {'营业', '营销', '营养', '营造', '营部', '矿业', '乡镇', '中学', '五金', '百货', '连锁', '冶金', '船舶', '高地', '组货', '门市', '江苏', '江西',
+                       '农场', '房产', '仓库', '厂区', '路边', '仓储', '厂房', '居家', '排挡', '排档', '铺子', '营口', '桥头'}
+            w_stops3 = {'房地产', '公里处'}
+            if txt[pos:pos + 2] in w_stops:
+                return pos
+            if txt[pos:pos + 3] in w_stops3:
+                return pos
+            if txt[pos - 1:pos + 1] in w_stops:
+                return pos - 1
+            if txt[pos - 1:pos + 2] in w_stops3:
+                return pos - 1
+
+            w_nexts = {'工区', '分号', '部队', '公里', '马路', '社区', '号仓', '分钟', '小时', '职高', '大道', '院区', '支部', '号店', '船队', '号楼', '分场', '路段', '分店', '分仓'}
             if txt[pos:pos + 2] in w_nexts:
                 return pos + 2
             if txt[pos - 1:pos + 1] in w_nexts:
@@ -159,11 +171,7 @@ class nt_parser_t:
                 return pos + 3
             if pos < len(txt) and txt[pos] in {'团'}:
                 return pos + 1
-            w_stops = {'营业', '营销', '营养', '营造', '营部', '矿业', '乡镇', '中学', '五金', '百货', '连锁', '冶金', '船舶', '高地', '组货', '门市'}
-            if txt[pos:pos + 2] in w_stops:
-                return pos
-            if txt[pos - 1:pos + 1] in w_stops:
-                return pos - 1
+
             seg = usegs[uidx]
             fseg = usegs[uidx - 1] if uidx else None
             if uidx + 1 < len(usegs):
@@ -541,13 +549,17 @@ class nt_parser_t:
         """装载NA尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NA, encode, chk_cb=self._chk_cb)
 
+    def load_nu(self, fname, encode='utf-16', isend=True):
+        """装载NU尾缀词典,返回值:''正常,否则为错误信息."""
+        return self.__load(isend, fname, types.tags_NU, encode, chk_cb=self._chk_cb)
+
     def load_no(self, fname, encode='utf-16', isend=True):
         """装载NO尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NO, encode, chk_cb=self._chk_cb)
 
     def loads(self, dicts_list, path=None, with_end=True, dbginfo=False, encode='utf-16'):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
-        map = {"NS": self.load_ns, "NT": self.load_nt, "NZ": self.load_nz, "NN": self.load_nn, "NH": self.load_nh, "NA": self.load_na, "NO": self.load_no, "SA": self.load_nsa}
+        map = {"NS": self.load_ns, "NT": self.load_nt, "NZ": self.load_nz, "NN": self.load_nn, "NH": self.load_nh, "NA": self.load_na, "NU": self.load_nu, "NO": self.load_no, "SA": self.load_nsa}
         bad = []
         for i, d in enumerate(dicts_list):
             fname = d[1] if path is None else os.path.join(path, d[1])
@@ -688,7 +700,7 @@ class nt_parser_t:
                 if pseg[2] & {types.NS, types.NN, types.NA, types.NZ, types.NH}:
                     return True  # 常规词性后出现道路特征,可合并
 
-            if ct in {'区', '县', '乡', '镇', '村', '屯', '居', '办', '组', '港', '港区', '湾区', '地区', '苏木', '小区', '街道', '社区', '行政村', '自然村'}:
+            if ct in {'区', '县', '乡', '镇', '村', '屯', '居', '办', '组', '港', '港区', '湾区', '地区', '苏木', '嘎查', '小区', '街道', '社区', '行政村', '自然村'}:
                 if len(pt) >= 3 and pt[-1] in {'省', '市', '区', '县', '乡', '镇', '村', }:
                     return False  # 较长地名后面出现村镇特征,不合并
                 if pseg[2] & {types.NS, types.NN, types.NA, types.NZ, types.NU}:
@@ -742,6 +754,11 @@ class nt_parser_t:
                         rst[-1] = (pseg[0], seg[1], types.tags_NS)  # 特定模式,"凉山|山村"合并
                         return True
 
+                if pseg[2] & {types.NS} and seg[2] & {types.NS, types.NN, types.NA}:
+                    if line_txt[seg[0]] in area0_chars and line_txt[seg[0]:seg[1]] in {'镇中', '镇内'}:
+                        rst[-1] = (pseg[0], seg[1], types.tags_NS)  # 特定模式,"太平镇|镇中"合并
+                        return True
+
                 if pseg[2] & {types.NU, types.NA} and seg[2] & {types.NU, types.NA}:
                     rst[-1] = (pseg[0], seg[1], seg[2])
                     return True  # 前后交叉,且为特定序号类型,合并
@@ -763,7 +780,7 @@ class nt_parser_t:
                         if tw == '>社':
                             rst.append(seg)  # "<xx>|社"不合并
                             return True
-                        elif tw == '县城':
+                        elif tw in {'县城'}:
                             rst[-1] = (pseg[0], seg[1], pseg[2])
                             return True
                         else:
@@ -1254,13 +1271,18 @@ class nt_parser_t:
 
         def is_brackets(seg):
             """判断当前seg分段是否为NT嵌入在括号中."""
-            return name[seg[0]] == '(' and name[seg[1] - 1] == ')'
+            if name[seg[0]] == '(' and name[seg[1] - 1] == ')':
+                if name[seg[0] + 1] == '(' and name[seg[1] - 2] == ')':
+                    return 2
+                return 1
+            return 0
 
         def chk_errs(i, seg):
             """检查当前段是否为错误切分.如'师范学院路'->师范学院/学院路->师范/学院路,此时的'师范'仍是NM,但明显是错误的."""
             if seg[1] - seg[0] >= 2 and {types.NU, types.NL}.isdisjoint(seg[2]) and types.equ(seg[2], types.tags_NM):
-                if is_brackets(seg):
-                    txt = name[seg[0] + 1:seg[1] - 1]
+                brt = is_brackets(seg)
+                if brt:
+                    txt = name[seg[0] + brt:seg[1] - brt]
                 else:
                     p = segs[i - 1][0] if i > 0 else 0
                     txt = name[p:seg[1]]
