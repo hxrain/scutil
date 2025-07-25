@@ -203,7 +203,7 @@ def wait_thread(thd, timeout=None):
     """等待线程结束.返回值:1成功;0超时;-1错误"""
     try:
         thd.join(timeout)
-        if thd.isAlive():
+        if thd.is_alive():
             return 0
         return 1
     except Exception as e:
