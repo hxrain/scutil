@@ -5,9 +5,7 @@
     3 基于NT组份词典,提供NT名称补全功能
 '''
 import re
-from inspect import isfunction
-from copy import deepcopy
-from collections.abc import Iterable
+import os
 
 import util_base as ub
 import uni_blocks as uni
@@ -17,7 +15,6 @@ import china_area_id as cai
 import nlp_ner_data as nnd
 import nlp_ner_path as nnp
 from nlp_ner_data import types
-import os
 
 
 class nt_parser_t:
@@ -57,8 +54,8 @@ class nt_parser_t:
         return rc
 
     # 数字序号组合模式
-    num_rules = [(f'([第笫苐新老大小东西南北省市区县村镇乡]?[\\.{nnp.num_re}]{{1,7}}[#号户轮块度角毛分秒吨届座级期船至元克机天年℃]?)', types.tags_NU, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|社区|组村|队组|组组|职高|职中|[职委米条轮船道路弄街口里亩线楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
+    num_rules = [(f'([第笫苐新老大小东西南北省市区县村镇乡附]?[\\.{nnp.num_re}]{{1,7}}[#号户轮块度角毛分秒吨届座级期船至元克机天年℃]?)', types.tags_NU, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|社区|组村|队组|组组|职高|职中|[职委米条轮船道路弄街口里亩线层楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
                   types.tags_NS, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|[团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NO, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}})(工区|分号|仓库|支部|[分][团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NB, __nu_rec.__func__),
