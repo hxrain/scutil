@@ -54,11 +54,11 @@ class nt_parser_t:
         return rc
 
     # 数字序号组合模式
-    num_rules = [(f'([第笫苐新老大小东西南北省市区县村镇乡附]?[\\.{nnp.num_re}]{{1,7}}[#号户轮块度角毛分秒吨届座级期船至元克机天年℃]?)', types.tags_NU, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|社区|组村|队组|组组|职高|职中|[职委米条轮船道路弄街口里亩线层楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
+    num_rules = [(f'([第笫苐新老大小东西南北钢省市区县村镇乡附]?[\\.{nnp.num_re}]{{1,7}}[#号户轮块度角毛分秒吨届座级期船至元克机天年℃]?)', types.tags_NU, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|矿区|社区|组村|队组|组组|职高|职中|[职委米条轮船道路弄街口里亩线层楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
                   types.tags_NS, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|[团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NO, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}})(工区|分号|仓库|支部|[分][团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NB, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|包房|站点|坊厅|[团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NO, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号]?)(工区|分号|仓库|支部|[分][团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{0,7}}[号分中小]*[组队])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐农兵]*[{nnp.num_re}]{{1,7}}[师])([零一二三四五六七八九十]+团)?', types.tags_NS, __nu_rec.__func__), ]
     # 附加单字填充占位模式
@@ -111,7 +111,7 @@ class nt_parser_t:
             if pseg:
                 if seg[1] <= pseg[1]:
                     return  # 如果当前段被前段包含则放弃
-                if pseg[2] and seg[2] and not pseg[2] & {types.NA, types.NU, types.NN} and seg[2] & {types.NA} and pseg[1] - seg[0] == 1:
+                if pseg[2] and seg[2] and seg[2] & {types.NA} and pseg[1] - seg[0] == 1 and not pseg[2] & {types.NA, types.NU, types.NN}:
                     seg = (seg[0] + 1, seg[1], seg[2])  # 销售中心|心一处,校正后分段的范围,尝试序号识别.
 
             seg_is_NA = True if seg[2] and seg[2] & {types.NA, types.NU} else False
@@ -148,7 +148,7 @@ class nt_parser_t:
         def skip_next(pos, uidx, usegs):
             """判断txt[pos]是否还需要向后扩展"""
             w_stops = {'营业', '营销', '营养', '营造', '营部', '矿业', '乡镇', '中学', '五金', '百货', '连锁', '冶金', '船舶', '高地', '组货', '门市', '江苏', '江西',
-                       '农场', '房产', '仓库', '厂区', '路边', '仓储', '厂房', '居家', '排挡', '排档', '铺子', '营口', '桥头'}
+                       '农场', '房产', '厂区', '路边', '仓储', '厂房', '居家', '排挡', '排档', '铺子', '营口', '桥头'}
             w_stops3 = {'房地产', '公里处'}
             if txt[pos:pos + 2] in w_stops:
                 return pos
@@ -159,7 +159,9 @@ class nt_parser_t:
             if txt[pos - 1:pos + 2] in w_stops3:
                 return pos - 1
 
-            w_nexts = {'工区', '分号', '部队', '公里', '马路', '社区', '号仓', '分钟', '小时', '职高', '大道', '院区', '支部', '号店', '船队', '号楼', '分场', '路段', '分店', '分仓'}
+            w_nexts = {'工区', '分号', '部队', '公里', '马路', '矿区', '社区', '号仓', '分钟', '小时', '职高', '大道', '院区', '支部', '号店', '船队', '号楼', '分场',
+                       '路段', '分店', '分仓', '号店', '站点', '仓库', '坊厅'}
+
             if txt[pos:pos + 2] in w_nexts:
                 return pos + 2
             if txt[pos - 1:pos + 1] in w_nexts:
@@ -691,7 +693,7 @@ class nt_parser_t:
             if pt[-1] in {'村'} and ct in {'组'}:
                 return True
 
-            if ct in {'路', '街', '道', '巷', '站', '里', '弄', '东路', '西路', '南路', '北路', '中路', '东街', '南街', '西街', '北街', '中街', '大街'}:
+            if ct in {'路', '街', '道', '巷', '站', '里', '弄', '线', '东路', '西路', '南路', '北路', '中路', '东街', '南街', '西街', '北街', '中街', '大街'}:
                 if len(pt) >= 3 and pt[-1] in {'省', '市', '区', '县'}:
                     return False  # 较长地名后面出现道路特征,不合并
                 if pseg[2] & {types.NS, types.NN, types.NA, types.NZ, types.NH}:
@@ -730,6 +732,8 @@ class nt_parser_t:
                         if (seg[0] - pseg[0] == 1 and line_txt[pseg[0]] in areas_chars) or line_txt[seg[0]] in areas_chars:
                             rst[-1] = (pseg[0], seg[1], seg[2])
                             return True
+                    if pseg[2] & {types.NO, types.NM, types.NB}:
+                        return False  # 编辑室|室室,相交时,进行切分
                     if seg[0] - pseg[0] == 1 and line_txt[seg[1] - 1] in area0_chars:
                         rst[-1] = (pseg[0], seg[1], types.tags_NS)
                         return True
@@ -831,13 +835,13 @@ class nt_parser_t:
 
             if pseg[1] > seg[0] and types.NX not in seg[2]:
                 if types.cmp(pseg[2], seg[2]) < 0 or (pseg[2] & {types.NN, types.NH, types.NO, types.NU} and mu.slen(seg) > 2 and seg[2] & {types.NO}):
-                    if pseg[1] - seg[0] >= 2 and seg[0] - pseg[0] == 1 and seg[1] - pseg[1] > 1 and {types.NM, types.NB}.isdisjoint(seg[2]):
+                    if pseg[1] - seg[0] >= 2 and seg[0] - pseg[0] == 1 and seg[1] - pseg[1] > 1 and {types.NM, types.NB, types.NO}.isdisjoint(seg[2]):
                         seg = (pseg[1], seg[1], seg[2])  # 前后相交大于两个字且前段切分后剩余单字,则调整后段
                     else:
                         typ = adj_typ_NO(pseg[0], seg[0], pseg[2])
                         rst[-1] = (pseg[0], seg[0], typ)  # 后段重要,调整前段范围
                 else:
-                    if pseg[1] - seg[0] >= 2 and seg[1] - pseg[1] == 1 and seg[0] - pseg[0] > 1 and {types.NM, types.NB}.isdisjoint(pseg[2]):
+                    if pseg[1] - seg[0] >= 2 and seg[1] - pseg[1] == 1 and seg[0] - pseg[0] > 1 and {types.NM, types.NB, types.NO}.isdisjoint(pseg[2]):
                         rst[-1] = (pseg[0], seg[0], pseg[2])  # 前后相交大于两个字且后段切分后剩余单字,则调整前段
                     else:
                         typ = adj_typ_NO(pseg[1], seg[1], seg[2])
@@ -883,9 +887,16 @@ class nt_parser_t:
 
             # 进行分段类型修正,NH/NA变为NN
             if pseg[2] & {types.NA, types.NH}:
-                pseg = rst[i - 1] = (pseg[0], pseg[1], types.tags_NN)
+                if pseg[1] - pseg[0] == 1 and line_txt[pseg[0]:pseg[1]] in nnp.num_cn:
+                    pseg = rst[i - 1] = (pseg[0], pseg[1], types.tags_NU)
+                else:
+                    pseg = rst[i - 1] = (pseg[0], pseg[1], types.tags_NN)
+
             if seg[2] & {types.NA, types.NH}:
-                seg = rst[i] = (seg[0], seg[1], types.tags_NN)
+                if seg[1] - seg[0] == 1 and line_txt[seg[0]:seg[1]] in nnp.num_cn:
+                    seg = rst[i] = (seg[0], seg[1], types.tags_NU)
+                else:
+                    seg = rst[i] = (seg[0], seg[1], types.tags_NN)
 
             if (seg[1] - seg[0] == 1 or pseg[1] - pseg[0] == 1) and not pseg[2] & seg[2] & {types.NU}:
                 i += 1  # 不主动合并单字
@@ -958,9 +969,17 @@ class nt_parser_t:
                     if not oseg[2] & seg[2] and oseg[2] & {types.NU, types.NA}:
                         segs[pos] = seg  # 分段重合但类别不同,则更新
                     return
-            elif len(segs) and pos:
-                if seg[1] - seg[0] == 1 and seg[1] < segs[pos - 1][1]:
-                    return  # 追加的单字,处于前面分段的内部,放弃.
+            if len(segs) and pos:
+                if seg[1] - seg[0] == 1:
+                    pseg = segs[pos - 1]
+                    if append and seg[1] < pseg[1]:
+                        return  # 追加的单字,处于前面分段的内部,放弃.
+
+                    nc = nnp.find_right(segs, seg, pos + 1)
+                    nseg = segs[pos + nc] if nc else None
+                    next_MOB = nseg and nseg[2] & {types.NM, types.NO, types.NB}
+                    if types.NU in seg[2] and seg[1] <= pseg[1] and not next_MOB:
+                        return  # 单独的数字,如果出现在前段的尾部且后面没有MOB,放弃
 
             pre = _find_pre(pos, seg)
             if pre is not None:
@@ -1063,6 +1082,8 @@ class nt_parser_t:
                     if pseg[0] == seg[0]:  # 前后段起点相同
                         if slen - plen >= 2 and seg[2] & {types.NM, types.NO, types.NB}:
                             return True  # 发电|发电机厂,丢弃前段
+                        if slen >= 5 and slen - plen >= 2 and seg[2] & {types.NZ, types.NS, types.NH}:
+                            return True  # 特定长词,丢弃覆盖的前段
                         if plen == 1 < slen and seg[2] & {types.NS}:
                             return True  # 北|北京,丢弃前段
                     if seg[0] < pseg[0] and pseg[1] < seg[1]:
