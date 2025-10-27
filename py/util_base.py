@@ -1458,6 +1458,8 @@ def text_file_sort(fname, mode=1, encoding='utf-8', cb=None):
             6 - (长度,字符串)/降序
             7 - (长度,字符串反读)/升序
             8 - (长度,字符串反读)/降序
+            9 - (字符串反读,长度)/升序
+            10- (字符串反读,长度)/降序
             mode为tuple的时候:(自定义key方法,是否逆序)
         返回值:''正常;其他为错误信息.
     """
@@ -1465,10 +1467,12 @@ def text_file_sort(fname, mode=1, encoding='utf-8', cb=None):
     kf_str_r = lambda x: x[::-1]
     kf_str_nf = lambda x: (len(x), x)
     kf_str_nr = lambda x: (len(x), x[::-1])
+    kf_str_rn = lambda x: (x[::-1], len(x))
     func_keys = {1: (kf_str_f, False), 2: (kf_str_f, True),
                  3: (kf_str_r, False), 4: (kf_str_r, True),
                  5: (kf_str_nf, False), 6: (kf_str_nf, True),
-                 7: (kf_str_nr, False), 8: (kf_str_nr, True)}
+                 7: (kf_str_nr, False), 8: (kf_str_nr, True),
+                 9: (kf_str_rn, False), 10: (kf_str_rn, True)}
     try:
         if isinstance(mode, int):
             kf = func_keys[mode]

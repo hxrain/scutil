@@ -258,8 +258,10 @@ class xlsx_editor:
             fname = self.fname
         self.file.save(fname)
 
-    def close(self):
+    def close(self, save=False):
         """关闭编辑器"""
+        if save:
+            self.save()
         self.file.close()
         self.file = None
 
