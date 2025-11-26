@@ -540,6 +540,10 @@ class text_spliter_t:
                 if not mres or mres[-1][2] != '!':  # 无命中则继续检查后续段
                     pos += 1
                     continue
+                rvword = st[mres[-1][0]:mres[-1][1]]
+                if st not in rvword:
+                    pos += 1
+                    continue
                 # 命中排除分段了,则将对应分段删除并合并
                 for i in range(next - pos):
                     segs.pop(pos)

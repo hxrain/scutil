@@ -312,7 +312,7 @@ class ac_match_t:
         return rst
 
     def do_match(self, message, msg_len=None, mode=mode_t.is_all):
-        """对给定的消息进行关键词匹配,得到补全过的结果链[(begin,end,val),(begin,end,val),...],val为None说明是原内容部分"""
+        """对给定的消息进行关键词匹配,得到补全过的结果链[(begin,end,val),(begin,end,val),...],val为None说明是未被匹配的原内容部分"""
         if msg_len is None:
             msg_len = len(message)
 

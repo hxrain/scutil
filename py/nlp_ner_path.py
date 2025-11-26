@@ -19,7 +19,7 @@ def make_tags_txt(segs, txt, usetag=True, sep='|'):
     return sep.join(rst)
 
 
-def find_right(segs, seg, offset, steps=3):
+def find_right(segs, seg, offset, steps=3, tags=None):
     """从segs的offset开始向右探察,判断是否存在seg的紧邻分段
         返回值:=0未找到seg的粘连分段;>=1,包含offset在内第几个分段与seg有粘连
     """
@@ -29,16 +29,16 @@ def find_right(segs, seg, offset, steps=3):
         c += 1
         if nseg[0] > seg[1] and c > steps:
             return 0
-        if seg[0] < nseg[0] == seg[1]:
+        if seg[0] < nseg[0] == seg[1] and (not tags or nseg[2] & tags):
             return c
     return 0
 
 
-def find_left(segs, seg, offset, steps=3, can_cross=False):
+def find_left(segs, seg, offset, steps=3, can_cross=False, tags=None):
     """从segs的offset开始向左探察,判断是否存在seg的紧邻分段
         返回值:=0未找到seg的粘连分段;>=1,包含offset在内第几个分段与seg有粘连
     """
-    if offset < 0:
+    if offset < 0 or offset >= len(segs):
         return 0
     c = 0
     for idx in range(offset, -1, -1):
@@ -47,10 +47,10 @@ def find_left(segs, seg, offset, steps=3, can_cross=False):
         if pseg[1] < seg[0] and c > steps:
             return 0
         if can_cross:
-            if seg[0] <= pseg[1] <= seg[1]:
+            if seg[0] <= pseg[1] <= seg[1] and (not tags or pseg[2] & tags):
                 return c
         else:
-            if seg[0] == pseg[1] < seg[1]:
+            if seg[0] == pseg[1] < seg[1] and (not tags or pseg[2] & tags):
                 return c
     return 0
 
@@ -76,7 +76,7 @@ class tree_paths_t:
         def __repr__(self):
             return f"total: {self.total}, deep: {self.deep}, variance: {self.variance}"
 
-    score_maps = {'X': 0, 'U': 4, 'A': 5, 'N': 6, 'H': 7, 'S': 8, 'Z': 8, 'O': 8, 'B': 9, 'M': 9, 'L': 9, }
+    score_maps = {'X': 0, 'U': 4, 'A': 5, 'N': 6, 'H': 7, 'S': 7, 'Z': 8, 'O': 8, 'B': 9, 'M': 9, 'L': 9, }
     unchars = {'(', ')', '<', '>', '"', "'"}
 
     def __init__(self):
@@ -125,8 +125,12 @@ class tree_paths_t:
         if nseg_len == 1:
             if not seg[2] & {types.NM, types.NO, types.NB} or txt[nseg[0]] == '老':
                 nsegt -= 1  # 后分段为单字,降分级
+        # elif nseg_len >= 2 and nseg[2] & {types.NO, }:
+        #     nsegt += 1
         elif nseg_len >= 3 and nseg[1] < txt_len and nseg[2] & {types.NS, } and txt[nseg[1] - 1] in {'县', '乡', '村', '镇'}:
             nsegt += 1  # 带有完整地名尾缀特征字的分段,升分级
+        elif nseg_len >= 3 and nseg[2] & {types.NZ, types.NS}:
+            nsegt += 1  # 足够长的特定类别分段,升分级
 
         ds = 0  # 初始扣分
         ns = None  # 初始得分
@@ -312,7 +316,7 @@ class tree_paths_t:
             node = node.parent
         return False
 
-    def _take(self, rst, txt, segs, showdbg):
+    def _take(self, rst, txt, segs, showdbg, lastSegs=True):
         """根据末端列表选取并构造最优路径结果rst,作为最终结果"""
         if showdbg:
             print(f"\n---->{txt}<----")
@@ -370,7 +374,7 @@ class tree_paths_t:
                 ends.pop(i)  # 删除所有不被保留的路径节点
 
         filter_top(self.ends)  # 通过积分评价排序,筛选得到最优结果路径
-        if not filter_nt(self.ends, True):  # 尝试预先筛选丢弃非NT结尾的路径
+        if lastSegs and not filter_nt(self.ends, True):  # 尝试预先筛选丢弃非NT结尾的路径
             filter_nt(self.ends)
 
         if showdbg and showdbg > 1:
@@ -403,7 +407,7 @@ class tree_paths_t:
             node = node.parent
         return rst
 
-    def find(self, txt, segs, showdbg=False, rst=None):
+    def find(self, txt, segs, showdbg=False, rst=None, islast=True):
         """基于文本txt的分段匹配列表segs,查找最优路径结果rst"""
         if not txt or not segs:
             return []
@@ -424,7 +428,7 @@ class tree_paths_t:
 
         if rst is None:
             rst = []
-        return self._take(rst, txt, segs, showdbg)  # 提取最终结果
+        return self._take(rst, txt, segs, showdbg, islast)  # 提取最终结果
 
 
 def split_nt_paths(segs, slen=10):
@@ -498,7 +502,8 @@ def find_nt_paths(txt, segs, dbg=False, rst=None):
 
     # 长分段,进行必要的拆分处理,避免深度递归耗尽内存.
     sps = split_nt_paths(segs)
-    if len(sps) == 1:
+    sps_size = len(sps)
+    if sps_size == 1:
         return tp.find(txt, segs, dbg, rst)
 
     def skip(sr, lseg):
@@ -518,13 +523,12 @@ def find_nt_paths(txt, segs, dbg=False, rst=None):
             sr.pop(0)
 
     if rst is None: rst = []
-    for sp in sps:
-        st = txt[:segs[sp[1] - 1][1]]
-        sr = segs[sp[0]:sp[1]]
+    for i, idxlst in enumerate(sps):  # 对多个分段分别进行路径筛选,避免过长分段列表导致递归过深,性能下降
+        stxt = txt[:segs[idxlst[1] - 1][1]]
+        subs = segs[idxlst[0]:idxlst[1]]
         if rst:
-            skip(sr, rst[-1])
-        sr = tp.find(st, sr, dbg)
-        rst.extend(sr)  # 记录每个分段中的最佳路径结果
+            skip(subs, rst[-1])
+        rst.extend(tp.find(stxt, subs, dbg, islast=(sps_size == 1 or i > 0)))  # 记录每个分段中的最佳路径结果
         tp.clear()
     return rst
 
