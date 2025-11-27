@@ -8,9 +8,9 @@ import time
 import requests
 
 try:
-    import websocket._core as websocket
-except:
     import websocket
+except:
+    import websocket._core as websocket
 
 import base64
 import spd_base
@@ -985,7 +985,8 @@ def chrome_open_tab(chrome_addr, dsturl, session=None, timeout=None):
     if session is None:
         session = requests
     try:
-        rp = session.get(f"http://{chrome_addr}/json/new?{dsturl}", timeout=timeout, proxies={'http': None, 'https': None})
+        url=spd_base.up.quote(dsturl)
+        rp = session.put(f"http://{chrome_addr}/json/new?{url}", timeout=timeout, proxies={'http': None, 'https': None})
         rst = _load_json(rp)
         return rst, ''
     except Exception as e:
