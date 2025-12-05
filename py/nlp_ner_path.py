@@ -131,7 +131,9 @@ class tree_paths_t:
                 csegt += 1
             elif cseg_len >= 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in {'市', '县', '乡', '村', '镇'}:
                 csegt += 1  # 带有完整地名尾缀特征字的分段,升分级
-            elif cseg_len >= 4 and cseg[2] & {types.NZ, types.NS}:
+            elif cseg_len >= 3 and cseg[2] & {types.NZ, types.NS}:
+                csegt += 1  # 足够长的特定类别分段,升分级
+            elif cseg_len >= 4 and cseg[2] & {types.NN, types.NH}:
                 csegt += 1  # 足够长的特定类别分段,升分级
             return csegt, cseg_len
 
@@ -141,6 +143,8 @@ class tree_paths_t:
         segt, seg_len = calc_std_score(pseg, seg)
         # 计算当前段积分标准
         nsegt, nseg_len = calc_std_score(seg, nseg)
+
+        std_ns_tails = {'省', '市', '区', '县', '乡', '镇', '村', }
 
         ds = 0  # 初始扣分
         ns = None  # 初始得分
@@ -168,6 +172,15 @@ class tree_paths_t:
                     ds = cr_len * 2
             elif cr_len == 1:
                 lseg = segs[nidx + 1] if segs and nidx + 1 < len(segs) else None
+
+                def can_spec_merge():
+                    """判断是否可以进行特殊交叉合并"""
+                    if types.NS in seg[2] and nseg_len == 2:
+                        c0, c1 = txt[nseg[0]:nseg[1]]
+                        if c0 in std_ns_tails and c1 in std_ns_tails:
+                            return True  # 市市/村村/镇镇/村镇/...,可以交叉合并:泊头市|市市
+                    return False
+
                 if ts_len <= 5 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
                 elif ts_len >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
@@ -182,14 +195,14 @@ class tree_paths_t:
                 elif seg[2] & {types.NO, types.NM} and nseg_len <= 2 and not tree_paths_t.ismob(segs, nidx, seg[0], seg[1] - 1) and nidx == len(segs) - 1:
                     ds = 0  # 研究室|室室,相交时,不扣分,但降低nseg得分
                     ns = (nseg_len - 1) * nsegt
-                elif types.NS in seg[2] and types.NA in nseg[2] and txt[nseg[0]] in {'省', '市', '区', '县', }:  # 泊头市|市市
-                    if nidx is None:  # 在后期合并判断时
+                elif can_spec_merge():
+                    if nidx is None:  # 在后期合并判断时,要求分隔开
                         ds = 2
-                    else:  # 在前期路径分析时
+                    else:  # 在前期路径分析时,允许合并
                         ds = 0
                         ns = (nseg_len - 1) * nsegt
                 elif nseg[2] & {types.NB, types.NO, types.NM} and nseg_len <= 4:
-                    if (seg_len <= 3 or nseg_len <= 2) and txt[nseg[0]] in {'省', '市', '区', '县', '乡', '镇', '村', '州', '旗'}:
+                    if (seg_len <= 3 or nseg_len <= 2) and txt[nseg[0]] in std_ns_tails:
                         ds = 0  # 特定尾缀单字相交不扣分,如"红星村|村委会"
                     else:
                         ds = 4
@@ -335,14 +348,15 @@ class tree_paths_t:
         for i, node in enumerate(ends):
             score = node.total[0]
             if score not in grps:
+                # 记录信息: (ends索引,路径深度,路径扣分)
                 grps[score] = [(i, node.deep, node.total[1])]
             else:
                 grp = grps[score]
                 if node.deep > grp[-1][1] or node.total[1] > grp[-1][2]:
-                    continue
+                    continue  # 同分节点:更深的丢弃;扣分更多的丢弃
                 if node.deep < grp[-1][1]:
-                    grp.pop(-1)
-                grp.append((i, node.deep, node.total[1]))
+                    grp.pop(-1)  # 遇到更浅的,将原结果丢弃
+                grp.append((i, node.deep, node.total[1]))  # 记录新结果
 
         # 再根据深度进行分组筛选
         tops = {}
@@ -350,15 +364,11 @@ class tree_paths_t:
             grp = grps[score]
             for i, deep, _ in grp:
                 node = ends[i]
+                # 重新记录节点信息:(ends索引,总分,扣分,mob深度,总深度,均衡量)
                 if deep not in tops:
-                    tops[deep] = [(i, *node.total, path_mob(node, segs))]
+                    tops[deep] = [(i, *node.total, path_mob(node, segs), deep, node.variance)]
                 else:
-                    tops[deep].append((i, *node.total, path_mob(node, segs)))
-
-        def sort_key_ts(t):
-            x = ends[t[0]]
-            # 排序规则: MOB深度/扣分少/有效分高/分段均衡
-            return (t[3], 0 - x.total[1], x.total[0] - x.total[1], 0 - x.variance)
+                    tops[deep].append((i, *node.total, path_mob(node, segs), deep, node.variance))
 
         bad = None
         cands = []
@@ -366,7 +376,9 @@ class tree_paths_t:
         # 按深度分组进行组内筛选
         for deep in deeps:
             ts = tops[deep]  # 得到当前深度下的节点信息列表
-            ts = sorted(ts, key=sort_key_ts, reverse=True)
+            # 排序规则: MOB深度/扣分少/有效分高/分段均衡
+            if len(ts) > 1:
+                ts = sorted(ts, key=lambda t: (t[3], 0 - t[2], t[1] - t[2], 0 - t[5]), reverse=True)
             for i in range(0, min(len(ts), 2)):
                 td = ts[i]
                 if ((len(ts) == 1 and td[2] == 0) or td[3] > 0) and (i == 0 or td[1] >= ts[i - 1][1]):
@@ -377,17 +389,17 @@ class tree_paths_t:
         if not cands:  # 不存在最优后续结果,直接返回最短深度上的次优结果
             return [ends[bad[0]]]
 
-        def sort_key_ds(t):
-            x = ends[t[0]]
-            # 排序规则: 深度小/扣分少/有效分高
-            return (0 - x.deep, 0 - x.total[1], x.total[0] - x.total[1])
-
         rst = []
-        # 排序筛选候选结果
-        cands = sorted(cands, key=sort_key_ds, reverse=True)
-        for i in range(0, min(len(cands), 2)):
-            if len(cands) == 1 or len(rst) == 0 or cands[i][2] == 0:
-                rst.append(ends[cands[i][0]])  # 选取最终结果
+        # 排序筛选第一候选, 排序规则: 深度小/扣分少/有效分高
+        cands = sorted(cands, key=lambda t: (0 - t[4], 0 - t[2], t[1] - t[2]), reverse=True)
+        rst.append(ends[cands[0][0]])  # 记录第一候选
+        if len(cands) == 2:
+            rst.append(ends[cands[1][0]])  # 记录第二候选
+        elif len(cands) >= 3:
+            # 筛选第二候选,排序规则: 深度小/有效分高
+            cands.pop(0)
+            cands = sorted(cands, key=lambda t: (0 - t[4], t[1] - t[2]), reverse=True)
+            rst.append(ends[cands[0][0]])  # 记录第二候选
         return rst
 
     def _take(self, rst, txt, segs, showdbg):
@@ -417,14 +429,20 @@ class tree_paths_t:
 
         def _cmp(e0, e1):
             """判断两条路径,有条件的选取更深但更优的结果"""
-            if e1.total[1] == 0 and e1.deep <= e0.deep + 1:
-                if e1.total[0] - e0.total[0] > 6:
-                    return e1  # 第二个结果评分比第一个大很多,选第二个
+            n1 = segs[e1.sidx]
+            n0 = segs[e0.sidx]
 
-                n1 = segs[e1.sidx]
-                n0 = segs[e0.sidx]
+            if e1.total[1] == 0 and e1.deep <= e0.deep + 1:  # 第二候选无扣分
+                if e1.total[0] - e0.total[0] > 6:
+                    return e1  # 第二候选评分比第一候选大很多,选第二个
+
                 if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA} and n1[2] & {types.NO, types.NB, types.NM}:
-                    return e1  # 第一个结果不是MOB但第二个结果是,选第二个
+                    return e1  # 第一候选不是MOB但第二候选是,选第二个
+
+            if e1.total[1] <= 2 and e1.deep <= e0.deep + 1:  # 第二候选有扣分
+                if e1.total[0] - e0.total[0] >= 8 and n0[2] & {types.NA} and n1[2] & {types.NO, types.NB, types.NM}:
+                    return e1  # 第一候选不是MOB但第二候选是,选第二个
+
             return e0
 
         # 选取最终的路径结果

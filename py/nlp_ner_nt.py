@@ -769,8 +769,8 @@ class nt_parser_t:
                     return True  # 前后交叉,且为特定类型,合并: "百家|家幸"
 
                 if pseg[2] & {types.NS, types.NZ, types.NH} and seg[2] & {types.NS, types.NN, types.NA}:
-                    if line_txt[seg[1] - 1] in area0_chars:
-                        rst[-1] = (pseg[0], seg[1], types.tags_NS)  # 特定模式,"凉山|山村"合并
+                    if line_txt[seg[1] - 1] in area0_chars and line_txt[seg[1] - 2] not in area0_chars:
+                        rst[-1] = (pseg[0], seg[1], types.tags_NS)  # 特定模式,合并"凉山|山村",但不合并"李沟村|村村"
                         return True
 
                 if pseg[2] & {types.NS} and seg[2] & {types.NS, types.NN, types.NA}:
@@ -895,7 +895,7 @@ class nt_parser_t:
                         return
 
             if types.NX not in seg[2]:
-                if seg[1] - seg[0] >= 2 and types.tags_NA.issubset(seg[2]) and line_txt[seg[1] - 2:seg[1]] in {'村店', '里店', '家店', '东店', '南店', '西店', '北店'}:
+                if seg[1] - seg[0] >= 2 and types.tags_NA.issubset(seg[2]) and line_txt[seg[1] - 2:seg[1]] in {'中点', '新店', '村店', '里店', '家店', '东店', '南店', '西店', '北店'}:
                     seg = (seg[0], seg[1], types.tags_NO)  # 校正特殊店铺尾缀
                 rst.append(seg)  # 记录后段信息
 
