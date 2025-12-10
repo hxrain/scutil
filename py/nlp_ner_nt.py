@@ -886,7 +886,7 @@ class nt_parser_t:
                 if mu.slen(p2seg) > 1 and can_combi_NS(p2seg, p1seg, line_txt):  # 在前一轮北切分剩余单字后,再次尝试 合并'|南京|路|'
                     rst[-2] = (p2seg[0], p1seg[1], types.tags_NS)  # 转换分段类型为NS
                     rst.pop(-1)
-                    print('cut1', line_txt)
+                    print('cut1', line_txt[p2seg[0]:p1seg[1]], line_txt)
                 elif mu.slen(p1seg) == 1 and p1seg[1] == seg[0]:
                     pc = line_txt[p1seg[0]]
                     if pc in {'新', '老', '大', '小', '上', '下', '前', '后', '东', '西', '南', '北'} and types.tags_NS.issubset(seg[2]):
@@ -895,7 +895,7 @@ class nt_parser_t:
                         return
 
             if types.NX not in seg[2]:
-                if seg[1] - seg[0] >= 2 and types.tags_NA.issubset(seg[2]) and line_txt[seg[1] - 2:seg[1]] in {'中点', '新店', '村店', '里店', '家店', '东店', '南店', '西店', '北店'}:
+                if seg[1] - seg[0] >= 2 and types.tags_NA.issubset(seg[2]) and line_txt[seg[1] - 2:seg[1]] in {'中店', '新店', '村店', '里店', '家店', '东店', '南店', '西店', '北店'}:
                     seg = (seg[0], seg[1], types.tags_NO)  # 校正特殊店铺尾缀
                 rst.append(seg)  # 记录后段信息
 
@@ -1213,12 +1213,13 @@ class nt_parser_t:
             def can_rec(seg):
                 city_tails = {'省', '市', '区', '县', '乡', '镇', '村', '州', '旗', '街', '路', '道'}
                 rstlen = len(rst)
+                slen = mu.slen(seg)
                 if rstlen >= 3:
                     f3 = rst[-3]
                     f2 = rst[-2]
                     f1 = rst[-1]
 
-                    if seg[1] - seg[0] == 1:
+                    if slen == 1:
                         if f3[1] == seg[0] and f3[0] == f2[0] and seg[1] == f2[1] == f1[1] and not nnp.find_left(rst, seg, rstlen - 4):
                             return False  # Z:小吃|O:小吃店|O:吃店|O:店 不记录最后的单字
 
@@ -1230,7 +1231,6 @@ class nt_parser_t:
                     pseg = rst[-1]
                     flen = mu.slen(fseg)
                     plen = mu.slen(pseg)
-                    slen = mu.slen(seg)
                     if slen == 1:
                         if flen == 1 and seg[0] == fseg[1] and pseg[0] == fseg[0] and pseg[1] == seg[1] and fseg[2] & seg[2] & types.tags_NA:
                             rst.pop(-2)  # 西|西北|北 : 丢弃首段不记录尾段
@@ -1254,6 +1254,8 @@ class nt_parser_t:
                     if mu.slen(pseg) >= 3:
                         if seg[1] == pseg[1] and seg[0] > pseg[0] and pseg[2] & {types.NO, types.NM, types.NB} and seg[2] & types.tags_NA:
                             return False  # 被NO/NM/NB右包含的NA不记录
+                        if seg[0] == pseg[1] - 1 and slen == 2 and pseg[2] & {types.NO, types.NM, types.NB} and seg[2] & types.tags_NA and txt[seg[1] - 1] in nnp.num_cn:
+                            return False  # 与NO/NM/NB左相交的NA不记录
                         if seg[1] == pseg[1] and mu.slen(seg) == 1 and pseg[2] & types.tags_NS and seg[2] & types.tags_NA and txt[seg[0]] in city_tails:
                             return False  # 上海|上海市|市,不记录最后的单字
                         if seg[0] - pseg[0] >= 2 and seg[1] <= pseg[1] and seg[2] & pseg[2] & {types.NM, types.NO}:
@@ -1429,7 +1431,7 @@ class nt_parser_t:
                     outs.pop(-1)  # 后一段结果比前一段结果多一个字,则丢弃前段结果
             outs.append(newr)
 
-        def can_rec_o(islast, npos):
+        def can_rec_o(seg, islast, npos):
             if islast:
                 return True
             if npos >= len(segs):
@@ -1438,6 +1440,8 @@ class nt_parser_t:
             if nseg[2] is None:
                 return True
             if is_brackets(nseg) and nseg[2] & {types.NM, types.NL}:
+                return True
+            if not nnp.find_left(segs, seg, npos - 1, tags={types.NO, types.NM, types.NB}):
                 return True
             return False
 
@@ -1458,7 +1462,7 @@ class nt_parser_t:
                     outs.append((seg[0], seg[1], types.NL))
             elif types.NB in stype:
                 rec(i, seg, bpos, epos, types.NB)  # 当前段是分支NT结尾
-            elif types.NO in stype and can_rec_o(islast, i + 1):
+            elif types.NO in stype and can_rec_o(seg, islast, i + 1):
                 # 当前段是单字NO结尾,需要判断特例
                 pseg = segs[i - 1]
                 if slen == 1 and pseg[2] and pseg[2] & {types.NM, types.NO, types.NA}:

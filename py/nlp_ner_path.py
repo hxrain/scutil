@@ -2,8 +2,8 @@ from nlp_ner_data import types
 from nlp_ner_data import nt_tail_chars
 
 # 数字序号基础模式
-num_cn = {'零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '幺', '壹', '贰', '貮', '貳', '弍', '叁', '仨', '肆', '伍', '陆', '陸', '柒', '捌', '玖', '拾', '百', '千', '仟', '万'}
-num_zh = f'甲乙丙丁戊己庚辛壬癸丑寅卯辰巳午未申酉戌亥廿卅什两参佰伯'
+num_cn = {'零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '幺', '壹', '贰', '貮', '貳', '弍', '叁', '仨', '肆', '伍', '陆', '陸', '柒', '捌', '玖', '拾', '百', '千', '仟', '万', '两', '参', '佰', '伯'}
+num_zh = f'甲乙丙丁戊己庚辛壬癸丑寅卯辰巳午未申酉戌亥廿卅什'
 num_re = rf'A-Z×&+○O\dIⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ{num_zh}{"".join(num_cn)}'
 
 
@@ -30,7 +30,7 @@ def find_right(segs, seg, offset, steps=3, tags=None):
         c += 1
         if nseg[0] > seg[1] and c > steps:
             return 0
-        if seg[0] < nseg[0] == seg[1] and (not tags or nseg[2] & tags):
+        if seg[0] < nseg[0] == seg[1] and (not tags or not nseg[2] or nseg[2] & tags):
             return c
     return 0
 
@@ -48,10 +48,10 @@ def find_left(segs, seg, offset, steps=3, can_cross=False, tags=None):
         if pseg[1] < seg[0] and c > steps:
             return 0
         if can_cross:
-            if seg[0] <= pseg[1] <= seg[1] and (not tags or pseg[2] & tags):
+            if seg[0] <= pseg[1] <= seg[1] and (not tags or not pseg[2] or pseg[2] & tags):
                 return c
         else:
-            if seg[0] == pseg[1] < seg[1] and (not tags or pseg[2] & tags):
+            if seg[0] == pseg[1] < seg[1] and (not tags or not pseg[2] or pseg[2] & tags):
                 return c
     return 0
 
@@ -118,6 +118,7 @@ class tree_paths_t:
 
         # 根据分段类型得到积分标准
         txt_len = len(txt)
+        std_ns_tails = {'省', '市', '区', '县', '乡', '镇', '村', }
 
         def calc_std_score(pseg, cseg):
             """根据前分段pseg与当前段cseg,分析得到cseg的基准分"""
@@ -129,9 +130,9 @@ class tree_paths_t:
                     csegt -= 1  # 后分段为单字,降分级
             elif cseg_len >= 2 and cseg[2] & {types.NO, types.NM}:
                 csegt += 1
-            elif cseg_len >= 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in {'市', '县', '乡', '村', '镇'}:
+            elif cseg_len >= 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in std_ns_tails:
                 csegt += 1  # 带有完整地名尾缀特征字的分段,升分级
-            elif cseg_len >= 3 and cseg[2] & {types.NZ, types.NS}:
+            elif cseg_len >= 4 and cseg[2] & {types.NZ, types.NS}:
                 csegt += 1  # 足够长的特定类别分段,升分级
             elif cseg_len >= 4 and cseg[2] & {types.NN, types.NH}:
                 csegt += 1  # 足够长的特定类别分段,升分级
@@ -143,8 +144,6 @@ class tree_paths_t:
         segt, seg_len = calc_std_score(pseg, seg)
         # 计算当前段积分标准
         nsegt, nseg_len = calc_std_score(seg, nseg)
-
-        std_ns_tails = {'省', '市', '区', '县', '乡', '镇', '村', }
 
         ds = 0  # 初始扣分
         ns = None  # 初始得分
@@ -172,14 +171,8 @@ class tree_paths_t:
                     ds = cr_len * 2
             elif cr_len == 1:
                 lseg = segs[nidx + 1] if segs and nidx + 1 < len(segs) else None
-
-                def can_spec_merge():
-                    """判断是否可以进行特殊交叉合并"""
-                    if types.NS in seg[2] and nseg_len == 2:
-                        c0, c1 = txt[nseg[0]:nseg[1]]
-                        if c0 in std_ns_tails and c1 in std_ns_tails:
-                            return True  # 市市/村村/镇镇/村镇/...,可以交叉合并:泊头市|市市
-                    return False
+                if nseg_len == 2:
+                    nc0, nc1 = txt[nseg[0]:nseg[1]]
 
                 if ts_len <= 5 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
@@ -195,19 +188,20 @@ class tree_paths_t:
                 elif seg[2] & {types.NO, types.NM} and nseg_len <= 2 and not tree_paths_t.ismob(segs, nidx, seg[0], seg[1] - 1) and nidx == len(segs) - 1:
                     ds = 0  # 研究室|室室,相交时,不扣分,但降低nseg得分
                     ns = (nseg_len - 1) * nsegt
-                elif can_spec_merge():
-                    if nidx is None:  # 在后期合并判断时,要求分隔开
-                        ds = 2
-                    else:  # 在前期路径分析时,允许合并
-                        ds = 0
-                        ns = (nseg_len - 1) * nsegt
-                elif nseg[2] & {types.NB, types.NO, types.NM} and nseg_len <= 4:
-                    if (seg_len <= 3 or nseg_len <= 2) and txt[nseg[0]] in std_ns_tails:
-                        ds = 0  # 特定尾缀单字相交不扣分,如"红星村|村委会"
-                    else:
-                        ds = 4
+                elif types.NS in seg[2] and nseg_len == 2 and nc0 == nc1 and nc1 in std_ns_tails:
+                    # 市市/村村/镇镇...,可以交叉合并:泊头市|市市
+                    ds = 2 if nidx is None else 0  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
+                    # ns = (nseg_len - 1) * nsegt
+                elif types.NS in seg[2] and nseg_len == 2 and (nidx is None or find_right(segs, nseg, nidx + 1, tags={types.NM, types.NO, types.NB})):
+                    # 栲栳镇|镇英
+                    ds = 2
+                # elif nseg[2] & {types.NB, types.NO, types.NM} and nseg_len <= 4:
+                #     if (seg_len <= 3 or nseg_len <= 2) and txt[nseg[0]] in std_ns_tails:
+                #         ds = 0  # 特定尾缀单字相交不扣分,如"红星村|村委会"
+                #     else:
+                #         ds = 4
                 else:
-                    ds = 2  # 其他情况
+                    ds = 3  # 其他情况
             elif seg[2] & {types.NM, types.NO, types.NB}:
                 ds = cr_len * 4  # 尾缀分段不应该被交叉,扣分多一些
             else:
@@ -352,7 +346,9 @@ class tree_paths_t:
                 grps[score] = [(i, node.deep, node.total[1])]
             else:
                 grp = grps[score]
-                if node.deep > grp[-1][1] or node.total[1] > grp[-1][2]:
+                pnode = ends[grp[-1][0]]  # 记录的前一个节点对象
+                pseg_is_mob = segs[pnode.sidx][2] & {types.NM, types.NO, types.NB}  # 判断前面的节点是否为mob类型
+                if (pseg_is_mob and node.deep > grp[-1][1]) or node.total[1] > grp[-1][2]:
                     continue  # 同分节点:更深的丢弃;扣分更多的丢弃
                 if node.deep < grp[-1][1]:
                     grp.pop(-1)  # 遇到更浅的,将原结果丢弃
@@ -376,12 +372,13 @@ class tree_paths_t:
         # 按深度分组进行组内筛选
         for deep in deeps:
             ts = tops[deep]  # 得到当前深度下的节点信息列表
+            tss = len(ts)
             # 排序规则: MOB深度/扣分少/有效分高/分段均衡
-            if len(ts) > 1:
+            if tss > 1:
                 ts = sorted(ts, key=lambda t: (t[3], 0 - t[2], t[1] - t[2], 0 - t[5]), reverse=True)
             for i in range(0, min(len(ts), 2)):
                 td = ts[i]
-                if ((len(ts) == 1 and td[2] == 0) or td[3] > 0) and (i == 0 or td[1] >= ts[i - 1][1]):
+                if ((len(ts) == 1 and td[2] == 0) or td[3] > 0) and (i == 0 or td[1] > ts[i - 1][1]):
                     cands.append(td)  # 保留当前深度下的有效最优结果
             if bad is None:
                 bad = ts[0]  # 记录最短深度上的首个路径,作为次优结果
@@ -390,15 +387,15 @@ class tree_paths_t:
             return [ends[bad[0]]]
 
         rst = []
-        # 排序筛选第一候选, 排序规则: 深度小/扣分少/有效分高
-        cands = sorted(cands, key=lambda t: (0 - t[4], 0 - t[2], t[1] - t[2]), reverse=True)
+        # 排序筛选第一候选, 排序规则: 深度小/扣分少/有效分高/更均衡
+        cands = sorted(cands, key=lambda t: (0 - t[4], 0 - t[2], t[1] - t[2], 0 - t[5]), reverse=True)
         rst.append(ends[cands[0][0]])  # 记录第一候选
         if len(cands) == 2:
             rst.append(ends[cands[1][0]])  # 记录第二候选
         elif len(cands) >= 3:
-            # 筛选第二候选,排序规则: 深度小/有效分高
             cands.pop(0)
-            cands = sorted(cands, key=lambda t: (0 - t[4], t[1] - t[2]), reverse=True)
+            # 筛选第二候选,排序规则: 深度小/有效分高/更均衡
+            cands = sorted(cands, key=lambda t: (0 - t[4], t[1] - t[2], 0 - t[5]), reverse=True)
             rst.append(ends[cands[0][0]])  # 记录第二候选
         return rst
 
@@ -436,7 +433,7 @@ class tree_paths_t:
                 if e1.total[0] - e0.total[0] > 6:
                     return e1  # 第二候选评分比第一候选大很多,选第二个
 
-                if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA} and n1[2] & {types.NO, types.NB, types.NM}:
+                if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA, } and n1[2] & {types.NO, types.NB, types.NM}:
                     return e1  # 第一候选不是MOB但第二候选是,选第二个
 
             if e1.total[1] <= 2 and e1.deep <= e0.deep + 1:  # 第二候选有扣分
