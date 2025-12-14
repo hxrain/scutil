@@ -172,7 +172,7 @@ class tree_paths_t:
             elif cr_len == 1:
                 lseg = segs[nidx + 1] if segs and nidx + 1 < len(segs) else None
                 if nseg_len == 2:
-                    nc0, nc1 = txt[nseg[0]:nseg[1]]
+                    nword = txt[nseg[0]:nseg[1]]
 
                 if ts_len <= 5 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
@@ -186,12 +186,14 @@ class tree_paths_t:
                     ds = 0  # 特殊情况:seg与nseg相交,而seg的前面是未知分段,则尽量保留更长的nseg分段
                     ns = nseg_len * nsegt
                 elif seg[2] & {types.NO, types.NM} and nseg_len <= 2 and not tree_paths_t.ismob(segs, nidx, seg[0], seg[1] - 1) and nidx == len(segs) - 1:
-                    ds = 0  # 研究室|室室,相交时,不扣分,但降低nseg得分
-                    ns = (nseg_len - 1) * nsegt
-                elif types.NS in seg[2] and nseg_len == 2 and nc0 == nc1 and nc1 in std_ns_tails:
+                    ds = 0  # 存在干扰的情况下,如果:"研究室|室室",相交不扣分,但降低nseg得分
+                    ns = (nseg_len - 1) * nsegt - 1
+                elif types.NS in seg[2] and nseg_len == 2 and nword[0] == nword[1] and nword[0] in std_ns_tails:
                     # 市市/村村/镇镇...,可以交叉合并:泊头市|市市
                     ds = 2 if nidx is None else 0  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
-                    # ns = (nseg_len - 1) * nsegt
+                    ns = nsegt - 1  # 出现了弱化单字,少给一分
+                elif types.NS in seg[2] and nseg_len == 2 and nword == '县城':
+                    ds = 0  # 特定地名交叉合并,不扣分
                 elif types.NS in seg[2] and nseg_len == 2 and (nidx is None or find_right(segs, nseg, nidx + 1, tags={types.NM, types.NO, types.NB})):
                     # 栲栳镇|镇英
                     ds = 2
@@ -369,6 +371,13 @@ class tree_paths_t:
         bad = None
         cands = []
         deeps = sorted(tops.keys())
+
+        def _has_mob(ts):
+            for td in ts:
+                if td[3] > 0:
+                    return True
+            return False
+
         # 按深度分组进行组内筛选
         for deep in deeps:
             ts = tops[deep]  # 得到当前深度下的节点信息列表
@@ -376,9 +385,11 @@ class tree_paths_t:
             # 排序规则: MOB深度/扣分少/有效分高/分段均衡
             if tss > 1:
                 ts = sorted(ts, key=lambda t: (t[3], 0 - t[2], t[1] - t[2], 0 - t[5]), reverse=True)
+            has_mob = _has_mob(ts)
             for i in range(0, min(len(ts), 2)):
                 td = ts[i]
-                if ((len(ts) == 1 and td[2] == 0) or td[3] > 0) and (i == 0 or td[1] > ts[i - 1][1]):
+                if ((len(ts) == 1 and td[2] == 0) or not has_mob or td[3] > 0) and (i == 0 or td[1] > ts[i - 1][1]):
+                    # (单结果且未扣分 or 不存在MOB or 当前是MOB) and (当前为首结果 or 当前结果分值大于前结果)
                     cands.append(td)  # 保留当前深度下的有效最优结果
             if bad is None:
                 bad = ts[0]  # 记录最短深度上的首个路径,作为次优结果
@@ -430,7 +441,7 @@ class tree_paths_t:
             n0 = segs[e0.sidx]
 
             if e1.total[1] == 0 and e1.deep <= e0.deep + 1:  # 第二候选无扣分
-                if e1.total[0] - e0.total[0] > 6:
+                if e1.total[0] - e0.total[0] >= 6:
                     return e1  # 第二候选评分比第一候选大很多,选第二个
 
                 if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA, } and n1[2] & {types.NO, types.NB, types.NM}:
