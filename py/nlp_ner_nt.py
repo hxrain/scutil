@@ -748,7 +748,7 @@ class nt_parser_t:
                         return False  # 编辑室|室室,相交时,进行切分
 
                     if seg[0] - pseg[0] == 1:
-                        if line_txt[seg[1] - 1] in area0_chars:
+                        if line_txt[seg[1] - 1] in area0_chars and not seg[2] & {types.NO, types.NM, types.NB}:
                             # 根据后缀,能构成典型地点名称的前后段,合并: "长江|江路"
                             rst[-1] = (pseg[0], seg[1], types.tags_NS)
                             return True

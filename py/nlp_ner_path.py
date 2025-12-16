@@ -77,7 +77,7 @@ class tree_paths_t:
         def __repr__(self):
             return f"total: {self.total}, deep: {self.deep}, variance: {self.variance}"
 
-    score_maps = {'X': 0, 'U': 5, 'A': 5, 'N': 6, 'H': 7, 'S': 8, 'Z': 8, 'O': 8, 'B': 9, 'M': 9, 'L': 9, }
+    score_maps = {'X': 0, 'U': 5, 'A': 5, 'N': 6, 'H': 7, 'S': 8, 'Z': 8, 'O': 8, 'B': 8, 'M': 9, 'L': 9, }
     unchars = {'(', ')', '<', '>', '"', "'"}
 
     def __init__(self):
@@ -130,12 +130,13 @@ class tree_paths_t:
                     csegt -= 1  # 后分段为单字,降分级
             elif cseg_len >= 2 and cseg[2] & {types.NO, types.NM}:
                 csegt += 1
+            elif cseg_len >= 3 and cseg[2] & {types.NB}:
+                csegt += 1
+            elif cseg_len >= 4 and cseg[2] & {types.NZ, types.NS, types.NN, types.NH}:
+                csegt += 1  # 足够长的特定类别分段,升分级
             elif cseg_len >= 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in std_ns_tails:
                 csegt += 1  # 带有完整地名尾缀特征字的分段,升分级
-            elif cseg_len >= 4 and cseg[2] & {types.NZ, types.NS}:
-                csegt += 1  # 足够长的特定类别分段,升分级
-            elif cseg_len >= 4 and cseg[2] & {types.NN, types.NH}:
-                csegt += 1  # 足够长的特定类别分段,升分级
+
             return csegt, cseg_len
 
         # 先构造必要的前导占位段
@@ -178,7 +179,7 @@ class tree_paths_t:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
                 elif ts_len >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
                     ds = 0  # 特定双段相交不扣分:NU&(NB,NO)
-                    ns = nseg_len * nsegt
+                    ns = nseg_len * nsegt - segt
                 elif ts_len >= 3 and seg[2] & {types.NA} and nseg[2] & {types.NO} and txt[seg[0]] in num_cn:
                     ds = 0  # 特定双段相交不扣分:NA&(NB,NO) 且 NA的首字是数字
                     ns = nseg_len * nsegt
@@ -197,11 +198,6 @@ class tree_paths_t:
                 elif types.NS in seg[2] and nseg_len == 2 and (nidx is None or find_right(segs, nseg, nidx + 1, tags={types.NM, types.NO, types.NB})):
                     # 栲栳镇|镇英
                     ds = 2
-                # elif nseg[2] & {types.NB, types.NO, types.NM} and nseg_len <= 4:
-                #     if (seg_len <= 3 or nseg_len <= 2) and txt[nseg[0]] in std_ns_tails:
-                #         ds = 0  # 特定尾缀单字相交不扣分,如"红星村|村委会"
-                #     else:
-                #         ds = 4
                 else:
                     ds = 3  # 其他情况
             elif seg[2] & {types.NM, types.NO, types.NB}:
@@ -385,12 +381,21 @@ class tree_paths_t:
             # 排序规则: MOB深度/扣分少/有效分高/分段均衡
             if tss > 1:
                 ts = sorted(ts, key=lambda t: (t[3], 0 - t[2], t[1] - t[2], 0 - t[5]), reverse=True)
-            has_mob = _has_mob(ts)
-            for i in range(0, min(len(ts), 2)):
-                td = ts[i]
-                if ((len(ts) == 1 and td[2] == 0) or not has_mob or td[3] > 0) and (i == 0 or td[1] > ts[i - 1][1]):
-                    # (单结果且未扣分 or 不存在MOB or 当前是MOB) and (当前为首结果 or 当前结果分值大于前结果)
-                    cands.append(td)  # 保留当前深度下的有效最优结果
+
+            has_mob = _has_mob(ts)  # 判断当前深度下的结果中,是否存在mob尾缀
+
+            # 尝试记录当前深度下的第一个候选结果
+            td = ts[0]
+            if (tss == 1 and td[2] == 0) or not has_mob or td[3] > 0:
+                # (单结果且未扣分 or 不存在MOB or 当前是MOB)
+                cands.append(td)  # 保留当前深度下的有效最优结果
+
+            # 尝试记录当前深度下的第二个候选结果
+            if tss > 1:
+                td1 = ts[1]
+                if td1[1] - td[1] >= 6 or (td1[1] > td[1] and td1[2] <= td[2]):
+                    cands.append(td1)
+
             if bad is None:
                 bad = ts[0]  # 记录最短深度上的首个路径,作为次优结果
 
@@ -444,11 +449,11 @@ class tree_paths_t:
                 if e1.total[0] - e0.total[0] >= 6:
                     return e1  # 第二候选评分比第一候选大很多,选第二个
 
-                if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA, } and n1[2] & {types.NO, types.NB, types.NM}:
+                if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA, types.NS} and n1[2] & {types.NO, types.NB, types.NM}:
                     return e1  # 第一候选不是MOB但第二候选是,选第二个
 
             if e1.total[1] <= 2 and e1.deep <= e0.deep + 1:  # 第二候选有扣分
-                if e1.total[0] - e0.total[0] >= 8 and n0[2] & {types.NA} and n1[2] & {types.NO, types.NB, types.NM}:
+                if e1.total[0] - e0.total[0] >= 8 and n0[2] & {types.NA, types.NS} and n1[2] & {types.NO, types.NB, types.NM}:
                     return e1  # 第一候选不是MOB但第二候选是,选第二个
 
             return e0
