@@ -56,9 +56,9 @@ class nt_parser_t:
 
     # 数字序号组合模式
     num_rules = [(f'([第笫苐新老大小东西南北钢省市区县村镇乡附]?[\\.{nnp.num_re}]{{1,7}}[#号號户轮块度角毛分秒吨届座级期船至元克机天年℃°]?)', types.tags_NU, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号號级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|矿区|社区|组村|队组|组组|职高|职中|层楼|[职委米条轮船道路弄街口里亩线层楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
+                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号號级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|矿区|社区|组村|队组|组组|职高|职中|层楼|门面|[职委米条轮船道路弄街口里亩线层楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
                   types.tags_NS, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号號]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|包房|站点|坊厅)', types.tags_NO, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号號]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|包房|站点|坊厅|站台)', types.tags_NO, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号號]?)(工区|分号|仓库|库房|支部|校区|[分]?[团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{0,7}}[号號分中小]*[组队])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐农兵]*[{nnp.num_re}]{{1,7}}[师])([零一二三四五六七八九十]+团)?', types.tags_NS, __nu_rec.__func__), ]
@@ -161,7 +161,7 @@ class nt_parser_t:
                 return pos - 1
 
             w_nexts = {'工区', '分号', '部队', '公里', '马路', '矿区', '社区', '号仓', '分钟', '小时', '职高', '大道', '院区', '支部', '号店', '船队', '号楼', '分场',
-                       '路段', '分店', '分仓', '站点', '仓库', '库房', '坊厅', '号库', '校区', '号闸', '号厅', '号亭', '号铺', '号坊'}
+                       '路段', '分店', '分仓', '站点', '仓库', '库房', '坊厅', '号库', '校区', '号闸', '号厅', '号亭', '号铺', '号坊', '门面', '站台'}
 
             if txt[pos + 1:pos + 3] in w_nexts:
                 return pos + 3
@@ -429,6 +429,9 @@ class nt_parser_t:
 
         def ns_tags(line, ismain=False):
             """根据地名进行行政级别查询,返回对应的类型标记"""
+            tags = self.nsa_type_maps.get(line)
+            if tags is not None:
+                return tags
             if line[-2:] in {'林场', '农场', '牧场', '渔场'}:
                 return types.tags_NM
             if line[-2:] in {'水库', '灌区'}:
@@ -503,9 +506,22 @@ class nt_parser_t:
 
         def nn_tags(aname):
             """获取指定地名主干的类别"""
-            if aname[-1] in cai.ns_tails:
+            pc = aname[0]
+            ch = aname[-1]
+            if len(aname) == 2:
+                if pc in cai.base_ns_tails or pc in nnp.num_cn or pc in nnp.num_zh:
+                    return types.tags_NN  # 特定字符开头
+
+                if ch in nnp.num_cn:
+                    return types.tags_NA  # 数字结尾
+
+            if ch in cai.ns_tails:
                 return ns_tags(aname)  # 如果主干部分的尾字符合地名尾缀特征,则按地名标注
-            # return {types.NN, types.NS}  # 非地名特征的全部作为名字类型
+
+            if len(aname) == 2:
+                if ch in cai.ext_ns_tails:
+                    return types.tags_NN
+                return types.tags_NH
             return types.tags_NN
 
         def vals_cb(line):
@@ -523,10 +539,7 @@ class nt_parser_t:
                 return [(name, ns_typ)]
 
             if tag is None:  # 没有明确标注主干类型时
-                if aname[-1] in nnp.num_cn:  # 简化名称尾缀为数字特征时
-                    tag = types.tags_NA  # 则简化名称降级为弱化类型
-                else:
-                    tag = nn_tags(aname)  # 根据主干部分决定类型
+                tag = nn_tags(aname)  # 根据主干部分决定类型
 
             rst = [(name, ns_typ), (aname, tag)]
             if len(name) > 4 and name[-3:] in {'嘎查村', '苏木乡'}:
@@ -882,8 +895,12 @@ class nt_parser_t:
             if len(rst) >= 2 and rst[-2][1] == rst[-1][0]:
                 p2seg = rst[-2]
                 p1seg = rst[-1]
-                if mu.slen(p2seg) > 1 and can_combi_NS(p2seg, p1seg, line_txt):  # 在前一轮北切分剩余单字后,再次尝试 合并'|南京|路|'
-                    rst[-2] = (p2seg[0], p1seg[1], types.tags_NS)  # 转换分段类型为NS
+                p2len = p2seg[1] - p2seg[0]
+                if p2len > 1 and can_combi_NS(p2seg, p1seg, line_txt):  # 在前一轮北切分剩余单字后,再次尝试 合并'|南京|路|'
+                    rst[-2] = (p2seg[0], p1seg[1], types.tags_NS)  # 合并前面分段类型为NS
+                    rst.pop(-1)
+                elif p2len == 1 and types.NO in p1seg[2] and seg[2] & {types.NM, types.NB, types.NO}:
+                    rst[-2] = (p2seg[0], p1seg[1], types.tags_NN)  # 合并前面分段类型为NN
                     rst.pop(-1)
 
             if seg[1] - seg[0] >= 2 and types.tags_NA.issubset(seg[2]) and line_txt[seg[1] - 2:seg[1]] in {'中店', '新店', '村店', '里店', '家店', '东店', '南店', '西店', '北店'}:
@@ -898,7 +915,22 @@ class nt_parser_t:
             seg = segs[idx]  # 待传输的当前段
             nseg = segs[idx + 1] if idx + 1 < segs_len else None  # 带输出的后段
             if not rec_merge(pseg, seg, idx, nseg):  # 先尝试前后段合并
-                rec_cut(pseg, seg)  # 再进行前后段切分
+                rec_cut(pseg, seg)  # 再进行前后段拼接或切分
+
+        def _conv_H2S(segs, idx):
+            seg = segs[idx]
+            if types.NH in seg[2]:
+                name = line_txt[seg[0]:seg[1]]
+                if name[-1] in {'区', '县', '乡', '镇', '村', '屯'}:
+                    if len(name) == 3 and name[-2:] in {'社区', '园区', '景区', '街区', '禁区'}:
+                        return seg
+                    aname = cai.drop_area_tail(name)
+                    if aname != name:
+                        seg = segs[idx] = (seg[0], seg[1], types.tags_NS)
+            return seg
+
+        for i in range(len(rst)):
+            _conv_H2S(rst, i)
 
         if not merge_seg:
             return rst, clst
@@ -1068,7 +1100,7 @@ class nt_parser_t:
             pos = mu.insert_pos(segs, nseg, max(0, pos - 1))
             rec(pos, nseg, pos == len(segs))
 
-    def split(self, txt, mres=None, pres=None, fp_dbg=False, nres=None, drop_tail_O=False):
+    def split(self, txt, mres=None, pres=None, fp_dbg=None, nres=None, drop_tail_O=False):
         '''在txt中拆分可能的组份段落
             nulst - 可给出外部数字模式匹配列表
             with_useg - 是否补全分段列表
@@ -1088,7 +1120,7 @@ class nt_parser_t:
 
                 if nseg[0] == seg[0]:
                     # seg被nseg左贴包含,判断右侧是否有粘连
-                    if seg[1] < nseg[1] and not nnp.find_right(segs, seg, pos + 2):
+                    if seg[1] < nseg[1] and types.NA not in nseg[2] and not nnp.find_right(segs, seg, pos + 2):
                         segs.pop(pos)
                         rc += 1
                         continue
@@ -1302,7 +1334,6 @@ class nt_parser_t:
             pres - 记录匹配完成后并清理过的词汇分段列表
             返回值:(分段列表[(b,e,{types})],分段关系列表[(pseg,rl,nseg,cr)])
         '''
-        # segs = self.split(txt, mres=mres, fp_dbg=fp_dbg)  # 得到匹配分段列表
         if not txt:
             return [], []
         rlst, clst = self._tidy_segs(self.matcher, segs, merge_seg, txt)  # 进行合并整理
@@ -1311,7 +1342,7 @@ class nt_parser_t:
 
         return rlst, clst
 
-    def verify(self, name, segs=None, merge_seg=False, rec_NL=False, mres=None, pres=None, nres=None, strict=False, fp_dbg=False, chk_rst=False):
+    def verify(self, name, segs=None, merge_seg=False, rec_NL=False, mres=None, pres=None, nres=None, strict=False, fp_dbg=None, chk_rst=False):
         """对给定的name机构名称进行拆分并校验有效性(要求尾缀必须为有效机构特征),如附属机构/分支机构/工会.
             segs - 可记录组份分段数据的列表.
             merge_seg - 是否合并相同类型分段
@@ -1438,8 +1469,6 @@ class nt_parser_t:
             stype = seg[2]
             epos = seg[1]
             slen = seg[1] - seg[0]
-            if slen == 0:
-                print(name, segs)
             islast = (i == len(segs) - 1) or name[seg[1]] in {"'", '"'}
             if stype is None:
                 if strict and name[seg[0]] not in {'(', ')'}:
@@ -1461,45 +1490,12 @@ class nt_parser_t:
                     rec(i, seg, bpos, epos, types.NM)
         return outs
 
-    def ends(self, txt, merge_seg=True, strict=True):
-        '''查找txt中出现过的尾缀,merge_seg告知是否合并同类分段,strict指示是否严格尾部对齐.返回值:[(b,e,{types})]或[]'''
-        mres = self.parse(txt, merge_seg)[0]
-        if strict:
-            while mres and mres[0][1] != len(txt):
-                mres.pop(0)
-        return mres
-
     def match(self, txt):
         '''判断给定的txt是否为完全匹配的已知组份.返回值:(b,e,{types})或None'''
         mres = self.parse(txt)[0]
         if not mres or mu.slen(mres[0]) != len(txt):
             return None
         return mres[0]
-
-    def pizza(self, txt, nulst=None, rsts=None, crwords={'村'}):
-        """判断txt是否由已知组份完整拼装得到(分段无交叉且无缺口),
-            nulst可给出外部数字模式匹配列表
-            rsts可记录匹配的分段结果列表,无论是否完整拼装
-            crwords告知允许交叉叠加的词汇
-            返回值: None - 非完整拼装(有缺口); 0 - 完整拼装(有交叉); 1 - 完整拼装(无交叉); 2 - 完整拼装(有允许的交叉)
-        """
-        mres, clst = self.parse(txt, False, nulst)
-        if rsts is not None:
-            fres, urc = mu.complete_segs(mres, len(txt), True)
-            rsts.extend(fres)  # 记录分段结果
-        else:
-            urc = not mu.is_full_segs(mres, len(txt))
-        if urc:
-            return None  # 告知非完整拼装(有缺口)
-
-        if len(clst) == 0:
-            return 1  # 告知是完整拼装(无交叉)
-
-        rl = clst[0][1]
-        cr = clst[0][3]
-        if rl == 'A&B' and txt[cr[0]:cr[1]] in crwords:
-            return 2  # 告知是完整拼装(有允许的交叉)
-        return 0  # 告知完整拼装(有交叉)
 
     def front(self, line):
         """根据已知前缀特征line_pre_patts,检查line的前缀特征,判断是否需要丢弃.返回值:需要丢弃的前缀长度"""

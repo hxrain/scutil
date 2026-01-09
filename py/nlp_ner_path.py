@@ -88,20 +88,7 @@ class tree_paths_t:
         self.ends = []
 
     @staticmethod
-    def ismob(segs, nidx, b, e):
-        """在segs分段列表中查找(b,e)位置是否存在M/O/B分段"""
-        if not segs:
-            return False
-        for i in range(nidx, -1, -1):
-            seg = segs[i]
-            if seg[0] < b:
-                return False
-            if seg[0] == b and seg[1] == e:
-                return seg[2] & {types.NM, types.NO, types.NB}
-        return False
-
-    @staticmethod
-    def score(seg, nseg, txt, nidx=None, segs=None):
+    def score(seg, nseg, txt, nidx=None, segs=None, pidx=None):
         """根据seg与nseg前后两个分段的关系,计算nseg路径节点的积分,返回值:(奖励积分,惩罚扣分)"""
 
         def left_break(segs, seg):
@@ -116,38 +103,64 @@ class tree_paths_t:
                 return False
             return find_left(segs, seg, sidx - 1, can_cross=True) == 0
 
+        def left_seg(segs, nidx, b, e, tags, steps=3):
+            """在segs分段列表中从nidx向前查找(b,e)位置是否存在tags类型分段"""
+            if not segs:
+                return False
+            end = max(-1, -1 if nidx == steps else nidx - steps)
+            for i in range(nidx, -1, end):
+                seg = segs[i]
+                if seg[0] < b:
+                    return False
+                if seg[0] == b and seg[1] == e:
+                    return seg[2] & tags
+            return False
+
         # 根据分段类型得到积分标准
         txt_len = len(txt)
         std_ns_tails = {'省', '市', '区', '县', '乡', '镇', '村', }
+        ext_tail_chars = {'城', '店', '馆', '站', '庄', '市', '台', '行', '堂', '苑', '房', '铺', '间', '园', '厅', '所', '院', '部', '委', '府', '协', '办', '处', '矿', '厂', '场',
+                          '柜', '家', '坊', '屋', '社', '吧', '会', '汇', '廊', '轩', '阁', '点', '亭', '楼', '乐', '荘', '班', '局', '栈', '室', '棚', '寺', '摊', '舍', '团', '库',
+                          '校', '斋', '队', '仓', '科', '宫', '床', '档', '户', '组', '区', '段', '位', '池', '圃', '堡', '挡', '莊', '都', '界', '埸', '港', '号', '塘', '居', '座',
+                          '肆', '全', '盟', '坞', '营', '舫', '宴', '窑', '带', '邨', '庫', '宿', '寓', '龙'}
 
-        def calc_std_score(pseg, cseg):
+        def score_std(pseg, cseg):
             """根据前分段pseg与当前段cseg,分析得到cseg的基准分"""
             csegt = tree_paths_t.score_maps[types.tag(cseg[2])]
             cseg_len = cseg[1] - cseg[0]
+            assert cseg[1] <= txt_len
 
-            if cseg_len == 1:
-                if not pseg[2] & {types.NM, types.NO, types.NB} or txt[cseg[0]] == '老':
-                    csegt -= 1  # 后分段为单字,降分级
-            elif cseg_len >= 2 and cseg[2] & {types.NO, types.NM}:
-                csegt += 1
-            elif cseg_len >= 3 and cseg[2] & {types.NB}:
-                csegt += 1
-            elif cseg_len >= 4 and cseg[2] & {types.NZ, types.NS, types.NN, types.NH}:
+            if cseg_len >= 6:
                 csegt += 1  # 足够长的特定类别分段,升分级
-            elif cseg_len >= 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in std_ns_tails:
+            elif cseg_len >= 4 and cseg[2] & {types.NN, types.NH}:
+                csegt += 1  # 足够长的特定类别分段,升分级
+            elif 2 <= cseg_len <= 3 and cseg[2] & {types.NO, types.NM, types.NB}:
+                csegt += 1
+            elif cseg_len >= 3 and cseg[2] & {types.NZ} and pseg[1] - cseg[0] <= 1:
+                csegt += 1
+            elif cseg_len == 2 and pseg[1] - cseg[0] == 1 and txt[cseg[0]] in std_ns_tails and cseg[2] & {types.NA, types.NN}:
+                csegt = tree_paths_t.score_maps['A'] - 1  # 弱化'镇英'等地名前缀双字词汇的标准分
+            elif cseg_len == 2 and txt[cseg[0]] in std_ns_tails and cseg[2] & {types.NZ, types.NH} and types.NS in pseg[2]:
+                csegt += 1  # "枣庄|市立",升分级
+            elif cseg_len <= 3 and pseg[1] == cseg[0] and cseg[2] & {types.NZ, types.NH} and pseg[2] & {types.NO, types.NM, types.NB}:
+                csegt += 1  # "小学|校园",升分级
+            elif cseg_len >= 3 and txt[cseg[1] - 1] in ext_tail_chars and cseg[2] & {types.NA, types.NN}:
+                csegt = tree_paths_t.score_maps['N'] + 1  # 强化'王七店'等NT尾缀特征三字词汇的标准分
+            elif cseg_len == 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in std_ns_tails:
                 csegt += 1  # 带有完整地名尾缀特征字的分段,升分级
 
             return csegt, cseg_len
 
-        # 先构造必要的前导占位段
-        pseg = segs[nidx - 2] if segs and nidx >= 2 else (seg[0], seg[0], types.tags_NA)
-        # 计算前分段积分标准
-        segt, seg_len = calc_std_score(pseg, seg)
-        # 计算当前段积分标准
-        nsegt, nseg_len = calc_std_score(seg, nseg)
+        # 前导段
+        pseg = segs[pidx] if pidx is not None else (seg[0], seg[0], types.tags_NA)
 
-        ds = 0  # 初始扣分
+        # 计算前分段积分标准
+        segt, seg_len = score_std(pseg, seg)
+        # 计算当前段积分标准
+        nsegt, nseg_len = score_std(seg, nseg)
+
         ns = None  # 初始得分
+        ds = 0  # 初始扣分
         if nseg[0] > seg[1]:  # 前后段分离
             ds = nseg[0] - seg[1]  # 间隔长度扣分
             if ds == 1 and txt[seg[1]] in tree_paths_t.unchars:
@@ -167,7 +180,10 @@ class tree_paths_t:
                     ds = 0
                 elif not seg[2] & {types.NB} and nseg[2] & {types.NM, types.NO, types.NB}:
                     ds = 0
-                    ns = nseg_len * nsegt - cr_len * segt
+                    # ns = nseg_len * nsegt - cr_len * segt - 1
+                    # ns = (nseg[1] - seg[1]) * nsegt
+                    st = tree_paths_t.score_maps[types.tag(seg[2])]
+                    ns = ts_len * nsegt - seg_len * st -2
                 else:
                     ds = cr_len * 2
             elif cr_len == 1:
@@ -175,40 +191,71 @@ class tree_paths_t:
                 if nseg_len == 2:
                     nword = txt[nseg[0]:nseg[1]]
 
-                if ts_len <= 5 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
+                if ts_len <= 3 and seg[2] & {types.NN, types.NH} and nseg[2] & {types.NN, types.NH}:
+                    ds = 0
+                elif ts_len <= 6 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
+                    ns = ts_len * max(segt, nsegt) - seg_len * segt
                 elif ts_len >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
                     ds = 0  # 特定双段相交不扣分:NU&(NB,NO)
                     ns = nseg_len * nsegt - segt
                 elif ts_len >= 3 and seg[2] & {types.NA} and nseg[2] & {types.NO} and txt[seg[0]] in num_cn:
                     ds = 0  # 特定双段相交不扣分:NA&(NB,NO) 且 NA的首字是数字
-                    ns = nseg_len * nsegt
+                    ns = nseg_len * nsegt - segt - 1
                 elif nidx and nidx > 2 and seg[0] and nseg_len >= 3 and left_break(segs, seg) and txt[seg[0] - 1] not in tree_paths_t.unchars:
                     ds = 0  # 特殊情况:seg与nseg相交,而seg的前面是未知分段,则尽量保留更长的nseg分段
                     ns = nseg_len * nsegt
-                elif seg[2] & {types.NO, types.NM} and nseg_len <= 2 and not tree_paths_t.ismob(segs, nidx, seg[0], seg[1] - 1) and nidx == len(segs) - 1:
+                elif seg[2] & {types.NO, types.NM} and nseg_len <= 2 and not left_seg(segs, nidx, seg[0], seg[1] - 1, {types.NM, types.NO, types.NB}) and nidx == len(segs) - 1:
                     ds = 0  # 存在干扰的情况下,如果:"研究室|室室",相交不扣分,但降低nseg得分
                     ns = (nseg_len - 1) * nsegt - 1
                 elif types.NS in seg[2] and nseg_len == 2 and nword[0] == nword[1] and nword[0] in std_ns_tails:
                     # 市市/村村/镇镇...,可以交叉合并:泊头市|市市
                     ds = 2 if nidx is None else 0  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
                     ns = nsegt - 1  # 出现了弱化单字,少给一分
-                elif types.NS in seg[2] and nseg_len == 2 and nword == '县城':
+                elif {types.NS, types.NH} & seg[2] and nseg_len == 2 and nword in {'县城', '区域', '村中', '镇中', '市府', '街道'}:
                     ds = 0  # 特定地名交叉合并,不扣分
-                elif types.NS in seg[2] and nseg_len == 2 and (nidx is None or find_right(segs, nseg, nidx + 1, tags={types.NM, types.NO, types.NB})):
-                    # 栲栳镇|镇英
-                    ds = 2
+                elif types.NS in seg[2] and nseg_len == 2 and nword[0] in std_ns_tails and nseg[2] & {types.NN, types.NA}:
+                    if nidx is None:
+                        ds = 2  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
+                    elif find_right(segs, nseg, nidx + 1, tags={types.NM, types.NO, types.NB}):
+                        ds = 0
+                        ns = nsegt - 1  # 特定交叉单字少给分
+                    else:
+                        ds = 1  # '龙镇|镇英'后面不是MOB,扣分
+                        ns = nsegt - 3  # 特定交叉单字少给分
+                elif 2 <= nseg_len <= 3 and seg_len == 2 and seg[2] & {types.NU, types.NA, types.NN, types.NH} and nseg[2] & {types.NO, types.NM}:
+                    ds = 2 if nidx is None else 0  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
+                    # ns = nseg_len * nsegt - segt - 4
+                    # ns = nseg_len * nsegt - 2 * segt + 1
+                    ns = nseg_len * nsegt - segt - 4
+                # elif nseg_len >= 2 and seg_len == 2 and seg[2] & { types.NA, } and nseg[2] & {types.NO, types.NM}:
+                #     ds = 2 if nidx is None else 0  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
+                #     ns = nseg_len * nsegt - segt - 3
                 else:
                     ds = 3  # 其他情况
             elif seg[2] & {types.NM, types.NO, types.NB}:
                 ds = cr_len * 4  # 尾缀分段不应该被交叉,扣分多一些
             else:
+                # 其他相交情况,扣分
                 ds = cr_len * 3
 
             if ns is None:  # 交叉情况最后兜底,统一计算交叉分段得分
                 ns = (nseg[1] - seg[1]) * nsegt  # 前后相交,仅计算后段剩余部分
         else:  # 前后相邻
-            ns = nseg_len * nsegt  # 正常情况,给出完整的后段积分
+            if nseg_len == 1 and types.NO in nseg[2] and pseg[1] <= seg[0]:
+                # 前段非交叉,当前段单字尾缀合并的时候,重新整体计算
+                ns = (nseg[1] - seg[0]) * nsegt - seg_len * segt + 1
+            elif seg_len <= 2 and txt[seg[1] - 1] not in std_ns_tails and txt[nseg[0]] in std_ns_tails:
+                if left_seg(segs, nidx, seg[0], nseg[0] + 1, types.tags_NS):
+                    if nseg[2] & {types.NH, }:
+                        ds = 1  # '迎泽|区羲',模式不推荐; '迎泽区|区羲'模式允许
+                    if nseg[2] & {types.NA, types.NN, }:
+                        ds = 2
+                else:
+                    ns = nseg_len * nsegt - 4
+
+            if ns is None:
+                ns = nseg_len * nsegt  # 正常情况,给出完整的后段积分
 
         return ns, ds
 
@@ -239,7 +286,7 @@ class tree_paths_t:
             if nseg[0] > seg[1] and c > 3:
                 break  # 多次向后试探,遇到分离的分段则停止尝试
             if seg[0] < nseg[0] <= seg[1] and nseg[1] > seg[1]:
-                rst.insert(0, idx)  # 遇到与当前分段相交或相连的分段,则记录其索引
+                rst.insert(0, idx)  # 遇到与当前分段相交或相连的分段,则倒序(长段在前)记录其索引
                 c = 0
 
         if not rst:
@@ -250,6 +297,40 @@ class tree_paths_t:
                     break
                 pos += 1
 
+        return rst
+
+    @staticmethod
+    def _min_paths(pos, segs):
+        """分析segs分段列表从pos节点开始,其后面可选的最短路径"""
+        segs_len = len(segs)
+
+        def find_right_max(seg, begin):
+            """查找在seg右侧与seg相交或相邻的最大分段"""
+            rst = None
+            for i in range(begin, segs_len):
+                nseg = segs[i]
+                if nseg[0] > seg[1]:
+                    break
+                elif nseg[0] == seg[0]:
+                    continue
+                if rst is None or (nseg[0] > segs[rst][0] and nseg[1] >= segs[rst][1]):
+                    rst = i
+
+            if rst is None and begin < segs_len:
+                bseg = segs[begin]
+                for i in range(begin + 1, segs_len):
+                    nseg = segs[i]
+                    if nseg[0] > bseg[0]:
+                        break
+                    if rst is None or nseg[1] > segs[rst][1]:
+                        rst = i
+            return rst
+
+        next = find_right_max(segs[pos], pos + 1)
+        rst = [pos]
+        while next:
+            rst.append(next)
+            next = find_right_max(segs[next], next + 1)
         return rst
 
     def _drop_path(self, txt, segs, pnode, pseg, nseg):
@@ -275,9 +356,18 @@ class tree_paths_t:
                 self.ends.append(pnode)
             return
 
+        def calc_variance(pseg, nseg):
+            '''计算两个分段的均衡度'''
+            if pseg[1] <= nseg[0]:  # 前后两段相连或分离
+                return abs((nseg[1] - nseg[0]) - (pseg[1] - pseg[0]))
+            elif pseg[1] - nseg[0] >= 2:  # 前后两段交叉多字
+                return 0
+            else:  # 前后两段交叉单字
+                return abs((nseg[1] - nseg[0]) - (pseg[1] - pseg[0])) + 1
+
         for nidx in nexts:
             nseg = segs[nidx]
-            score = tree_paths_t.score(pseg, nseg, txt, nidx, segs)  # 当前路径节点分
+            score = tree_paths_t.score(pseg, nseg, txt, nidx, segs, pnode.parent.sidx)  # 当前路径节点分
             total = (pnode.total[0] + score[0], pnode.total[1] + score[1])
             if total[1] >= badlimit and len(self.ends) >= 1:
                 continue  # 发现继续走下去惩罚积分较大,则当前路径被剪枝放弃
@@ -287,8 +377,12 @@ class tree_paths_t:
                 lnode = self.ends[-1]  # 已经存在的最新端点
                 if total[1] > lnode.total[1] + 2:
                     continue  # 路径走到中间的时候扣分已经大于存在的结果了,那么剩余路径不用尝试了
-                if pnode.deep + 1 > lnode.deep and total[0] < lnode.total[0]:
+                if pnode.deep + 1 > lnode.deep and total[0] + 2 < lnode.total[0]:
                     continue  # 路径深度大于已有结果,且总分也小于它,则放弃当前路径
+                # if len(self.ends) >= 2:
+                #     mins = pnode.deep + len(tree_paths_t._min_paths(nidx, segs))
+                #     if mins - self.ends[0].deep > 3:
+                #         continue
 
             node = tree_paths_t.node_t()  # 生成当前节点
             node.sidx = nidx  # 记录当前节点对应的分段索引
@@ -296,30 +390,9 @@ class tree_paths_t:
             node.deep = pnode.deep + 1  # 当前路径节点的深度
             node.score = score  # 当前路径节点积分
             node.total = total  # 路径总分
-            node.variance = pnode.variance + abs((nseg[1] - nseg[0]) - (pseg[1] - pseg[0]))  # 累积分段长度差
+            node.variance = pnode.variance + calc_variance(pseg, nseg)  # 累积分段长度差
             pnode.childs.append(node)  # 记录当前节点
             self._loop(txt, segs, node)  # 深度遍历新节点路径
-
-    def _path_dbg(self, end, txt, segs):
-        """调试,根据路径端点输出完整路径分段信息"""
-
-        def _make_path(node):
-            """倒序遍历,得到路径节点列表"""
-            rst = []
-            while node.parent is not None:
-                rst.insert(0, node)
-                node = node.parent
-            return rst
-
-        def _make_segs(path):
-            """将路径节点列表进行文本格式化"""
-            rst = []
-            for node in path:
-                seg = segs[node.sidx]
-                rst.append(f'{types.tag(seg[2])}:{txt[seg[0]:seg[1]]}:{node.total[0]}/{node.total[1]}')
-            return rst
-
-        return _make_segs(_make_path(end))
 
     @staticmethod
     def _filter_deep(ends, segs):
@@ -393,7 +466,7 @@ class tree_paths_t:
             # 尝试记录当前深度下的第二个候选结果
             if tss > 1:
                 td1 = ts[1]
-                if td1[1] - td[1] >= 6 or (td1[1] > td[1] and td1[2] <= td[2]):
+                if td1[1] - td[1] >= 4 or (td1[1] > td[1] and td1[2] <= td[2]):
                     cands.append(td1)
 
             if bad is None:
@@ -415,46 +488,34 @@ class tree_paths_t:
             rst.append(ends[cands[0][0]])  # 记录第二候选
         return rst
 
-    def _take(self, rst, txt, segs, showdbg):
+    def _take(self, rst, txt, segs, showdbg=None):
         """根据末端列表选取并构造最优路径结果rst,作为最终结果"""
-        if showdbg:
-            print(f"\n---->{txt}<----")
-            print(f"{str(segs).replace(' ', '')}")
-            ts = []
-            for seg in segs:
-                ts.append(f"{types.tag(seg[2])}:{txt[seg[0]:seg[1]]}")
-            print(f'{"|".join(ts)}')
-            print(f"---->paths[{len(self.ends)}]<----")
-            showdbg = len(self.ends)
-            for end in self.ends:
-                pd = self._path_dbg(end, txt, segs)
-                print(f'  {"|".join(pd)}')
+        if showdbg is not None:
+            # 调试输出全部备选路径
+            showdbg.on_pre(txt, segs, self.ends)
 
-        # 按路径 得分/深度/扣分/均匀性/尾缀位置等综合因素,筛选结果
+        # 按路径 得分/深度/扣分/均匀性/尾缀位置等综合因素,筛选备选结果
         rst_ends = self._filter_deep(self.ends, segs)
 
-        if showdbg and showdbg > 1:
-            print(f"---->filtered[{len(rst_ends)}]<----")
-            showdbg = len(rst_ends)
-            for end in rst_ends:
-                pd = self._path_dbg(end, txt, segs)
-                print(f'  {"|".join(pd)}')
+        if showdbg is not None:
+            # 调试输出备选结果
+            showdbg.on_filtered(txt, segs, rst_ends)
 
         def _cmp(e0, e1):
             """判断两条路径,有条件的选取更深但更优的结果"""
-            n1 = segs[e1.sidx]
             n0 = segs[e0.sidx]
+            n1 = segs[e1.sidx]
 
             if e1.total[1] == 0 and e1.deep <= e0.deep + 1:  # 第二候选无扣分
-                if e1.total[0] - e0.total[0] >= 6:
+                if e1.total[0] - e0.total[0] >= 5:
                     return e1  # 第二候选评分比第一候选大很多,选第二个
 
                 if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA, types.NS} and n1[2] & {types.NO, types.NB, types.NM}:
                     return e1  # 第一候选不是MOB但第二候选是,选第二个
 
-            if e1.total[1] <= 2 and e1.deep <= e0.deep + 1:  # 第二候选有扣分
-                if e1.total[0] - e0.total[0] >= 8 and n0[2] & {types.NA, types.NS} and n1[2] & {types.NO, types.NB, types.NM}:
-                    return e1  # 第一候选不是MOB但第二候选是,选第二个
+            if e1.total[1] <= 2 and e1.deep <= e0.deep:  # 第二候选有扣分
+                if e1.total[0] - e0.total[0] >= 6 and n0[2] & {types.NA, types.NS, types.NO} and n1[2] & {types.NO, types.NM}:
+                    return e1  # 但第二候选分值很高,选第二个
 
             return e0
 
@@ -464,9 +525,9 @@ class tree_paths_t:
         else:
             node = rst_ends[0]
 
-        if showdbg and showdbg > 1:
-            pd = self._path_dbg(node, txt, segs)
-            print(f'>>{"|".join(pd)}')
+        if showdbg is not None:
+            # 调试输出选定结果
+            showdbg.on_take(txt, segs, node)
 
         # 根据最优路径的端点逆向重构完整的分段结果
         while node.parent is not None:
@@ -474,7 +535,7 @@ class tree_paths_t:
             node = node.parent
         return rst
 
-    def find(self, txt, segs, showdbg=False, rst=None):
+    def find(self, txt, segs, showdbg=None, rst=None):
         """基于文本txt的分段匹配列表segs,查找最优路径结果rst"""
         if not txt or not segs:
             return []
@@ -561,7 +622,7 @@ def split_nt_paths(segs, slen=10):
     return rst
 
 
-def find_nt_paths(txt, segs, dbg=False, rst=None):
+def find_nt_paths(txt, segs, dbg=None, rst=None):
     """从segs匹配结果列表中,查找构造nt名称的最佳路径rst"""
     tp = tree_paths_t()
     if len(segs) <= 10:  # 不是特别长的分段,可以直接解析.
@@ -589,9 +650,20 @@ def find_nt_paths(txt, segs, dbg=False, rst=None):
         for i in range(ri - 1):
             sr.pop(0)
 
+    def find_maxpos(idxlst):
+        """在分段索引列表idxlst中,查找文本偏移最大的位置"""
+        pos = segs[idxlst[1] - 1][1]
+        for i in range(idxlst[1] - 2, idxlst[0], -1):
+            p = segs[i][1]
+            if p > pos:
+                pos = p
+            else:
+                break
+        return pos
+
     if rst is None: rst = []
     for i, idxlst in enumerate(sps):  # 对多个分段分别进行路径筛选,避免过长分段列表导致递归过深,性能下降
-        stxt = txt[:segs[idxlst[1] - 1][1]]
+        stxt = txt[:find_maxpos(idxlst)]
         subs = segs[idxlst[0]:idxlst[1]]
         if rst:
             skip(subs, rst[-1])
