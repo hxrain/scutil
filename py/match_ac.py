@@ -361,28 +361,3 @@ class ac_match_t:
                 do_rep(m[0], m[1], m[2])
 
         return ''.join(rst)
-
-
-if __name__ == '__main__':
-    ac = ac_match_t()
-    ac.dict_add('12C')
-    ac.dict_add('12B')
-    ac.dict_add('12A')
-    ac.dict_add('123C')
-    ac.dict_add('123B')
-    ac.dict_add('123A')
-    ac.dict_add('12')
-    ac.dict_add('13')
-    ac.dict_add('14')
-    ac.dict_end()
-
-    print(ac.do_query('1'))
-    print(ac.do_query('10'))
-    print(ac.do_query('12'))
-    print(ac.do_query('13'))
-    print(ac.do_query('123'))
-    print(ac.do_query('123B'))
-    print(ac.do_query('12345'))
-    print(ac.do_query('12345', True))
-
-    print('\n!!!!!!!!!!!!!!!!\n'.strip())
