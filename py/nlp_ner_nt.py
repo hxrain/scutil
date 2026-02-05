@@ -56,9 +56,9 @@ class nt_parser_t:
 
     # 数字序号组合模式
     num_rules = [(f'([第笫苐新老大小东西南北钢省市区县村镇乡附]?[\\.{nnp.num_re}]{{1,7}}[#号號户轮块度角毛分秒吨届座级期船至元克机天年℃°]?)', types.tags_NU, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号號级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|矿区|社区|组村|队组|组组|职高|职中|层楼|门面|[职委米条轮船道路弄街口里亩线层楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
+                 (f'([第笫苐新老大小东西南北]?[{nnp.num_re}]{{1,7}}[#号號级大支]*)(公里|经路|纬路|经街|纬街|马路|路段|矿区|社区|组村|队组|组组|职高|职中|层楼|门面|单元|[职委米条轮船道路弄街口里亩线层楼栋幢段桥井闸渠河沟江坝村区片门台房田居营连排])',
                   types.tags_NS, __nu_rec.__func__),
-                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号號]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|包房|站点|坊厅|站台)', types.tags_NO, __nu_rec.__func__),
+                 (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号號]?)(营部|院区|柜组|部队|煤矿|船队|茶楼|包房|站点|坊厅|站台|联队)', types.tags_NO, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{1,7}}[号號]?)(工区|分号|仓库|库房|支部|校区|[分]?[团校院馆局会矿场社所部处坊店园摊厂铺站园亭厅仓库])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐新老大小东西南北]*[{nnp.num_re}]{{0,7}}[号號分中小]*[组队])', types.tags_NB, __nu_rec.__func__),
                  (f'([第笫苐农兵]*[{nnp.num_re}]{{1,7}}[师])([零一二三四五六七八九十]+团)?', types.tags_NS, __nu_rec.__func__), ]
@@ -161,7 +161,7 @@ class nt_parser_t:
                 return pos - 1
 
             w_nexts = {'工区', '分号', '部队', '公里', '马路', '矿区', '社区', '号仓', '分钟', '小时', '职高', '大道', '院区', '支部', '号店', '船队', '号楼', '分场',
-                       '路段', '分店', '分仓', '站点', '仓库', '库房', '坊厅', '号库', '校区', '号闸', '号厅', '号亭', '号铺', '号坊', '门面', '站台'}
+                       '路段', '分店', '分仓', '站点', '仓库', '库房', '坊厅', '号库', '校区', '号闸', '号厅', '号亭', '号铺', '号坊', '门面', '站台', '单元'}
 
             if txt[pos + 1:pos + 3] in w_nexts:
                 return pos + 3
@@ -850,9 +850,9 @@ class nt_parser_t:
                         rst[-1] = (pseg[0], seg[1], seg[2])
                         return True  # 前后相连的特定单字前缀
 
-                if pseg[1] - pseg[0] <= 3 and line_txt[seg[0]:seg[1]] in {'大学', '中学', '小学', '学校', '省委', '市委', '区委', '县委'}:
-                    rst[-1] = (pseg[0], seg[1], seg[2])  # 前后连接特定类型可合并: "东北|大学","北京|大学"
-                    return True
+                # if pseg[1] - pseg[0] <= 3 and line_txt[seg[0]:seg[1]] in {'大学', '中学', '小学', '学校', '省委', '市委', '区委', '县委'}:
+                #     rst[-1] = (pseg[0], seg[1], seg[2])  # 前后连接特定类型可合并: "东北|大学","北京|大学"
+                #     return True
 
                 if pseg[1] - pseg[0] <= 2 and seg[1] - seg[0] <= 2 and pseg[2] & {types.NU} and seg[2] & {types.NB}:
                     rst[-1] = (pseg[0], seg[1], seg[2])
@@ -1177,6 +1177,8 @@ class nt_parser_t:
                             return True  # 特定长词,丢弃覆盖的前段
                         if plen == 1 < slen and seg[2] & {types.NS}:
                             return True  # 北|北京,丢弃前段
+                        if rstlen == 1 and plen == 1 and pseg[2] & {types.NO}:
+                            return True  # 所|所苏,丢弃前段
                     if seg[0] < pseg[0] and pseg[1] < seg[1]:
                         if slen >= 6 and plen <= 4:
                             return True  # 长段包含短段,丢弃短段
@@ -1218,6 +1220,9 @@ class nt_parser_t:
                             oseg = rst[rstlen - pi]  # 重要分段前面连接着特征尾缀
                             if oseg[1] - oseg[0] >= 2 and oseg[2] & {types.NM, types.NO, types.NB, types.NZ, types.NS} and not pseg[2] & {types.NZ, types.NH}:
                                 return True  #
+                    if fseg[0] == seg[0] and slen - flen >= 2 and seg[2] & {types.NZ, types.NS} and txt[fseg[0]:fseg[1]] in {'中心'}:
+                        rst.pop(-2)  # 中心|中心城区,丢弃前段
+                        return False
 
                 if rstlen >= 3:
                     f3 = rst[-3]
@@ -1417,7 +1422,7 @@ class nt_parser_t:
         def chk_errs(i, seg):
             """检查当前段是否为错误切分.如'师范学院路'->师范学院/学院路->师范/学院路,此时的'师范'仍是NM,但明显是错误的."""
             if seg[1] - seg[0] >= 2 and {types.NU, types.NL}.isdisjoint(seg[2]) and types.equ(seg[2], types.tags_NM):
-                brt = is_brackets(seg)
+                brt = is_brackets(seg) or (name[seg[0]] == name[seg[1] - 1] and name[seg[0]] in {'"', "'"})
                 if brt:
                     txt = name[seg[0] + brt:seg[1] - brt]
                 else:
