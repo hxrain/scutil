@@ -128,9 +128,10 @@ class tree_paths_t:
             """根据前分段pseg与当前段cseg,分析得到cseg的基准分"""
             csegt = tree_paths_t.score_maps[types.tag(cseg[2])]
             cseg_len = cseg[1] - cseg[0]
+            pseg_len = pseg[1] - pseg[0]
             assert cseg[1] <= txt_len
 
-            if cseg_len >= 6:
+            if cseg_len >= 6 and not cseg[2] & {types.NO, types.NM, types.NB}:
                 csegt += 1  # 足够长的特定类别分段,升分级
             elif cseg_len >= 4 and cseg[2] & {types.NN, types.NH}:
                 csegt += 1  # 足够长的特定类别分段,升分级
@@ -142,8 +143,9 @@ class tree_paths_t:
                 csegt = tree_paths_t.score_maps['A'] - 1  # 弱化'镇英'等地名前缀双字词汇的标准分
             elif cseg_len == 2 and txt[cseg[0]] in std_ns_tails and cseg[2] & {types.NZ, types.NH} and types.NS in pseg[2]:
                 csegt += 1  # "枣庄|市立",升分级
-            elif cseg_len <= 3 and pseg[1] == cseg[0] and cseg[2] & {types.NZ, types.NH} and pseg[2] & {types.NO, types.NM, types.NB}:
-                csegt += 1  # "小学|校园",升分级
+            elif cseg_len <= 3 and pseg[1] == cseg[0] and pseg_len >= 2 and cseg[2] & {types.NZ, types.NH} and pseg[2] & {types.NO, types.NM, types.NB}:
+                if left_seg(segs, nidx, pseg[0], cseg[0] + 1, {types.NO, types.NM, types.NB}):
+                    csegt += 1  # "小学|校园",升分级
             elif cseg_len >= 3 and txt[cseg[1] - 1] in ext_tail_chars and cseg[2] & {types.NA, types.NN}:
                 csegt = tree_paths_t.score_maps['N'] + 1  # 强化'王七店'等NT尾缀特征三字词汇的标准分
             elif cseg_len == 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in std_ns_tails:
@@ -178,12 +180,15 @@ class tree_paths_t:
                     ds = 0
                 elif seg[2] & {types.NA, types.NU, types.NN, types.NH} and nseg[2] & {types.NA, types.NU, types.NN, types.NH}:
                     ds = 0
-                elif not seg[2] & {types.NB} and nseg[2] & {types.NM, types.NO, types.NB}:
+                elif (seg_len >= 3 and seg[2] & {types.NZ, types.NH, types.NS} or seg_len >= 4 and seg[2] & {types.NN}) and nseg[2] & {types.NM, types.NO, types.NB}:
                     ds = 0
-                    # ns = nseg_len * nsegt - cr_len * segt - 1
-                    # ns = (nseg[1] - seg[1]) * nsegt
-                    st = tree_paths_t.score_maps[types.tag(seg[2])]
-                    ns = ts_len * nsegt - seg_len * st -2
+                    # st = tree_paths_t.score_maps[types.tag(seg[2])]
+                    # ns = ts_len * nsegt - seg_len * st - 3
+                    t_st, _ = score_std((seg[0], seg[0], types.tags_NX), seg)
+                    t_nt, _ = score_std((seg[0], seg[0], types.tags_NX), (seg[0], nseg[1], nseg[2]))
+                    ns = ts_len * t_nt - seg_len * t_st
+                    if (seg_len >= 3 and seg[2] & {types.NZ, types.NS}) or seg_len >= 4 and seg[2] & {types.NH}:
+                        ns += 5
                 else:
                     ds = cr_len * 2
             elif cr_len == 1:
@@ -195,7 +200,8 @@ class tree_paths_t:
                     ds = 0
                 elif ts_len <= 6 and seg[2] & {types.NA, types.NN, types.NU} and nseg[2] & {types.NA, types.NN, types.NU}:
                     ds = 0  # 特定双段相交不扣分:(NA,NU,NN)&(NA,NU,NN)
-                    ns = ts_len * max(segt, nsegt) - seg_len * segt
+                    st = max(tree_paths_t.score_maps[types.tag(seg[2])], tree_paths_t.score_maps[types.tag(nseg[2])])
+                    ns = ts_len * st - seg_len * segt
                 elif ts_len >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
                     ds = 0  # 特定双段相交不扣分:NU&(NB,NO)
                     ns = nseg_len * nsegt - segt
@@ -212,14 +218,14 @@ class tree_paths_t:
                     # 市市/村村/镇镇...,可以交叉合并:泊头市|市市
                     ds = 2 if nidx is None else 0  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
                     ns = nsegt - 1  # 出现了弱化单字,少给一分
-                elif {types.NS, types.NH} & seg[2] and nseg_len == 2 and nword in {'县城', '区域', '村中', '镇中', '市府', '街道'}:
+                elif {types.NS, types.NH} & seg[2] and nseg_len == 2 and nword in {'县城', '区域', '村中', '镇中', '市府', '街道', '镇郊'}:
                     ds = 0  # 特定地名交叉合并,不扣分
                 elif types.NS in seg[2] and nseg_len == 2 and nword[0] in std_ns_tails and nseg[2] & {types.NN, types.NA}:
                     if nidx is None:
                         ds = 2  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
                     elif find_right(segs, nseg, nidx + 1, tags={types.NM, types.NO, types.NB}):
                         ds = 0
-                        ns = nsegt - 1  # 特定交叉单字少给分
+                        ns = nsegt - 2  # 特定交叉单字少给分
                     else:
                         ds = 1  # '龙镇|镇英'后面不是MOB,扣分
                         ns = nsegt - 3  # 特定交叉单字少给分
@@ -244,7 +250,7 @@ class tree_paths_t:
         else:  # 前后相邻
             if nseg_len == 1 and types.NO in nseg[2] and pseg[1] <= seg[0]:
                 # 前段非交叉,当前段单字尾缀合并的时候,重新整体计算
-                ns = (nseg[1] - seg[0]) * nsegt - seg_len * segt + 1
+                ns = (nseg[1] - seg[0]) * nsegt - seg_len * segt
             elif seg_len <= 2 and txt[seg[1] - 1] not in std_ns_tails and txt[nseg[0]] in std_ns_tails:
                 if left_seg(segs, nidx, seg[0], nseg[0] + 1, types.tags_NS):
                     if nseg[2] & {types.NH, }:
@@ -510,7 +516,7 @@ class tree_paths_t:
                 if e1.total[0] - e0.total[0] >= 5:
                     return e1  # 第二候选评分比第一候选大很多,选第二个
 
-                if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA, types.NS} and n1[2] & {types.NO, types.NB, types.NM}:
+                if e1.total[0] + 4 >= e0.total[0] and n0[2] & {types.NA, types.NN, types.NS} and n1[2] & {types.NO, types.NB, types.NM}:
                     return e1  # 第一候选不是MOB但第二候选是,选第二个
 
             if e1.total[1] <= 2 and e1.deep <= e0.deep:  # 第二候选有扣分
