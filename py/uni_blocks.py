@@ -306,8 +306,6 @@ def sbccase_to_ascii_str(u, retain_CRFL=False):
     return ''.join([sbccase_to_ascii(ch, retain_CRFL) for ch in u])
 
 
-
-
 # 强制进行中文符号到英文符号的映射
 _SBC_CHR_CONV_TBL = {'【': '[', '】': ']', '『': '<', '』': '>', '《': '<', '》': '>', '﹙': '(', '﹚': ')', '〔': '[', '〕': ']', '«': '<', '»': '>', '〈': '<', '〉': '>', '：': ':',
                      '—': '-', '━': '-', '∶': ':', '〇': '0', '‘': "'", '’': "'", '＋': '+', '“': '"', '”': '"', '″': '"', '＆': '&', '％': '%', '！': '!', '―': '-', '〖': '<', '〗': '>'}
@@ -973,3 +971,88 @@ assert filter_segs('1234567890', [(0, 3), (5, 7)]) == '***45**890'
 assert filter_segs('1234567890', [(1, 3), (5, 7)]) == '1**45**890'
 assert filter_segs('1234567890', [(2, 3), (5, 10)]) == '12*45*****'
 
+NUM_MAP_HZU = {'0': '零', '1': '壹', '2': '贰', '3': '叁', '4': '肆', '5': '伍', '6': '陆', '7': '柒', '8': '捌', '9': '玖',
+               10: '', 11: '拾', 12: '佰', 13: '仟', 14: '万', 15: '拾万', 16: '佰万', 17: '仟万', 18: '亿', 19: '拾亿', 20: '佰亿', 21: '仟亿', 22: '万亿'}
+NUM_MAP_HZL = {'0': '零', '1': '一', '2': '二', '3': '三', '4': '四', '5': '五', '6': '六', '7': '七', '8': '八', '9': '九',
+               10: '', 11: '十', 12: '百', 13: '千', 14: '万', 15: '十万', 16: '百万', 17: '千万', 18: '亿', 19: '十亿', 20: '百亿', 21: '千亿', 22: '万亿'}
+NUM_MAP_HZL0 = {'0': '0', '1': '一', '2': '二', '3': '三', '4': '四', '5': '五', '6': '六', '7': '七', '8': '八', '9': '九',
+                10: '', 11: '十', 12: '百', 13: '千', 14: '万', 15: '十万', 16: '百万', 17: '千万', 18: '亿', 19: '十亿', 20: '百亿', 21: '千亿', 22: '万亿'}
+
+
+def num2hz(num, num_map, with_unit=True, skip10=False):
+    """将阿拉伯数字转化为中式数字
+        num: 待转化数字
+        num_map: 数字与单位映射表
+        with_unit: 是否生成带有单位的中文数字
+        skip10: 是否跳过1x数字生成后的前缀'一'
+    """
+    if num < 0:
+        return '负' + num2hz(-num, num_map, with_unit)
+
+    def _int_part(num_str):
+        result = []
+        length = len(num_str)
+        for i in range(length):
+            digit = num_str[i]
+            if digit != '0':
+                if not (length == 2 and i == 0 and digit == '1' and skip10 and with_unit):
+                    result.append(num_map[digit])
+                if with_unit:
+                    unit = num_map[10 + length - 1 - i]
+                    if unit:
+                        result.append(unit)
+            elif not result or result[-1] != num_map['0'] or not with_unit:
+                result.append(num_map['0'])
+
+        if num_str != '0' and result[-1] == num_map['0'] and with_unit:
+            result.pop(-1)
+
+        return ''.join(result)
+
+    def _dec_part(num_str):
+        result = []
+        for digit in num_str:
+            result.append(num_map[digit])
+        return ''.join(result)
+
+    num_str = str(num)
+    if '.' in num_str:
+        integer_part, decimal_part = num_str.split('.')
+        result = _int_part(integer_part) + '点' + _dec_part(decimal_part)
+    else:
+        result = _int_part(num_str)
+    return result
+
+
+def make_num2hz(start, end, num_map, with_unit=True, skip10=False):
+    """将指[start,end]定范围的数字,按要求转换为对应的汉语数字"""
+    rst = []
+    for num in range(start, end + 1):
+        rst.append(num2hz(num, num_map, with_unit, skip10))
+    return rst
+
+
+def make_str_combs(cb, tag, *cols):
+    """生成多个列表串*cols的全排列结果,并调用cb进行处理.
+        返回值:组合结果的数量
+    """
+    rc = 0
+    end = len(cols) - 1
+
+    def loop(combs):
+        nonlocal rc
+        deep = len(combs)
+        if deep == end:
+            for v in cols[deep]:
+                combs.append(v)
+                cb(combs, tag)
+                rc += 1
+                combs.pop(-1)
+        else:
+            for v in cols[deep]:
+                combs.append(v)
+                loop(combs)
+                combs.pop(-1)
+
+    loop([])
+    return rc
