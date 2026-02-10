@@ -2,7 +2,11 @@ from nlp_ner_data import types
 from nlp_ner_data import nt_tail_chars
 
 # 数字序号基础模式
-num_cn = {'零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '幺', '壹', '贰', '貮', '貳', '弍', '叁', '仨', '肆', '伍', '陆', '陸', '柒', '捌', '玖', '拾', '百', '千', '仟', '万', '两', '参', '佰', '伯'}
+num_chars = {'零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
+             '壹', '贰', '仨', '肆', '伍', '陆', '陸', '柒', '捌', '玖', '拾',
+             '幺', '两', '貮', '貳', '弍', '叁', '参',
+             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
+num_cn = num_chars.union({'百', '千', '仟', '万', '佰', '伯'})
 num_zh = f'甲乙丙丁戊己庚辛壬癸丑寅卯辰巳午未申酉戌亥廿卅什'
 num_re = rf'A-Z×&+○O\dIⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ{num_zh}{"".join(num_cn)}'
 
@@ -77,8 +81,9 @@ class tree_paths_t:
         def __repr__(self):
             return f"total: {self.total}, deep: {self.deep}, variance: {self.variance}"
 
-    score_maps = {'X': 0, 'U': 5, 'A': 5, 'N': 6, 'H': 7, 'S': 8, 'Z': 8, 'O': 8, 'B': 8, 'M': 9, 'L': 9, }
+    score_maps = {'X': 0, 'U': 5, 'A': 5, 'N': 6, 'H': 7, 'S': 8, 'Z': 8, 'O': 8, 'B': 9, 'M': 9, 'L': 9, }
     unchars = {'(', ')', '<', '>', '"', "'"}
+    std_ns_tails = {'省', '市', '区', '县', '乡', '镇', '村', }
 
     def __init__(self):
         self.clear()
@@ -118,7 +123,7 @@ class tree_paths_t:
 
         # 根据分段类型得到积分标准
         txt_len = len(txt)
-        std_ns_tails = {'省', '市', '区', '县', '乡', '镇', '村', }
+        # NT尾缀单字特征集合
         ext_tail_chars = {'城', '店', '馆', '站', '庄', '市', '台', '行', '堂', '苑', '房', '铺', '间', '园', '厅', '所', '院', '部', '委', '府', '协', '办', '处', '矿', '厂', '场',
                           '柜', '家', '坊', '屋', '社', '吧', '会', '汇', '廊', '轩', '阁', '点', '亭', '楼', '乐', '荘', '班', '局', '栈', '室', '棚', '寺', '摊', '舍', '团', '库',
                           '校', '斋', '队', '仓', '科', '宫', '床', '档', '户', '组', '区', '段', '位', '池', '圃', '堡', '挡', '莊', '都', '界', '埸', '港', '号', '塘', '居', '座',
@@ -139,16 +144,16 @@ class tree_paths_t:
                 csegt += 1
             elif cseg_len >= 3 and cseg[2] & {types.NZ} and pseg[1] - cseg[0] <= 1:
                 csegt += 1
-            elif cseg_len == 2 and pseg[1] - cseg[0] == 1 and txt[cseg[0]] in std_ns_tails and cseg[2] & {types.NA, types.NN}:
+            elif cseg_len == 2 and pseg[1] - cseg[0] == 1 and txt[cseg[0]] in tree_paths_t.std_ns_tails and cseg[2] & {types.NA, types.NN}:
                 csegt = tree_paths_t.score_maps['A'] - 1  # 弱化'镇英'等地名前缀双字词汇的标准分
-            elif cseg_len == 2 and txt[cseg[0]] in std_ns_tails and cseg[2] & {types.NZ, types.NH} and types.NS in pseg[2]:
+            elif cseg_len == 2 and txt[cseg[0]] in tree_paths_t.std_ns_tails and cseg[2] & {types.NZ, types.NH} and types.NS in pseg[2]:
                 csegt += 1  # "枣庄|市立",升分级
             elif cseg_len <= 3 and pseg[1] == cseg[0] and pseg_len >= 2 and cseg[2] & {types.NZ, types.NH} and pseg[2] & {types.NO, types.NM, types.NB}:
                 if left_seg(segs, nidx, pseg[0], cseg[0] + 1, {types.NO, types.NM, types.NB}):
                     csegt += 1  # "小学|校园",升分级
             elif cseg_len >= 3 and txt[cseg[1] - 1] in ext_tail_chars and cseg[2] & {types.NA, types.NN}:
                 csegt = tree_paths_t.score_maps['N'] + 1  # 强化'王七店'等NT尾缀特征三字词汇的标准分
-            elif cseg_len == 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in std_ns_tails:
+            elif cseg_len == 3 and cseg[1] < txt_len and cseg[2] & {types.NS, } and txt[cseg[1] - 1] in tree_paths_t.std_ns_tails:
                 csegt += 1  # 带有完整地名尾缀特征字的分段,升分级
 
             return csegt, cseg_len
@@ -178,12 +183,13 @@ class tree_paths_t:
                     ds = 0
                 elif seg[2] & {types.NN, types.NH} and nseg[2] & {types.NZ, types.NH} and txt[seg[0]] in {'新'}:
                     ds = 0
+                elif seg[2] & {types.NU, } and nseg[2] & {types.NO, types.NB}:
+                    ds = 0
+                    ns = nsegt * ts_len - seg_len * segt
                 elif seg[2] & {types.NA, types.NU, types.NN, types.NH} and nseg[2] & {types.NA, types.NU, types.NN, types.NH}:
                     ds = 0
                 elif (seg_len >= 3 and seg[2] & {types.NZ, types.NH, types.NS} or seg_len >= 4 and seg[2] & {types.NN}) and nseg[2] & {types.NM, types.NO, types.NB}:
                     ds = 0
-                    # st = tree_paths_t.score_maps[types.tag(seg[2])]
-                    # ns = ts_len * nsegt - seg_len * st - 3
                     t_st, _ = score_std((seg[0], seg[0], types.tags_NX), seg)
                     t_nt, _ = score_std((seg[0], seg[0], types.tags_NX), (seg[0], nseg[1], nseg[2]))
                     ns = ts_len * t_nt - seg_len * t_st
@@ -204,23 +210,28 @@ class tree_paths_t:
                     ns = ts_len * st - seg_len * segt
                 elif ts_len >= 3 and seg[2] & {types.NU} and nseg[2] & {types.NB, types.NO}:
                     ds = 0  # 特定双段相交不扣分:NU&(NB,NO)
-                    ns = nseg_len * nsegt - segt
-                elif ts_len >= 3 and seg[2] & {types.NA} and nseg[2] & {types.NO} and txt[seg[0]] in num_cn:
-                    ds = 0  # 特定双段相交不扣分:NA&(NB,NO) 且 NA的首字是数字
-                    ns = nseg_len * nsegt - segt - 1
+                    if nidx is None and txt[nseg[0]] in {'分'}:
+                        ds = 2  # 后期合并时,特殊情况要求分开
+                    ns = nsegt * ts_len - seg_len * segt - 2  # 降分是为了避免NU|NB得分低而被丢弃
+                elif nseg_len == 2 and seg[2] & {types.NN, types.NH, types.NS} and nseg[2] & {types.NO, } and txt[nseg[0]] in {'东', '南', '西', '北'}:
+                    ds = 0
+                    ns = nsegt * ts_len - seg_len * segt
+                # elif ts_len >= 3 and seg[2] & {types.NA} and nseg[2] & {types.NO} and txt[seg[0]] in num_cn:
+                #     ds = 0  # 特定双段相交不扣分:NA&(NB,NO) 且 NA的首字是数字
+                #     ns = nseg_len * nsegt - segt - 1
                 elif nidx and nidx > 2 and seg[0] and nseg_len >= 3 and left_break(segs, seg) and txt[seg[0] - 1] not in tree_paths_t.unchars:
                     ds = 0  # 特殊情况:seg与nseg相交,而seg的前面是未知分段,则尽量保留更长的nseg分段
                     ns = nseg_len * nsegt
                 elif seg[2] & {types.NO, types.NM} and nseg_len <= 2 and not left_seg(segs, nidx, seg[0], seg[1] - 1, {types.NM, types.NO, types.NB}) and nidx == len(segs) - 1:
                     ds = 0  # 存在干扰的情况下,如果:"研究室|室室",相交不扣分,但降低nseg得分
                     ns = (nseg_len - 1) * nsegt - 1
-                elif types.NS in seg[2] and nseg_len == 2 and nword[0] == nword[1] and nword[0] in std_ns_tails:
+                elif types.NS in seg[2] and nseg_len == 2 and nword[0] == nword[1] and nword[0] in tree_paths_t.std_ns_tails:
                     # 市市/村村/镇镇...,可以交叉合并:泊头市|市市
                     ds = 2 if nidx is None else 0  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
                     ns = nsegt - 1  # 出现了弱化单字,少给一分
                 elif {types.NS, types.NH} & seg[2] and nseg_len == 2 and nword in {'县城', '区域', '村中', '镇中', '市府', '街道', '镇郊'}:
                     ds = 0  # 特定地名交叉合并,不扣分
-                elif types.NS in seg[2] and nseg_len == 2 and nword[0] in std_ns_tails and nseg[2] & {types.NN, types.NA}:
+                elif types.NS in seg[2] and nseg_len == 2 and nword[0] in tree_paths_t.std_ns_tails and nseg[2] & {types.NN, types.NA}:
                     if nidx is None:
                         ds = 2  # 在后期合并判断时,要求分隔开;在前期路径分析时,允许合并
                     elif find_right(segs, nseg, nidx + 1, tags={types.NM, types.NO, types.NB}):
@@ -251,7 +262,7 @@ class tree_paths_t:
             if nseg_len == 1 and types.NO in nseg[2] and pseg[1] <= seg[0]:
                 # 前段非交叉,当前段单字尾缀合并的时候,重新整体计算
                 ns = (nseg[1] - seg[0]) * nsegt - seg_len * segt
-            elif seg_len <= 2 and txt[seg[1] - 1] not in std_ns_tails and txt[nseg[0]] in std_ns_tails:
+            elif seg_len <= 2 and txt[seg[1] - 1] not in tree_paths_t.std_ns_tails and txt[nseg[0]] in tree_paths_t.std_ns_tails:
                 if left_seg(segs, nidx, seg[0], nseg[0] + 1, types.tags_NS):
                     if nseg[2] & {types.NH, }:
                         ds = 1  # '迎泽|区羲',模式不推荐; '迎泽区|区羲'模式允许
