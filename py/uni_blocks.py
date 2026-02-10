@@ -980,7 +980,7 @@ NUM_MAP_HZL0 = {'0': '0', '1': '一', '2': '二', '3': '三', '4': '四', '5': '
 
 
 def num2hz(num, num_map, with_unit=True, skip10=False):
-    """将阿拉伯数字转化为中式数字
+    """将阿拉伯数字转化为中式数字串
         num: 待转化数字
         num_map: 数字与单位映射表
         with_unit: 是否生成带有单位的中文数字
@@ -995,7 +995,7 @@ def num2hz(num, num_map, with_unit=True, skip10=False):
         for i in range(length):
             digit = num_str[i]
             if digit != '0':
-                if not (length == 2 and i == 0 and digit == '1' and skip10 and with_unit):
+                if not (length in {2, 6} and i == 0 and digit == '1' and skip10 and with_unit):
                     result.append(num_map[digit])
                 if with_unit:
                     unit = num_map[10 + length - 1 - i]
@@ -1025,7 +1025,7 @@ def num2hz(num, num_map, with_unit=True, skip10=False):
 
 
 def make_num2hz(start, end, num_map, with_unit=True, skip10=False):
-    """将指[start,end]定范围的数字,按要求转换为对应的汉语数字"""
+    """将指[start,end]定范围的数字,按要求转换为对应的汉语数字串列表"""
     rst = []
     for num in range(start, end + 1):
         rst.append(num2hz(num, num_map, with_unit, skip10))
