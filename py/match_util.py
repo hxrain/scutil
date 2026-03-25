@@ -358,14 +358,15 @@ def merge_match_segs(mres, keepback=False):
     return rst
 
 
-def complete_segs(mres, slen, isfull=False, segs=None, ext=None, cb=None):
+def complete_segs(mres, slen, isfull=False, rst=None, ext=None, cb=None):
     """在总长度为slen的范围内,获取mres分段列表中未包含的部分,或isfull完整列表
         返回值:[(b,e,v)],rc
-        v is None - 未匹配段
-        rc告知未匹配段的数量
+            v is None - 未匹配段
+            rc告知未匹配段的数量
     """
     pos = 0
-    rst = [] if segs is None else segs
+    if rst is None:
+        rst = []
     rc = 0
 
     for seg in mres:
