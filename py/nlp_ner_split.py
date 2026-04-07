@@ -306,14 +306,19 @@ class wild_spliter_t:
 
     def dict_add(self, pair, exres=None):
         """添加词对儿pair和对应的扩展re表达式.返回值:None正常;其他为重复的组号"""
-        assert (len(pair) == 2)
+        assert (len(pair) == 2), 'MUST IS TWO SEGS RULE.'
+
         grpno = len(self.pairs)  # 用当前已有数量作为新的组号
         self.pairs[grpno] = (pair, exres)  # 绑定组号与对应词列表
+        ocs = []
         for s in pair:  # 记录词汇,组号放入集合便于合并不同组别的相同词汇
             rst, old = self.matcher.dict_add(s, {grpno})
             if not rst:
+                ocs.append(set(old))
                 old.add(grpno)
                 self.matcher.dict_add(s, old)
+        if len(ocs) == 2 and ocs[0] & ocs[1]:
+            print(f"WILD RULE REP: {pair}")
         return None
 
     def dict_hold(self, word):
@@ -430,8 +435,8 @@ class text_spliter_t:
     """文本复合分割器."""
 
     def __init__(self):
-        self.wild_spliter = wild_spliter_t()
-        self.word_spliter = word_spliter_t()
+        self.wild_spliter = wild_spliter_t()  # 跨段匹配器
+        self.word_spliter = word_spliter_t()  # 分词匹配器
 
     def load(self, fname, isend=True, encoding='utf-8'):
         """装载规则文件.返回值:''正常,其他为错误信息."""
@@ -484,33 +489,27 @@ class text_spliter_t:
                         chk(txt, txt, i)
                         self.word_spliter.dict_add(txt)
         except Exception as e:
-            return str(e)
+            return f"text_spliter_t RULES LOAD ERROR:{str(e)}"
 
         if isend:
             self.wild_spliter.dict_end()
             self.word_spliter.dict_end()
         return ''
 
-    def split0(self, txt, with_space=''):
-        """对txt进行分段.返回值:[分段字符串,...]"""
-        rst_strs = []
-        rst_segs = []
-        segs1, strs1 = self.word_spliter.split(txt, with_space)
-        for seg in segs1:
-            if seg[2] is None:
-                s = txt[seg[0]:seg[1]]
-                segs2, strs2 = self.wild_spliter.split(s, with_space)
-                rst_strs.extend(strs2)
-                for seg2 in segs2:
-                    rst_segs.append((seg[0] + seg2[0], seg[0] + seg2[1], seg2[2]))
-            else:
-                rst_segs.append(seg)
-        return rst_segs, rst_strs
-
-    def split(self, txt, with_space=' '):
-        """对txt进行分段.返回值:[分段字符串,...]"""
+    def split(self, txt, tiny_split=False, with_space=' '):
+        """对txt进行分段.
+                tiny_split - 是否内部进行标点分段
+                with_space - 对分割部分进行空白字符替换
+            返回值: [分段信息,...],[分段字符串,...]
+        """
         rst_segs = []  # 最终返回的分割段列表
         rst_strs = []  # 分割段对应的字符串列表
+
+        if tiny_split:
+            segs0, strs0 = tiny_text_split(txt)  # 按标点分割
+        else:
+            segs0 = [(0, len(txt), None)]
+            strs0 = [txt]
 
         def adj_debar_match(segs, txt, strs):
             """尝试调整切割分段列表中出现的跨段且需保护的部分,比如'{关于*的}'不能破坏'关于它的!'"""
@@ -579,7 +578,6 @@ class text_spliter_t:
                 segs[pos] = (cseg[0], nseg[1], None)
                 segs.pop(pos + 1)
 
-        segs0, strs0 = tiny_text_split(txt)  # 按标点分割
         for i0, seg0 in enumerate(segs0):
             if seg0[2] is None and mu.slen(seg0) >= 3:  # 非标点分段
                 # 进行跨段分割
