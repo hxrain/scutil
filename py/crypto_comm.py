@@ -20,7 +20,7 @@ class padding:
     def _pkcs7_padding(self, s):
         """pkcs7填充"""
         pad_len = self.block_size - len(s) % self.block_size
-        return s + pad_len * chr(pad_len).encode('latin-1')
+        return s + bytes([pad_len] * pad_len)
 
     def _pkcs7_unpadding(self, s):
         """pkcs7去除填充"""
