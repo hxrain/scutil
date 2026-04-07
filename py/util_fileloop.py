@@ -2,7 +2,7 @@ import util_base as ub
 from tqdm import tqdm
 import sys
 
-def file_loop(src, cb, title, src_encode='utf-8', bats=1, igs_cb=None):
+def file_loop(src, cb, title, src_encode='utf-8', bats=1, igs_cb=None,cln_cb=None):
     """循环处理过程的扩展,基于文件尺寸进行进度条的显示
         src: 文件名,或util_base.read_lines_t对象
         cb: 处理文件内容的回调函数
@@ -29,7 +29,10 @@ def file_loop(src, cb, title, src_encode='utf-8', bats=1, igs_cb=None):
         igs_cb = _igs_cb
 
     def cb_warp(line, row):
-        txt = nns.ner_chars_clean(line.strip())
+        txt = line.strip()
+        if cln_cb:
+            txt=cln_cb(txt)
+
         if row % 100 == 0:
             progs.update(feat.eat())
         if igs_cb(txt, row):
@@ -44,7 +47,9 @@ def file_loop(src, cb, title, src_encode='utf-8', bats=1, igs_cb=None):
 
     def cb_warps(line, row):
         nonlocal cache, rows
-        txt = nns.ner_chars_clean(line.strip())
+        txt = line.strip()
+        if cln_cb:
+            txt=cln_cb(txt)
         if row % 100 == 0:
             progs.update(feat.eat())
         if igs_cb(txt, row):
