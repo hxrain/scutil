@@ -446,8 +446,8 @@ class read_lines_t:
 
     def open(self, fname, encoding='utf-8'):
         try:
-            self.fp = open(fname, 'r', encoding=encoding)
             self.fname = fname
+            self.fp = open(fname, 'r', encoding=encoding)
             return ''
         except Exception as e:
             self.fp = None
