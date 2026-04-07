@@ -253,12 +253,14 @@ class nt_parser_t:
                 for name in alst:
                     tags = lvls[lvl]
                     self.add_word(name, ns_tags(name, True))  # 进行动态类型计算
-                    if len(name) <= 5:
-                        self.add_word('驻' + name, tags)  # 增加驻地名称模式
+                    self.add_word(f'({name})', tags)  # 增加括号地名模式
+                    if len(name) <= 10:
+                        self.add_word(f'驻{name}', tags)  # 增加驻地名称模式
                     aname = cai.drop_area_tail(name)
                     if name != aname and aname not in nnd.nt_tail_datas:
                         tags = self.nsa_type_maps.get(aname, tags)  # 对内置地名的简称进行类型调整
-                        _, old = self.add_word(aname, tags)  # 特定尾缀地区名称,放入简称和初始类型
+                        _, old = self.add_word(f"({aname})", tags)  # 简化名称带着括号,放入简称和初始类型
+                        _, old = self.add_word(aname, tags)  # 简化地区名称,放入简称和初始类型
                         if old:
                             tmp = old.difference(tags).difference({types.NS1, types.NS2, types.NS3, })
                             if tmp and aname not in {'御道口牧场'}:
@@ -288,6 +290,7 @@ class nt_parser_t:
         if worlds and len(self.matcher.do_loop(None, '环太平洋')) != 4:
             for state in cai.map_worlds:
                 tags = self.nsa_type_maps.get(state, types.tags_NS)  # 对state地名进行类型调整
+                r, ot = self.add_word(f"({state})", tags)
                 r, ot = self.add_word(state, tags)
                 if not r:
                     print(f"nlp_ner_nt.load_ns state is repeat: {state} {ot}")
@@ -295,12 +298,14 @@ class nt_parser_t:
                 city = cai.map_worlds[state]
                 if city:
                     tags = self.nsa_type_maps.get(city, types.tags_NS1)  # 对city首都地名进行类型调整
+                    r, ot = self.add_word(f"({city})", tags)
                     r, ot = self.add_word(city, tags)
                     if not r:
                         print(f"nlp_ner_nt.load_ns city is repeat: {city} {ot}")
 
             areas = ['亚太', '东北亚', '东亚', '北美', '环太平洋', '欧洲', '亚洲', '美洲', '非洲', '印度洋', '太平洋', '大西洋', '北欧', '东欧', '西欧', '中亚', '南亚', '东南亚']
             for area in areas:
+                r, ot = self.add_word(f'({area})', types.tags_NS)
                 r, ot = self.add_word(area, types.tags_NS)
                 if not r:
                     print(f"nlp_ner_nt.load_ns area is repeat: {area} {ot}")
@@ -375,6 +380,10 @@ class nt_parser_t:
         """装载NO尾缀词典,返回值:''正常,否则为错误信息."""
         return self.__load(isend, fname, types.tags_NO, encode, chk_cb=self._chk_dict_words)
 
+    def load_x(self, fname, encode='utf-16', isend=False, tags=None):
+        """装载指定尾缀词典,返回值:''正常,否则为错误信息."""
+        return self.__load(isend, fname, tags, encode, chk_cb=self._chk_dict_words)
+
     def loads(self, dicts_list, path=None, with_end=True, dbginfo=False, encode='utf-16'):
         """统一装载词典列表dicts_list=[('类型','路径')].返回值:空串正常,否则为错误信息."""
         map = {"NS": self.load_ns, "NT": self.load_nt, "NZ": self.load_nz, "NN": self.load_nn, "NH": self.load_nh, "NA": self.load_na, "NU": self.load_nu, "NO": self.load_no, "SA": self.load_nsa}
@@ -438,11 +447,19 @@ class nt_parser_t:
 
             if bi is None or ei is None:
                 return bi, ei, False
+            
             for i in range(bi + 1, ei + 1):
                 pseg = segs[i - 1]
+                if pseg[2] & {types.NM, types.NO, types.NB}:
+                    return bi, ei, False  # 包含了MOB分段
                 seg = segs[i]
+                if seg[2] & {types.NM, types.NO, types.NB}:
+                    return bi, ei, False  # 包含了MOB分段
                 if pseg[1] < seg[0]:
                     return bi, ei, False  # 前后分段位置相离
+
+            if segs[ei][1] - segs[bi][0] >= 12:
+                return bi, ei, False  # 括号范围内容过长
             return bi, ei, True
 
         def _find_last_brk_seg(segs, pos):
@@ -1043,7 +1060,7 @@ class nt_parser_t:
                             rc += 1
                     return rc
 
-                bpos = _find_lefts(rst, rstlen - 1, {(seg[0] - 4, seg[0]),(seg[0] - 5, seg[0]),(seg[0] - 6, seg[0])}, {types.NS, types.NZ, types.NM, types.NO, types.NB})
+                bpos = _find_lefts(rst, rstlen - 1, {(seg[0] - 4, seg[0]), (seg[0] - 5, seg[0]), (seg[0] - 6, seg[0])}, {types.NS, types.NZ, types.NM, types.NO, types.NB})
                 if bpos is not None and _drop(rstlen - 1, bpos, seg):
                     return False  # '人民政府|城乡建设|总规划师',长段相邻时,丢弃中间的小段.
 
@@ -1140,8 +1157,8 @@ class nt_parser_t:
     def split(self, txt, mres=None, pres=None, fp_dbg=None, nres=None):
         '''在txt中拆分可能的组份段落
             mres - 记录参与匹配的原始词汇列表
-            pres - 记录匹配后预处理的词汇列表
-            nres - 可外部提供的最终结果存储列表
+            pres - 记录预处理后的词汇列表
+            nres - 记录最佳路径结果词汇列表
             返回值:分段列表nres,含有待处理的交叉分段
                 [(b,e,{types})]
         '''
@@ -1157,6 +1174,8 @@ class nt_parser_t:
                 seg = pos - node.words, pos, node.end
                 if mres is not None:
                     mres.append(seg)
+                if seg[2] == types.tags_NP:
+                    return  # 占位记号不参与后续匹配
                 while rst and self._can_drop(txt, rst, seg):
                     rst.pop(-1)  # 回溯,逐一踢掉旧结果
                 if self._can_rec(txt, rst, seg):
@@ -1178,7 +1197,7 @@ class nt_parser_t:
         self._merge_bracket(nres, txt)  # 合并附加括号
         return nres
 
-    def parse(self, nres, txt, merge_seg=True, rst=None):
+    def parse(self, txt, nres=None, merge_seg=True, rst=None):
         '''根据split拆分结果nres和txt,解析最终的分段结果.
             merge_seg - 告知是否合并同类分段
             rst - 补全空洞后的完整分段列表
@@ -1186,10 +1205,13 @@ class nt_parser_t:
         '''
         if not txt:
             return [], []
+        if nres is None:
+            nres = self.split(txt)
+
         rlst, clst = self._tidy_segs(self.matcher, nres, merge_seg, txt)  # 进行合并整理
-        if rst:
-            mu.complete_segs(rlst, len(txt), True, rst)[0]  # 补全中间的空洞分段
-        else:
+        if rst is None:
             rst = rlst
+        else:
+            mu.complete_segs(rlst, len(txt), True, rst)  # 补全中间的空洞分段
 
         return rst, clst
